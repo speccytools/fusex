@@ -41,7 +41,8 @@ ROMS = \
        roms/tc2068-1.rom \
        roms/se-0.rom \
        roms/se-1.rom \
-       roms/speccyboot-1.4.rom
+       roms/speccyboot-1.4.rom \
+       roms/spxromfs.bin
 
 pkgdata_DATA += $(ROMS)
 

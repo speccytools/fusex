@@ -85,9 +85,14 @@ fuse_SOURCES += \
                 peripherals/nic/spectranext_controller.c \
                 peripherals/nic/spectranext_stdout.c \
                 peripherals/fs/xfs.c \
+                peripherals/fs/xfs_compat.c \
                 peripherals/fs/xfs_worker.c \
                 peripherals/fs/xfs_fs.c \
+                peripherals/fs/xfs_overlay.c \
+                peripherals/fs/xfs_romfs.c \
+                peripherals/fs/ramfs.c \
                 peripherals/fs/xfs_https.c \
+                peripherals/fs/xfs_https_compat.c \
                 peripherals/http/httpc.c \
                 peripherals/http/http_sck.c \
                 peripherals/security/tls.c \

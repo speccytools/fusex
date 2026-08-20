@@ -101,7 +101,6 @@
 		B61F466009121DF100C8096C /* DebuggerController.m in Sources */ = {isa = PBXBuildFile; fileRef = B632C6AF03E5368700A864FD /* DebuggerController.m */; };
 		B61F466209121DF100C8096C /* FuseMenus.m in Sources */ = {isa = PBXBuildFile; fileRef = B66EA7840401075300A864FD /* FuseMenus.m */; };
 		B61F466309121DF100C8096C /* scaler.c in Sources */ = {isa = PBXBuildFile; fileRef = B63ABD8D042F175200A864FD /* scaler.c */; };
-		FEC5107A347A105100000001 /* snes_ntsc.c in Sources */ = {isa = PBXBuildFile; fileRef = FEC51079347A105100000001 /* snes_ntsc.c */; };
 		B61F466409121DF100C8096C /* tc2068.c in Sources */ = {isa = PBXBuildFile; fileRef = B6FEA44F0444C3370013916D /* tc2068.c */; };
 		B61F466509121DF100C8096C /* dck.c in Sources */ = {isa = PBXBuildFile; fileRef = B65E4C600445DB7D00A864FD /* dck.c */; };
 		B61F466709121DF100C8096C /* psg.c in Sources */ = {isa = PBXBuildFile; fileRef = B6CA304C049CEC410037E9F2 /* psg.c */; };
@@ -315,6 +314,10 @@
 		D15E8F95259F5C0C0006FC79 /* gdbserver.c in Sources */ = {isa = PBXBuildFile; fileRef = D15E8F91259F5C0B0006FC79 /* gdbserver.c */; };
 		D1DF6DD826F8077F004A4AB7 /* debug.png in Resources */ = {isa = PBXBuildFile; fileRef = D1DF6DD726F8077F004A4AB7 /* debug.png */; };
 		D1ECC73E2924069800147252 /* ttx2000s.c in Sources */ = {isa = PBXBuildFile; fileRef = D1ECC73D2924069800147252 /* ttx2000s.c */; };
+		FE0A0101301F000000000001 /* ramfs.c in Sources */ = {isa = PBXBuildFile; fileRef = FE0A0201301F000000000001 /* ramfs.c */; };
+		FE0A0102301F000000000001 /* xfs_overlay.c in Sources */ = {isa = PBXBuildFile; fileRef = FE0A0203301F000000000001 /* xfs_overlay.c */; };
+		FE0A0103301F000000000001 /* xfs_romfs.c in Sources */ = {isa = PBXBuildFile; fileRef = FE0A0204301F000000000001 /* xfs_romfs.c */; };
+		FE0A0104301F000000000001 /* ../roms/spxromfs.bin in Resources */ = {isa = PBXBuildFile; fileRef = FE0A0205301F000000000001 /* ../roms/spxromfs.bin */; };
 		FE2DAC5A2F328D96009AC45A /* xfs.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC592F328D96009AC45A /* xfs.c */; };
 		FE2DAC6C2F329E6D009AC45A /* xfs_fs.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC6A2F329E6D009AC45A /* xfs_fs.c */; };
 		FE2DAC6D2F329E6D009AC45A /* xfs_worker.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC6B2F329E6D009AC45A /* xfs_worker.c */; };
@@ -351,12 +354,16 @@
 		FEC02C9F2EEF65D6008277BA /* spectranext_controller.c in Sources */ = {isa = PBXBuildFile; fileRef = FEC02C9C2EEF65D5008277BA /* spectranext_controller.c */; };
 		FEC02CA02EEF65D6008277BA /* spectranext.h in Sources */ = {isa = PBXBuildFile; fileRef = FEC02C9D2EEF65D5008277BA /* spectranext.h */; };
 		FEC02CA12EEF65D6008277BA /* spectranext_controller.h in Sources */ = {isa = PBXBuildFile; fileRef = FEC02C9E2EEF65D6008277BA /* spectranext_controller.h */; };
+		FEC5107A347A105100000001 /* snes_ntsc.c in Sources */ = {isa = PBXBuildFile; fileRef = FEC51079347A105100000001 /* snes_ntsc.c */; };
 		FED23B142EE096F10013DD32 /* tls.c in Sources */ = {isa = PBXBuildFile; fileRef = FED23B122EE096F10013DD32 /* tls.c */; };
 		FED24C472EE104C60013DD32 /* mbedtls.framework in Copy Files */ = {isa = PBXBuildFile; fileRef = FED24C382EE1002B0013DD32 /* mbedtls.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		FED24C482EE104EB0013DD32 /* mbedtls.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FED24C382EE1002B0013DD32 /* mbedtls.framework */; };
 		FED24DE32EE108360013DD32 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FED24DE22EE108360013DD32 /* Security.framework */; };
 		FED24DE62EE10B590013DD32 /* dns_resolver.c in Sources */ = {isa = PBXBuildFile; fileRef = FED24DE42EE10B590013DD32 /* dns_resolver.c */; };
 		FED24DE72EE10B590013DD32 /* dns_processor.c in Sources */ = {isa = PBXBuildFile; fileRef = FED24DE52EE10B590013DD32 /* dns_processor.c */; };
+		FEFB7C20301EB52200F1CFEC /* xfs_https_compat.c in Sources */ = {isa = PBXBuildFile; fileRef = FEFB7C1F301EB52200F1CFEC /* xfs_https_compat.c */; };
+		FEFB7C22301EB52E00F1CFEC /* xfs_compat.c in Sources */ = {isa = PBXBuildFile; fileRef = FEFB7C21301EB52E00F1CFEC /* xfs_compat.c */; };
+		FEFB7C243023F19700F1CFEC /* scalers32.c in Sources */ = {isa = PBXBuildFile; fileRef = FEFB7C233023F19700F1CFEC /* scalers32.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXBuildRule section */
@@ -534,7 +541,6 @@
 		B639B7670A6BAFCF00927E24 /* csw.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = csw.icns; sourceTree = "<group>"; };
 		B639B7D00A6BB45600927E24 /* raw.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = raw.icns; sourceTree = "<group>"; };
 		B63ABD8D042F175200A864FD /* scaler.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = scaler.c; path = ../ui/scaler/scaler.c; sourceTree = SOURCE_ROOT; };
-		FEC51079347A105100000001 /* snes_ntsc.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = snes_ntsc.c; path = ../ui/scaler/snes_ntsc.c; sourceTree = SOURCE_ROOT; };
 		B63F9949077182B4004D6DFA /* RollbackController.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = RollbackController.h; path = controllers/RollbackController.h; sourceTree = SOURCE_ROOT; };
 		B63F994A077182B4004D6DFA /* RollbackController.m */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.objc; name = RollbackController.m; path = controllers/RollbackController.m; sourceTree = SOURCE_ROOT; };
 		B6403FD60A7E4B1A00E00B11 /* loader.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; path = loader.c; sourceTree = "<group>"; };
@@ -920,6 +926,11 @@
 		F5F291060396932B01730B00 /* Credits.html */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = text.html; path = Credits.html; sourceTree = "<group>"; };
 		F5F876370399540D011FA3A4 /* FuseController.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = FuseController.h; path = controllers/FuseController.h; sourceTree = SOURCE_ROOT; };
 		F5F876380399540D011FA3A4 /* FuseController.m */ = {isa = PBXFileReference; fileEncoding = 30; indentWidth = 2; lastKnownFileType = sourcecode.c.objc; name = FuseController.m; path = controllers/FuseController.m; sourceTree = SOURCE_ROOT; tabWidth = 2; };
+		FE0A0201301F000000000001 /* ramfs.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ramfs.c; sourceTree = "<group>"; };
+		FE0A0202301F000000000001 /* ramfs.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ramfs.h; sourceTree = "<group>"; };
+		FE0A0203301F000000000001 /* xfs_overlay.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = xfs_overlay.c; sourceTree = "<group>"; };
+		FE0A0204301F000000000001 /* xfs_romfs.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = xfs_romfs.c; sourceTree = "<group>"; };
+		FE0A0205301F000000000001 /* ../roms/spxromfs.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = ../roms/spxromfs.bin; sourceTree = SOURCE_ROOT; };
 		FE2DAC582F328D96009AC45A /* xfs.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = xfs.h; sourceTree = "<group>"; };
 		FE2DAC592F328D96009AC45A /* xfs.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = xfs.c; sourceTree = "<group>"; };
 		FE2DAC5C2F328DD5009AC45A /* xfs_engines.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = xfs_engines.h; sourceTree = "<group>"; };
@@ -976,6 +987,7 @@
 		FEC02C9C2EEF65D5008277BA /* spectranext_controller.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = spectranext_controller.c; sourceTree = "<group>"; };
 		FEC02C9D2EEF65D5008277BA /* spectranext.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = spectranext.h; sourceTree = "<group>"; };
 		FEC02C9E2EEF65D6008277BA /* spectranext_controller.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = spectranext_controller.h; sourceTree = "<group>"; };
+		FEC51079347A105100000001 /* snes_ntsc.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = snes_ntsc.c; path = ../ui/scaler/snes_ntsc.c; sourceTree = SOURCE_ROOT; };
 		FED23B102EE096F10013DD32 /* mbedtls_config.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = mbedtls_config.h; sourceTree = "<group>"; };
 		FED23B112EE096F10013DD32 /* tls.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = tls.h; sourceTree = "<group>"; };
 		FED23B122EE096F10013DD32 /* tls.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = tls.c; sourceTree = "<group>"; };
@@ -984,6 +996,10 @@
 		FED24DE42EE10B590013DD32 /* dns_resolver.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = dns_resolver.c; sourceTree = "<group>"; };
 		FED24DE52EE10B590013DD32 /* dns_processor.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = dns_processor.c; sourceTree = "<group>"; };
 		FED24DE82EE10C370013DD32 /* dns_resolver.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = dns_resolver.h; sourceTree = "<group>"; };
+		FEFB7C1E301EB52200F1CFEC /* xfs_https_compat.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = xfs_https_compat.h; sourceTree = "<group>"; };
+		FEFB7C1F301EB52200F1CFEC /* xfs_https_compat.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = xfs_https_compat.c; sourceTree = "<group>"; };
+		FEFB7C21301EB52E00F1CFEC /* xfs_compat.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = xfs_compat.c; sourceTree = "<group>"; };
+		FEFB7C233023F19700F1CFEC /* scalers32.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = scalers32.c; path = scaler/scalers32.c; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1273,6 +1289,7 @@
 				3B061F2A9CBA3011FBE7A640 /* d80.icns */,
 				06FA366DDA50516B0E710919 /* mlt.icns */,
 				384001994B177FFEB8AE6C99 /* udi.icns */,
+				FE0A0205301F000000000001 /* ../roms/spxromfs.bin */,
 			);
 			path = resources;
 			sourceTree = "<group>";
@@ -1715,6 +1732,7 @@
 				B63ABD8D042F175200A864FD /* scaler.c */,
 				FEC51079347A105100000001 /* snes_ntsc.c */,
 				B62B19E00DD31DF500D42AAF /* scalers16.c */,
+				FEFB7C233023F19700F1CFEC /* scalers32.c */,
 			);
 			path = scaler;
 			sourceTree = "<group>";
@@ -1848,10 +1866,17 @@
 				FE2DAC5C2F328DD5009AC45A /* xfs_engines.h */,
 				FE2DAC582F328D96009AC45A /* xfs.h */,
 				FE2DAC592F328D96009AC45A /* xfs.c */,
+				FEFB7C21301EB52E00F1CFEC /* xfs_compat.c */,
+				FE0A0202301F000000000001 /* ramfs.h */,
+				FE0A0201301F000000000001 /* ramfs.c */,
 				FE2DAC6A2F329E6D009AC45A /* xfs_fs.c */,
+				FE0A0203301F000000000001 /* xfs_overlay.c */,
+				FE0A0204301F000000000001 /* xfs_romfs.c */,
 				FE2DAC6B2F329E6D009AC45A /* xfs_worker.c */,
 				FE2DAC6E2F329EE2009AC45A /* xfs_worker.h */,
 				FE2DAC762F32A480009AC45A /* xfs_https.c */,
+				FEFB7C1E301EB52200F1CFEC /* xfs_https_compat.h */,
+				FEFB7C1F301EB52200F1CFEC /* xfs_https_compat.c */,
 			);
 			path = fs;
 			sourceTree = "<group>";
@@ -2103,6 +2128,7 @@
 				7F7BB782D4AEBC99DC6AF1C8 /* d80.icns in Resources */,
 				03A9A1325AFA09F88C578556 /* mlt.icns in Resources */,
 				7C22B962B64B1942413DF26A /* udi.icns in Resources */,
+				FE0A0104301F000000000001 /* ../roms/spxromfs.bin in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2249,10 +2275,15 @@
 				B6A6F1200B3EA737000B88E9 /* cocoascreenshot.m in Sources */,
 				B6D0E10B1CFD54D400202683 /* uimedia.c in Sources */,
 				B615BFE80B4261E50082D535 /* HIDJoysticks.m in Sources */,
+				FEFB7C243023F19700F1CFEC /* scalers32.c in Sources */,
 				B6B076B30B59FE9A00D4F95C /* Emulator.m in Sources */,
 				B6D0E1031CFD547C00202683 /* didaktik.c in Sources */,
 				B6B99F8A0B5F798700EE408F /* cocoadisplay.m in Sources */,
 				B67DC2190B63835100FA31B6 /* cocoastatusbar.m in Sources */,
+				FEFB7C22301EB52E00F1CFEC /* xfs_compat.c in Sources */,
+				FE0A0101301F000000000001 /* ramfs.c in Sources */,
+				FE0A0102301F000000000001 /* xfs_overlay.c in Sources */,
+				FE0A0103301F000000000001 /* xfs_romfs.c in Sources */,
 				B68C32961D3BBF2D0082CBD4 /* startup_manager.c in Sources */,
 				B65352F20B8CF6CC0083F942 /* SDL_sysjoystick.c in Sources */,
 				B65353150B8FF3D20083F942 /* SDL_joystick.c in Sources */,
@@ -2307,6 +2338,7 @@
 				FE2DAC7B2F32A500009AC45A /* httpc.c in Sources */,
 				FE2DAC772F32A480009AC45A /* xfs_https.c in Sources */,
 				B6DCBBD2114FA0E700DC9A11 /* ide.c in Sources */,
+				FEFB7C20301EB52200F1CFEC /* xfs_https_compat.c in Sources */,
 				B6DCBBD4114FA0E700DC9A11 /* libspectrum.c in Sources */,
 				B6DCBBD9114FA0E700DC9A11 /* memory.c in Sources */,
 				B6DCBBDA114FA0E700DC9A11 /* microdrive.c in Sources */,

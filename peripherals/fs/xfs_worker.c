@@ -7,7 +7,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdarg.h>
 #include <errno.h>
 #include <sys/stat.h>
 #if defined(WIN32) || defined(_WIN32)
@@ -40,27 +39,13 @@ bool xfs_debug_is_enabled(void)
     return xfs_debug_enabled;
 }
 
-void xfs_debug_log(const char *format, ...)
-{
-    va_list args;
-    va_list remote_args;
-    char buffer[1024];
-
-    va_start(args, format);
-    va_copy(remote_args, args);
-    vprintf(format, args);
-    vsnprintf(buffer, sizeof(buffer), format, remote_args);
-    va_end(remote_args);
-    va_end(args);
-
-    gdbserver_send_remote_console_output(buffer);
-}
-
 // XFS base directory path
 char xfs_base_path[512];
 
 void xfs_init()
 {
+    xfs_compat_init();
+
     snprintf(xfs_base_path, sizeof(xfs_base_path), "%s/xfs", compat_get_config_path());
     
     // Create "xfs" directory in Application Support directory

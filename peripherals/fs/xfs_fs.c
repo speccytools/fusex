@@ -373,7 +373,7 @@ static int16_t fs_readdir(const struct xfs_engine_mount_t* engine, struct xfs_ha
     struct dirent *entry;
     int err = 0;
     
-    // Read directory entries, skipping "."
+    // Read directory entries, skipping hidden dot entries but preserving parent navigation.
     errno = 0;
     do
     {
@@ -386,8 +386,7 @@ static int16_t fs_readdir(const struct xfs_engine_mount_t* engine, struct xfs_ha
             }
             break; // End of directory or error
         }
-        // Skip "." entries
-    } while (strcmp(entry->d_name, ".") == 0);
+    } while (entry->d_name[0] == '.' && strcmp(entry->d_name, "..") != 0);
     
     if (err != 0)
     {

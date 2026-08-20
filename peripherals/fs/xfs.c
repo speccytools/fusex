@@ -7,7 +7,7 @@
 struct xfs_engine_mount_t xfs_mounted_engines[4] = {0};
 
 // Handles array - shared between task and emulator  
-struct xfs_handle_t xfs_handles[XFS_MAX_FDS] = {0};
+struct xfs_handle_t xfs_handles[XFS_MAX_FDS] = {};
 
 // Helper functions
 static inline struct xfs_handle_t* get_handle(uint8_t handle)
@@ -53,6 +53,109 @@ static inline bool ensure_mounted(const uint8_t mount_point)
     return (xfs_mounted_engines[mount_point].engine != NULL);
 }
 
+static void xfs_set_root_cwd(struct xfs_engine_mount_t* mount)
+{
+    if (!mount->cwd)
+    {
+        return;
+    }
+    mount->cwd[0] = '/';
+    mount->cwd[1] = '\0';
+}
+
+static int16_t xfs_resolve_path(const struct xfs_engine_mount_t* mount, const char* path,
+    char* out, const size_t out_size)
+{
+    if (!path || !out || out_size < 2)
+    {
+        return XFS_ERR_INVAL;
+    }
+
+    const char* cwd = (mount && mount->cwd && mount->cwd[0]) ? mount->cwd : "/";
+
+    char combined[XFS_PATH_MAX];
+    int written;
+    if (path[0] == '/')
+    {
+        written = snprintf(combined, sizeof(combined), "%s", path);
+    }
+    else if (cwd[0] == '/' && cwd[1] == '\0')
+    {
+        written = snprintf(combined, sizeof(combined), "/%s", path);
+    }
+    else
+    {
+        written = snprintf(combined, sizeof(combined), "%s/%s", cwd, path);
+    }
+    if (written < 0 || (size_t)written >= sizeof(combined))
+    {
+        return XFS_ERR_NAMETOOLONG;
+    }
+
+    size_t out_len = 0;
+    out[out_len++] = '/';
+    out[out_len] = '\0';
+
+    char* segment = combined;
+    while (*segment)
+    {
+        while (*segment == '/')
+        {
+            segment++;
+        }
+        if (!*segment)
+        {
+            break;
+        }
+
+        char* next = segment;
+        while (*next && *next != '/')
+        {
+            next++;
+        }
+
+        const size_t len = (size_t)(next - segment);
+        if (len == 1 && segment[0] == '.')
+        {
+            /* Stay in the current directory. */
+        }
+        else if (len == 2 && segment[0] == '.' && segment[1] == '.')
+        {
+            if (out_len > 1)
+            {
+                out_len--;
+                while (out_len > 1 && out[out_len - 1] != '/')
+                {
+                    out_len--;
+                }
+                out[out_len] = '\0';
+            }
+        }
+        else
+        {
+            if (out_len > 1)
+            {
+                if (out_len + 1 >= out_size)
+                {
+                    return XFS_ERR_NAMETOOLONG;
+                }
+                out[out_len++] = '/';
+            }
+            if (out_len + len >= out_size)
+            {
+                return XFS_ERR_NAMETOOLONG;
+            }
+            memcpy(out + out_len, segment, len);
+            out_len += len;
+            out[out_len] = '\0';
+        }
+
+        segment = next;
+    }
+
+    return XFS_ERR_OK;
+}
+
 /**
  * Handle XFS mount command
  */
@@ -87,7 +190,7 @@ void xfs_handle_mount(volatile struct xfs_registers_t* registers)
         return;
     }
 
-    struct xfs_engine_t* engine = NULL;
+    const struct xfs_engine_t* engine = NULL;
 
     if (strcmp(protocol, "xfs") == 0)
     {
@@ -95,7 +198,7 @@ void xfs_handle_mount(volatile struct xfs_registers_t* registers)
 
         if (strcmp(hostname, "ram") == 0 && (path[0] == '\0' || strcmp(path, "/") == 0))
         {
-            engine = &xfs_ram_engine;
+            engine = &xfs_overlay_engine;
         }
         else
         {
@@ -133,6 +236,8 @@ void xfs_handle_mount(volatile struct xfs_registers_t* registers)
     else
     {
         xfs_mounted_engines[mount_point].engine = engine;
+        xfs_mounted_engines[mount_point].cwd = xfs_compat_get_cwd_buffer(mount_point);
+        xfs_set_root_cwd(&xfs_mounted_engines[mount_point]);
         XFS_DEBUG("xfs: mount success mount_point=%d\n", mount_point);
         registers->result = 0;
         registers->status = XFS_STATUS_COMPLETE;
@@ -185,11 +290,12 @@ void xfs_handle_umount(volatile struct xfs_registers_t* registers)
         return;
     }
 
-    struct xfs_engine_t* const eng = xfs_mounted_engines[mount_point].engine;
+    const struct xfs_engine_t* const eng = xfs_mounted_engines[mount_point].engine;
     if (eng->unmount)
         eng->unmount(eng, &xfs_mounted_engines[mount_point]);
 
     xfs_mounted_engines[mount_point].engine = NULL;
+    xfs_mounted_engines[mount_point].cwd = NULL;
 
     XFS_DEBUG("xfs: umount success mount_point=%d\n", mount_point);
     registers->result = 0;
@@ -280,8 +386,18 @@ void xfs_handle_open(volatile struct xfs_registers_t* registers)
 
     struct xfs_handle_t* h = get_handle(handle);
     const struct xfs_engine_mount_t* mounted_engine = &xfs_mounted_engines[mount_point];
+    char resolved_path[XFS_PATH_MAX];
+    int16_t err = xfs_resolve_path(mounted_engine, path, resolved_path, sizeof(resolved_path));
+    if (err)
+    {
+        XFS_DEBUG("xfs: open path resolution failed: result=%d\n", err);
+        free_handle(handle, mount_point);
+        registers->result = err;
+        registers->status = XFS_STATUS_ERROR;
+        return;
+    }
     
-    const int16_t err = mounted_engine->engine->open(mounted_engine, h, path, xfs_flags);
+    err = mounted_engine->engine->open(mounted_engine, h, resolved_path, xfs_flags);
 
     if (err)
     {
@@ -293,7 +409,7 @@ void xfs_handle_open(volatile struct xfs_registers_t* registers)
     else
     {
         h->owner_mount = mount_point;
-        XFS_DEBUG("xfs: open success handle=%d\n", handle);
+        XFS_DEBUG("xfs: open success path=%s handle=%d\n", resolved_path, handle);
         registers->file_handle = handle;
         registers->result = 0;
         registers->status = XFS_STATUS_COMPLETE;
@@ -437,11 +553,21 @@ void xfs_handle_opendir(volatile struct xfs_registers_t* registers)
     }
 
     struct xfs_handle_t* h = get_handle(handle);
-    const int16_t err = mounted_engine->engine->opendir(mounted_engine, h, path);
+    char resolved_path[XFS_PATH_MAX];
+    int16_t err = xfs_resolve_path(mounted_engine, path, resolved_path, sizeof(resolved_path));
+    if (err)
+    {
+        XFS_DEBUG("xfs: opendir path resolution failed: result=%d mount_point=%d\n", err, mount_point);
+        free_handle(handle, mount_point);
+        registers->result = err;
+        registers->status = XFS_STATUS_ERROR;
+        return;
+    }
+    err = mounted_engine->engine->opendir(mounted_engine, h, resolved_path);
 
     if (err)
     {
-        XFS_DEBUG("xfs: opendir %s failed: result=%d mount_point=%d\n", path, err, mount_point);
+        XFS_DEBUG("xfs: opendir %s failed: result=%d mount_point=%d\n", resolved_path, err, mount_point);
         free_handle(handle, mount_point);
         registers->result = err;
         registers->status = XFS_STATUS_ERROR;
@@ -449,7 +575,7 @@ void xfs_handle_opendir(volatile struct xfs_registers_t* registers)
     else
     {
         h->owner_mount = mount_point;
-        XFS_DEBUG("xfs: opendir %s success handle=%d mount_point=%d\n", path, handle, mount_point);
+        XFS_DEBUG("xfs: opendir %s success handle=%d mount_point=%d\n", resolved_path, handle, mount_point);
         registers->result = 0;
         registers->file_handle = handle;
         registers->status = XFS_STATUS_COMPLETE;
@@ -560,8 +686,18 @@ void xfs_handle_stat(volatile struct xfs_registers_t* registers)
         return;
     }
     
+    char resolved_path[XFS_PATH_MAX];
+    int16_t err = xfs_resolve_path(mounted_engine, path, resolved_path, sizeof(resolved_path));
+    if (err)
+    {
+        XFS_DEBUG("xfs: stat path resolution failed: result=%d\n", err);
+        registers->result = err;
+        registers->status = XFS_STATUS_ERROR;
+        return;
+    }
+
     struct xfs_stat_info info = {0};
-    const int16_t err = mounted_engine->engine->stat(mounted_engine, path, &info);
+    err = mounted_engine->engine->stat(mounted_engine, resolved_path, &info);
     
     if (err)
     {
@@ -590,7 +726,7 @@ void xfs_handle_stat(volatile struct xfs_registers_t* registers)
         uint8_t* strings = (uint8_t*)registers->workspace + 22;
         strings[0] = 0;
         strings[1] = 0;
-        XFS_DEBUG("xfs: stat success size=%lu mode=0x%04x\n", info.size, stat->mode);
+        XFS_DEBUG("xfs: stat success path=%s size=%lu mode=0x%04x\n", resolved_path, info.size, stat->mode);
         registers->result = 0;
         registers->status = XFS_STATUS_COMPLETE;
     }
@@ -611,7 +747,17 @@ void xfs_handle_unlink(volatile struct xfs_registers_t* registers)
         return;
     }
 
-    const int16_t err = mounted_engine->engine->unlink(mounted_engine, path);
+    char resolved_path[XFS_PATH_MAX];
+    int16_t err = xfs_resolve_path(mounted_engine, path, resolved_path, sizeof(resolved_path));
+    if (err)
+    {
+        XFS_DEBUG("xfs: unlink path resolution failed: result=%d\n", err);
+        registers->result = err;
+        registers->status = XFS_STATUS_ERROR;
+        return;
+    }
+
+    err = mounted_engine->engine->unlink(mounted_engine, resolved_path);
     
     if (err)
     {
@@ -621,7 +767,7 @@ void xfs_handle_unlink(volatile struct xfs_registers_t* registers)
     }
     else
     {
-        XFS_DEBUG("xfs: unlink success\n");
+        XFS_DEBUG("xfs: unlink success path=%s\n", resolved_path);
         registers->result = 0;
         registers->status = XFS_STATUS_COMPLETE;
     }
@@ -642,7 +788,17 @@ void xfs_handle_mkdir(volatile struct xfs_registers_t* registers)
         return;
     }
 
-    const int16_t err = mounted_engine->engine->mkdir(mounted_engine, path);
+    char resolved_path[XFS_PATH_MAX];
+    int16_t err = xfs_resolve_path(mounted_engine, path, resolved_path, sizeof(resolved_path));
+    if (err)
+    {
+        XFS_DEBUG("xfs: mkdir path resolution failed: result=%d\n", err);
+        registers->result = err;
+        registers->status = XFS_STATUS_ERROR;
+        return;
+    }
+
+    err = mounted_engine->engine->mkdir(mounted_engine, resolved_path);
     
     if (err)
     {
@@ -652,7 +808,7 @@ void xfs_handle_mkdir(volatile struct xfs_registers_t* registers)
     }
     else
     {
-        XFS_DEBUG("xfs: mkdir success\n");
+        XFS_DEBUG("xfs: mkdir success path=%s\n", resolved_path);
         registers->result = 0;
         registers->status = XFS_STATUS_COMPLETE;
     }
@@ -673,7 +829,17 @@ void xfs_handle_rmdir(volatile struct xfs_registers_t* registers)
         return;
     }
 
-    const int16_t err = mounted_engine->engine->rmdir(mounted_engine, path);
+    char resolved_path[XFS_PATH_MAX];
+    int16_t err = xfs_resolve_path(mounted_engine, path, resolved_path, sizeof(resolved_path));
+    if (err)
+    {
+        XFS_DEBUG("xfs: rmdir path resolution failed: result=%d\n", err);
+        registers->result = err;
+        registers->status = XFS_STATUS_ERROR;
+        return;
+    }
+
+    err = mounted_engine->engine->rmdir(mounted_engine, resolved_path);
     
     if (err)
     {
@@ -683,7 +849,7 @@ void xfs_handle_rmdir(volatile struct xfs_registers_t* registers)
     }
     else
     {
-        XFS_DEBUG("xfs: rmdir success\n");
+        XFS_DEBUG("xfs: rmdir success path=%s\n", resolved_path);
         registers->result = 0;
         registers->status = XFS_STATUS_COMPLETE;
     }
@@ -694,7 +860,7 @@ void xfs_handle_chdir(volatile struct xfs_registers_t* registers)
     const char* path = (const char*)registers->arguments.chdir.path;
     const uint8_t mount_point = registers->mount_point;
     const struct xfs_engine_mount_t* mounted_engine = &xfs_mounted_engines[mount_point];
-    XFS_DEBUG("xfs: chdir path=%s (not supported by littlefs)\n", path);
+    XFS_DEBUG("xfs: chdir path=%s\n", path);
     
     if (!ensure_mounted(mount_point))
     {
@@ -704,8 +870,27 @@ void xfs_handle_chdir(volatile struct xfs_registers_t* registers)
         return;
     }
 
+    char resolved_path[XFS_PATH_MAX];
+    int16_t err = xfs_resolve_path(mounted_engine, path, resolved_path, sizeof(resolved_path));
+    if (err)
+    {
+        XFS_DEBUG("xfs: chdir path resolution failed: result=%d\n", err);
+        registers->result = err;
+        registers->status = XFS_STATUS_ERROR;
+        return;
+    }
+
     struct xfs_stat_info info;
-    const int err = mounted_engine->engine->stat(mounted_engine, path, &info);
+    if (strcmp(resolved_path, "/") == 0)
+    {
+        memset(&info, 0, sizeof(info));
+        info.type = XFS_TYPE_DIR;
+        err = XFS_ERR_OK;
+    }
+    else
+    {
+        err = mounted_engine->engine->stat(mounted_engine, resolved_path, &info);
+    }
     
     if (err || info.type != XFS_TYPE_DIR)
     {
@@ -715,7 +900,8 @@ void xfs_handle_chdir(volatile struct xfs_registers_t* registers)
     }
     else
     {
-        XFS_DEBUG("xfs: chdir success (path verified)\n");
+        snprintf(xfs_mounted_engines[mount_point].cwd, XFS_PATH_MAX, "%s", resolved_path);
+        XFS_DEBUG("xfs: chdir success cwd=%s\n", xfs_mounted_engines[mount_point].cwd);
         registers->result = 0;
         registers->status = XFS_STATUS_COMPLETE;
     }
@@ -724,9 +910,6 @@ void xfs_handle_chdir(volatile struct xfs_registers_t* registers)
 void xfs_handle_getcwd(volatile struct xfs_registers_t* registers)
 {
     const uint8_t mount_point = registers->mount_point;
-    const struct xfs_engine_mount_t* mounted_engine = &xfs_mounted_engines[mount_point];
-
-    XFS_DEBUG("xfs: getcwd (littlefs always returns root)\n");
     if (!ensure_mounted(mount_point))
     {
         XFS_DEBUG("xfs: getcwd failed: not mounted\n");
@@ -737,15 +920,16 @@ void xfs_handle_getcwd(volatile struct xfs_registers_t* registers)
     
     char* path = (char*)registers->workspace;
     uint16_t len = registers->arguments.getcwd.buffer_size;
-    
-    int16_t err = mounted_engine->engine->getcwd(mounted_engine, path, len);
-    if (err)
+
+    if (len == 0)
     {
-        registers->result = err;
+        registers->result = XFS_ERR_INVAL;
         registers->status = XFS_STATUS_ERROR;
         return;
     }
-    
+
+    const char* cwd = xfs_mounted_engines[mount_point].cwd ? xfs_mounted_engines[mount_point].cwd : "/";
+    snprintf(path, len, "%s", cwd);
     XFS_DEBUG("xfs: getcwd success path=%s\n", path);
     registers->result = 0;
     registers->status = XFS_STATUS_COMPLETE;
@@ -768,7 +952,22 @@ void xfs_handle_rename(volatile struct xfs_registers_t* registers)
         return;
     }
 
-    const int16_t err = mounted_engine->engine->rename(mounted_engine, old_path, new_path);
+    char resolved_old_path[XFS_PATH_MAX];
+    char resolved_new_path[XFS_PATH_MAX];
+    int16_t err = xfs_resolve_path(mounted_engine, old_path, resolved_old_path, sizeof(resolved_old_path));
+    if (!err)
+    {
+        err = xfs_resolve_path(mounted_engine, new_path, resolved_new_path, sizeof(resolved_new_path));
+    }
+    if (err)
+    {
+        XFS_DEBUG("xfs: rename path resolution failed: result=%d\n", err);
+        registers->result = err;
+        registers->status = XFS_STATUS_ERROR;
+        return;
+    }
+
+    err = mounted_engine->engine->rename(mounted_engine, resolved_old_path, resolved_new_path);
     
     if (err)
     {
@@ -778,7 +977,7 @@ void xfs_handle_rename(volatile struct xfs_registers_t* registers)
     }
     else
     {
-        XFS_DEBUG("xfs: rename success\n");
+        XFS_DEBUG("xfs: rename success old=%s new=%s\n", resolved_old_path, resolved_new_path);
         registers->result = 0;
         registers->status = XFS_STATUS_COMPLETE;
     }
@@ -809,7 +1008,17 @@ void xfs_handle_chmod(volatile struct xfs_registers_t* registers)
         return;
     }
 
-    const int16_t err = mounted_engine->engine->chmod(mounted_engine, path, mode);
+    char resolved_path[XFS_PATH_MAX];
+    int16_t err = xfs_resolve_path(mounted_engine, path, resolved_path, sizeof(resolved_path));
+    if (err)
+    {
+        XFS_DEBUG("xfs: chmod path resolution failed: result=%d\n", err);
+        registers->result = err;
+        registers->status = XFS_STATUS_ERROR;
+        return;
+    }
+
+    err = mounted_engine->engine->chmod(mounted_engine, resolved_path, mode);
 
     if (err)
     {
