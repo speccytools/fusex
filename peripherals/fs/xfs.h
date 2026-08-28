@@ -96,6 +96,7 @@ enum
 {
     FS_STORAGE_RAM = 0,
     FS_STORAGE_FLASH = 1,
+    FS_STORAGE_SYSTEM = 2
 };
 #endif
 
@@ -136,6 +137,8 @@ struct xfs_engine_t
     // Directory operations
     int16_t (*opendir)(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle, const char* path);
     int16_t (*readdir)(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle, struct xfs_stat_info* info);
+    int16_t (*telldir)(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle, uint32_t* position);
+    int16_t (*seekdir)(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle, uint32_t position);
     int16_t (*closedir)(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle);
 
     // Path operations
@@ -195,6 +198,8 @@ struct xfs_handle_t
     enum xfs_handle_type_t type;
     /** Mount point this handle belongs to (0–3); 0xFF when unallocated. */
     uint8_t owner_mount;
+    uint32_t dir_position;
+    char dir_path[XFS_PATH_MAX];
     void* data;
 };
 
@@ -230,6 +235,20 @@ struct xfs_args_write_t
 struct xfs_args_opendir_t
 {
     char path[256];
+};
+
+struct xfs_args_readdir_t
+{
+    uint32_t position;
+    uint8_t operation;
+    uint8_t reserved[251];
+};
+
+enum xfs_readdir_operation_t
+{
+    XFS_READDIR_NEXT = 0,
+    XFS_READDIR_SEEK = 1,
+    XFS_READDIR_TELL = 2,
 };
 
 struct xfs_args_stat_t
@@ -304,6 +323,7 @@ union xfs_arguments_t
     struct xfs_args_read_t read;
     struct xfs_args_write_t write;
     struct xfs_args_opendir_t opendir;
+    struct xfs_args_readdir_t readdir;
     struct xfs_args_stat_t stat;
     struct xfs_args_unlink_t unlink;
     struct xfs_args_mkdir_t mkdir;
@@ -358,6 +378,9 @@ _Static_assert(0x200 == offsetof(struct xfs_registers_t, workspace), "workspace 
 _Static_assert(0x008 == offsetof(struct xfs_registers_t, arguments), "arguments is not at 0x008");
 
 extern void xfs_init();
+/** Serialize access to XFS mounts and handle state. */
+extern void xfs_lock(void);
+extern void xfs_unlock(void);
 extern void xfs_reset(void);
 
 /** Close all XFS handles for this mount (call from engine unmount; idempotent if already empty). */

@@ -1,6 +1,5 @@
 #include "xfs.h"
 #include "ramfs.h"
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -220,13 +219,33 @@ static int16_t romfs_readdir(const struct xfs_engine_mount_t* mount, struct xfs_
 
     memset(info, 0, sizeof(*info));
     info->type = entry->type == RAMFS_TYPE_DIR ? XFS_TYPE_DIR : XFS_TYPE_REG;
-    info->storage = romfs->config ? romfs->config->storage : FS_STORAGE_FLASH;
+    info->storage = romfs->config ? romfs->config->storage : FS_STORAGE_SYSTEM;
     info->size = entry->size;
     info->mtime = entry->mtime;
     info->ctime = entry->mtime;
     strncpy(info->name, entry->name, sizeof(info->name) - 1);
     info->name[sizeof(info->name) - 1] = '\0';
     return 1;
+}
+
+static int16_t romfs_telldir(const struct xfs_engine_mount_t* mount, struct xfs_handle_t* handle, uint32_t* position)
+{
+    (void)mount;
+    xfs_romfs_dir_handle_t* dir = (xfs_romfs_dir_handle_t*)handle->data;
+    if (!dir || !position)
+        return XFS_ERR_INVAL;
+    *position = dir->dir.index;
+    return XFS_ERR_OK;
+}
+
+static int16_t romfs_seekdir(const struct xfs_engine_mount_t* mount, struct xfs_handle_t* handle, uint32_t position)
+{
+    (void)mount;
+    xfs_romfs_dir_handle_t* dir = (xfs_romfs_dir_handle_t*)handle->data;
+    if (!dir)
+        return XFS_ERR_BADF;
+    dir->dir.index = position;
+    return XFS_ERR_OK;
 }
 
 static int16_t romfs_closedir(const struct xfs_engine_mount_t* mount, struct xfs_handle_t* handle)
@@ -247,7 +266,7 @@ static int16_t romfs_stat(const struct xfs_engine_mount_t* mount, const char* pa
     {
         memset(stat_info, 0, sizeof(*stat_info));
         stat_info->type = XFS_TYPE_DIR;
-        stat_info->storage = romfs->config ? romfs->config->storage : FS_STORAGE_FLASH;
+        stat_info->storage = romfs->config ? romfs->config->storage : FS_STORAGE_SYSTEM;
         strncpy(stat_info->name, "/", sizeof(stat_info->name) - 1);
         return XFS_ERR_OK;
     }
@@ -258,7 +277,7 @@ static int16_t romfs_stat(const struct xfs_engine_mount_t* mount, const char* pa
 
     memset(stat_info, 0, sizeof(*stat_info));
     stat_info->type = entry->type == RAMFS_TYPE_DIR ? XFS_TYPE_DIR : XFS_TYPE_REG;
-    stat_info->storage = romfs->config ? romfs->config->storage : FS_STORAGE_FLASH;
+    stat_info->storage = romfs->config ? romfs->config->storage : FS_STORAGE_SYSTEM;
     stat_info->size = entry->size;
     stat_info->mtime = entry->mtime;
     stat_info->ctime = entry->mtime;
@@ -345,6 +364,8 @@ const struct xfs_engine_t xfs_romfs_engine = {
     .lseek = romfs_lseek,
     .opendir = romfs_opendir,
     .readdir = romfs_readdir,
+    .telldir = romfs_telldir,
+    .seekdir = romfs_seekdir,
     .closedir = romfs_closedir,
     .stat = romfs_stat,
     .unlink = romfs_unlink,

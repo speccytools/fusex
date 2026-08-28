@@ -575,6 +575,9 @@ void xfs_handle_opendir(volatile struct xfs_registers_t* registers)
     else
     {
         h->owner_mount = mount_point;
+        h->dir_position = 0;
+        strncpy(h->dir_path, resolved_path, sizeof(h->dir_path) - 1);
+        h->dir_path[sizeof(h->dir_path) - 1] = '\0';
         XFS_DEBUG("xfs: opendir %s success handle=%d mount_point=%d\n", resolved_path, handle, mount_point);
         registers->result = 0;
         registers->file_handle = handle;
@@ -594,6 +597,48 @@ void xfs_handle_readdir(volatile struct xfs_registers_t* registers)
     {
         XFS_DEBUG("xfs: readdir failed: invalid handle\n");
         registers->result = XFS_ERR_BADF;
+        registers->status = XFS_STATUS_ERROR;
+        return;
+    }
+
+    if (registers->arguments.readdir.operation == XFS_READDIR_SEEK)
+    {
+        const uint32_t position = registers->arguments.readdir.position;
+        const int16_t err = mounted_engine->engine->seekdir(mounted_engine, h, position);
+        if (err != XFS_ERR_OK)
+        {
+            registers->result = err;
+            registers->status = XFS_STATUS_ERROR;
+            return;
+        }
+        h->dir_position = position;
+        registers->arguments.readdir.position = position;
+        registers->result = 0;
+        registers->status = XFS_STATUS_COMPLETE;
+        return;
+    }
+
+    if (registers->arguments.readdir.operation == XFS_READDIR_TELL)
+    {
+        const int16_t err = mounted_engine->engine->telldir(
+            mounted_engine, h, &h->dir_position);
+        if (err != XFS_ERR_OK)
+        {
+            registers->result = err;
+            registers->status = XFS_STATUS_ERROR;
+            return;
+        }
+        registers->arguments.readdir.position = h->dir_position;
+        registers->result = 0;
+        registers->status = XFS_STATUS_COMPLETE;
+        return;
+    }
+
+    if (registers->arguments.readdir.operation != XFS_READDIR_NEXT)
+    {
+        XFS_DEBUG("xfs: readdir failed: invalid operation=%u\n",
+                  registers->arguments.readdir.operation);
+        registers->result = XFS_ERR_INVAL;
         registers->status = XFS_STATUS_ERROR;
         return;
     }
@@ -632,6 +677,16 @@ void xfs_handle_readdir(volatile struct xfs_registers_t* registers)
             tail[7] = (uint8_t)((info.mtime >> 8) & 0xff);
             tail[8] = (uint8_t)((info.mtime >> 16) & 0xff);
             tail[9] = (uint8_t)((info.mtime >> 24) & 0xff);
+            const int16_t tell_err = mounted_engine->engine->telldir(
+                mounted_engine, h, &h->dir_position);
+            if (tell_err != XFS_ERR_OK)
+            {
+                XFS_DEBUG("xfs: telldir failed: result=%d\n", tell_err);
+                registers->result = tell_err;
+                registers->status = XFS_STATUS_ERROR;
+                return;
+            }
+            registers->arguments.readdir.position = h->dir_position;
             registers->result = 0;
         }
         registers->status = XFS_STATUS_COMPLETE;

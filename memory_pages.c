@@ -393,23 +393,37 @@ readbyte( libspectrum_word address )
       return opus_read( address );
 
     if( spectranet_paged ) {
+      if( spectranet_w5100_paged_0 && address < 0x1000 )
+        return spectranet_w5100_read( mapping, address );
       if( spectranet_w5100_paged_a && address >= 0x1000 && address < 0x2000 )
         return spectranet_w5100_read( mapping, address );
       if( spectranet_w5100_paged_b && address >= 0x2000 && address < 0x3000 )
         return spectranet_w5100_read( mapping, address );
+      if( spectranet_w5100_paged_3 && address >= 0x3000 )
+        return spectranet_w5100_read( mapping, address );
+      if( spectranet_xfs_paged_0 && address < 0x1000 )
+        return spectranet_xfs_read( mapping, address );
       if( spectranet_xfs_paged_a && address >= 0x1000 && address < 0x2000 )
         return spectranet_xfs_read( mapping, address );
       if( spectranet_xfs_paged_b && address >= 0x2000 && address < 0x3000 )
         return spectranet_xfs_read( mapping, address );
+      if( spectranet_xfs_paged_3 && address >= 0x3000 )
+        return spectranet_xfs_read( mapping, address );
+      if( spectranet_spectranext_config_paged_0 && address < 0x1000 )
+        return spectranet_spectranext_config_read( mapping, address );
       if( spectranet_spectranext_config_paged_a && address >= 0x1000 && address < 0x2000 )
         return spectranet_spectranext_config_read( mapping, address );
       if( spectranet_spectranext_config_paged_b && address >= 0x2000 && address < 0x3000 )
         return spectranet_spectranext_config_read( mapping, address );
-      if( address < 0x1000 )
+      if( spectranet_spectranext_config_paged_3 && address >= 0x3000 )
+        return spectranet_spectranext_config_read( mapping, address );
+      if( spectranet_flash_paged_0 && address < 0x1000 )
         return spectranet_flash_rom_read( mapping, address );
       if( spectranet_flash_paged_a && address >= 0x1000 && address < 0x2000 )
         return spectranet_flash_rom_read( mapping, address );
       if( spectranet_flash_paged_b && address >= 0x2000 && address < 0x3000 )
+        return spectranet_flash_rom_read( mapping, address );
+      if( spectranet_flash_paged_3 && address >= 0x3000 )
         return spectranet_flash_rom_read( mapping, address );
     }
 
@@ -506,12 +520,24 @@ writebyte_internal( libspectrum_word address, libspectrum_byte b )
     /* all writes need to be parsed by the flash rom emulation */
     spectranet_flash_rom_write(address, b);
     
+    if( spectranet_w5100_paged_0 && address < 0x1000 ) {
+      spectranet_w5100_write( mapping, address, b );
+      return;
+    }
     if( spectranet_w5100_paged_a && address >= 0x1000 && address < 0x2000 ) {
       spectranet_w5100_write( mapping, address, b );
       return;
     }
     if( spectranet_w5100_paged_b && address >= 0x2000 && address < 0x3000 ) {
       spectranet_w5100_write( mapping, address, b );
+      return;
+    }
+    if( spectranet_w5100_paged_3 && address >= 0x3000 ) {
+      spectranet_w5100_write( mapping, address, b );
+      return;
+    }
+    if( spectranet_xfs_paged_0 && address < 0x1000 ) {
+      spectranet_xfs_write( mapping, address, b );
       return;
     }
     if( spectranet_xfs_paged_a && address >= 0x1000 && address < 0x2000 ) {
@@ -522,11 +548,23 @@ writebyte_internal( libspectrum_word address, libspectrum_byte b )
       spectranet_xfs_write( mapping, address, b );
       return;
     }
+    if( spectranet_xfs_paged_3 && address >= 0x3000 ) {
+      spectranet_xfs_write( mapping, address, b );
+      return;
+    }
+    if( spectranet_spectranext_config_paged_0 && address < 0x1000 ) {
+      spectranet_spectranext_config_write( mapping, address, b );
+      return;
+    }
     if( spectranet_spectranext_config_paged_a && address >= 0x1000 && address < 0x2000 ) {
       spectranet_spectranext_config_write( mapping, address, b );
       return;
     }
     if( spectranet_spectranext_config_paged_b && address >= 0x2000 && address < 0x3000 ) {
+      spectranet_spectranext_config_write( mapping, address, b );
+      return;
+    }
+    if( spectranet_spectranext_config_paged_3 && address >= 0x3000 ) {
       spectranet_spectranext_config_write( mapping, address, b );
       return;
     }

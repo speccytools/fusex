@@ -84,6 +84,9 @@ struct xfs_fs_dir_handle_t
 {
     DIR *dir;
     char path[PATH_MAX];
+    /* XFS exposes a logical cursor, whereas POSIX telldir cookies are opaque
+     * and can exceed 16 bits. Keep an XFS-visible logical entry index instead. */
+    uint32_t position;
 };
 
 static inline struct xfs_fs_mount_data_t* get_mount_data(const struct xfs_engine_mount_t* mount)
@@ -345,6 +348,11 @@ static int16_t fs_opendir(const struct xfs_engine_mount_t* engine, struct xfs_ha
     if (!dir_handle) {
         return XFS_ERR_NOMEM;
     }
+
+    /* Overlay cursors use the child engine's logical directory-entry index.
+     * This allocation is not zeroed, so leaving position unset leaks an
+     * allocator value through fs_telldir() and makes overlay reject entries. */
+    dir_handle->position = 0;
     
     dir_handle->dir = opendir(full_path);
     
@@ -436,7 +444,40 @@ static int16_t fs_readdir(const struct xfs_engine_mount_t* engine, struct xfs_ha
     }
     
     XFS_DEBUG("fs: readdir success name=%s type=%d\n", info->name, info->type);
+    if (dir_handle->position == UINT32_MAX)
+        return XFS_ERR_INVAL;
+    dir_handle->position++;
     return 1; // Success, not end of directory
+}
+
+static int16_t fs_telldir(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle, uint32_t* position)
+{
+    (void)engine;
+    struct xfs_fs_dir_handle_t* dir_handle = get_dir_handle(handle);
+    if (!dir_handle || !position)
+        return XFS_ERR_BADF;
+
+    *position = dir_handle->position;
+    return XFS_ERR_OK;
+}
+
+static int16_t fs_seekdir(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle, uint32_t position)
+{
+    (void)engine;
+    struct xfs_fs_dir_handle_t* dir_handle = get_dir_handle(handle);
+    if (!dir_handle)
+        return XFS_ERR_BADF;
+
+    rewinddir(dir_handle->dir);
+    dir_handle->position = 0;
+    struct xfs_stat_info ignored;
+    while (dir_handle->position < position)
+    {
+        const int16_t err = fs_readdir(engine, handle, &ignored);
+        if (err <= 0)
+            return err < 0 ? err : XFS_ERR_INVAL;
+    }
+    return XFS_ERR_OK;
 }
 
 // Close directory
@@ -651,7 +692,7 @@ static void fs_free_handle(const struct xfs_engine_mount_t* engine, struct xfs_h
 }
 
 // XFS filesystem engine
-struct xfs_engine_t xfs_ram_engine = {
+const struct xfs_engine_t xfs_ram_engine = {
     .user = NULL,
     .mount = fs_mount,
     .is_mounted = fs_is_mounted,
@@ -664,6 +705,8 @@ struct xfs_engine_t xfs_ram_engine = {
     .lseek = fs_lseek,
     .opendir = fs_opendir,
     .readdir = fs_readdir,
+    .telldir = fs_telldir,
+    .seekdir = fs_seekdir,
     .closedir = fs_closedir,
     .stat = fs_stat,
     .unlink = fs_unlink,

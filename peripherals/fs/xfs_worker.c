@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
+#include <stdatomic.h>
 #include <sys/stat.h>
 #if defined(WIN32) || defined(_WIN32)
 #include <direct.h>

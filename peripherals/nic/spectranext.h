@@ -17,7 +17,8 @@ enum spectranext_cmd_t
     SPECTRANEXT_CMD_WIFI_DISCONNECT = 4,
     SPECTRANEXT_CMD_DNS_GETHOSTBYNAME = 5,
     SPECTRANEXT_CMD_ENGINECALL = 6,
-    SPECTRANEXT_CMD_GET_MESSAGE = 7
+    SPECTRANEXT_CMD_GET_MESSAGE = 7,
+    SPECTRANEXT_CMD_LOAD_DOT = 8
 };
 
 #define WIFI_CONTROLLER_STATUS_OFFLINE (0u)
@@ -45,6 +46,9 @@ enum spectranext_cmd_t
 #define SPECTRANEXT_SCAN_AP_MAX 64
 
 #define SPECTRANEXT_MESSAGE_MAX 128
+
+/* Maximum DOT basename supplied by the Z80, including its NUL terminator. */
+#define SPECTRANEXT_LOAD_DOT_NAME_MAX 256
 
 #define SPECTRANEXT_CMD_REG_IDLE 0xFFu
 
@@ -140,6 +144,15 @@ typedef union spectranext_workspace
             uint8_t pending;
         } out;
     } get_message;
+
+    /* LOAD_DOT input — controller resolves the basename as /bin/<name>. */
+    struct
+    {
+        struct
+        {
+            char name[SPECTRANEXT_LOAD_DOT_NAME_MAX];
+        } in;
+    } load_dot;
 
     char page[4096 - 2];
 } spectranext_workspace_t;

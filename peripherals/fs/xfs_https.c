@@ -1129,6 +1129,26 @@ static int16_t https_readdir(const struct xfs_engine_mount_t* engine, struct xfs
     return 1; // Entry found
 }
 
+static int16_t https_telldir(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle, uint32_t* position)
+{
+    (void)engine;
+    struct xfs_handle_https_dir_t* https_handle = get_https_dir_handle(handle);
+    if (!https_handle || !position)
+        return XFS_ERR_BADF;
+    *position = https_handle->dir_entries_pos;
+    return XFS_ERR_OK;
+}
+
+static int16_t https_seekdir(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle, uint32_t position)
+{
+    (void)engine;
+    struct xfs_handle_https_dir_t* https_handle = get_https_dir_handle(handle);
+    if (!https_handle || position > https_handle->dir_entries_count)
+        return XFS_ERR_INVAL;
+    https_handle->dir_entries_pos = position;
+    return XFS_ERR_OK;
+}
+
 /* Free opendir entries; dir wrapper freed in https_free_handle. Safe to call twice. */
 static int16_t https_closedir(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle)
 {
@@ -1459,7 +1479,7 @@ static void https_mount_info(const struct xfs_engine_mount_t *engine_mount, char
 }
 
 // HTTPS engine instance
-struct xfs_engine_t https_engine = {
+const struct xfs_engine_t https_engine = {
     .user = (void*)HTTPS_SCHEME,
     .mount = https_mount,
     .unmount = https_unmount,
@@ -1472,6 +1492,8 @@ struct xfs_engine_t https_engine = {
     .lseek = https_lseek,
     .opendir = https_opendir,
     .readdir = https_readdir,
+    .telldir = https_telldir,
+    .seekdir = https_seekdir,
     .closedir = https_closedir,
     .stat = https_stat,
     .unlink = https_unlink,
@@ -1484,7 +1506,7 @@ struct xfs_engine_t https_engine = {
     .free_handle = https_free_handle,
 };
 
-struct xfs_engine_t http_engine = {
+const struct xfs_engine_t http_engine = {
     .user = (void*)HTTP_SCHEME,
     .mount = https_mount,
     .unmount = https_unmount,
@@ -1497,6 +1519,8 @@ struct xfs_engine_t http_engine = {
     .lseek = https_lseek,
     .opendir = https_opendir,
     .readdir = https_readdir,
+    .telldir = https_telldir,
+    .seekdir = https_seekdir,
     .closedir = https_closedir,
     .stat = https_stat,
     .unlink = https_unlink,

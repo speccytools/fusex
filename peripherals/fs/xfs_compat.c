@@ -30,11 +30,13 @@ xfs_romfs_config_t xfs_default_romfs = {
     .start = NULL,
     .end = NULL,
     .name = "romfs",
-    .storage = FS_STORAGE_FLASH,
+    /* Match the controller: ROMFS is the immutable system layer, not a
+     * user-writable flash filesystem. Overlay policy distinguishes it. */
+    .storage = FS_STORAGE_SYSTEM,
 };
 
 const xfs_overlay_config_t xfs_default_overlay = {
-    .layers = { &xfs_romfs_layer, &xfs_ram_layer, NULL },
+    .layers = { &xfs_ram_layer, &xfs_romfs_layer, NULL },
     .default_layer = &xfs_ram_layer,
 };
 
