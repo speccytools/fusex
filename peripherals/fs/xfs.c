@@ -208,9 +208,6 @@ void xfs_handle_mount(volatile struct xfs_registers_t* registers)
             return;
         }
     }
-#ifdef BUILD_SPECTRANET
-    /* The http/https engines live in xfs_https.c, which is built only with
-       Spectranet as it needs the HTTP client and the mbedTLS stack. */
     else if (strcmp(protocol, "https") == 0)
     {
         XFS_DEBUG("xfs: mount https hostname='%s' path='%s' mount_point=%d\n", hostname, path, mount_point);
@@ -221,7 +218,6 @@ void xfs_handle_mount(volatile struct xfs_registers_t* registers)
         XFS_DEBUG("xfs: mount http hostname='%s' path='%s' mount_point=%d\n", hostname, path, mount_point);
         engine = &http_engine;
     }
-#endif				/* #ifdef BUILD_SPECTRANET */
     else
     {
         XFS_DEBUG("xfs: mount failed: unknown protocol '%s' mount_point=%d\n", protocol, mount_point);

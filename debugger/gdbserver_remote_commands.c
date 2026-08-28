@@ -1,3 +1,5 @@
+#include "config.h"
+
 #include "gdbserver_remote_commands.h"
 #include "gdbserver.h"
 
@@ -9,10 +11,13 @@
 
 #include "fuse.h"
 #include "libspectrum.h"
-#include "peripherals/fs/xfs.h"
 #include "peripherals/spectranet.h"
 #include "snapshot.h"
 #include "utils.h"
+
+#ifdef BUILD_SPECTRANET
+#include "peripherals/fs/xfs.h"
+#endif
 
 static const char *
 skip_spaces( const char *text )
@@ -208,6 +213,7 @@ usage:
     return 1;
 }
 
+#ifdef BUILD_SPECTRANET
 static uint8_t remote_command_xfs_debug( const char *args )
 {
     int enable;
@@ -260,6 +266,7 @@ static uint8_t remote_command_xfs_debug( const char *args )
 
     return 0;
 }
+#endif
 
 const struct remote_command_entry_t remote_commands[] = {
     { "help", remote_command_help },
@@ -268,6 +275,8 @@ const struct remote_command_entry_t remote_commands[] = {
     { "spectranet-info", remote_command_spectranet_info },
     { "spectranet-set-page", remote_command_spectranet_set_page },
     { "spectranet-set-pagein", remote_command_spectranet_set_pagein },
+#ifdef BUILD_SPECTRANET
     { "xfs-debug", remote_command_xfs_debug },
+#endif
     { NULL, NULL }
 };
