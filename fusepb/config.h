@@ -151,6 +151,9 @@
 /* Defined if svgalib UI in use */
 /* #undef UI_SVGA */
 
+/* Defined if the Cocoa (macOS) UI is in use */
+#define UI_COCOA 1
+
 /* Defined if Win32 UI in use */
 /* #undef UI_WIN32 */
 

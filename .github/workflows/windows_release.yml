@@ -8,57 +8,19 @@ on:
         type: string
         required: false
         default: ""
-        description: Fuse ref to build (branch, tag, or commit). Leave empty to use the selected workflow revision.
-      libspectrum_ref:
-        type: string
-        required: false
-        default: ""
-        description: Libspectrum ref to build (branch, tag, or commit). Leave empty to use master from the canonical SourceForge repository.
+        description: Fuse ref to build (branch, tag, or commit); also selects the libspectrum pin. Leave empty to use the selected workflow revision.
 
 jobs:
-  resolve-refs:
-    name: "Resolve source refs"
-    runs-on: ubuntu-latest
-    outputs:
-      fuse_ref: ${{ steps.resolve.outputs.fuse_ref }}
-      libspectrum_ref: ${{ steps.resolve.outputs.libspectrum_ref }}
-    steps:
-      - name: Resolve selected refs
-        id: resolve
-        run: |
-          if [ -n "${{ inputs.fuse_ref }}" ]; then
-            fuse_ref="${{ inputs.fuse_ref }}"
-          else
-            fuse_ref=""
-          fi
-
-          if [ -n "${{ inputs.libspectrum_ref }}" ]; then
-            libspectrum_ref="${{ inputs.libspectrum_ref }}"
-          else
-            libspectrum_ref="master"
-          fi
-
-          if [ -n "$fuse_ref" ]; then
-            echo "Fuse ref: ${fuse_ref}"
-          else
-            echo "Fuse ref: current workflow revision (${{ github.sha }})"
-          fi
-          echo "Libspectrum ref: ${libspectrum_ref}"
-
-          echo "fuse_ref=${fuse_ref}" >> "$GITHUB_OUTPUT"
-          echo "libspectrum_ref=${libspectrum_ref}" >> "$GITHUB_OUTPUT"
-
   libspectrum:
     name: "Libspectrum (Windows)"
-    needs: [resolve-refs]
     uses: ./.github/workflows/build_libspectrum_windows_sub.yml
     with:
       key: fuse-app
-      libspectrum_ref: ${{ needs.resolve-refs.outputs.libspectrum_ref }}
+      fuse_ref: ${{ inputs.fuse_ref }}
 
   fuse:
     name: "${{ matrix.build.name }}"
-    needs: [resolve-refs, libspectrum]
+    needs: [libspectrum]
     strategy:
       fail-fast: false
       matrix:
@@ -90,7 +52,7 @@ jobs:
     uses: ./.github/workflows/build_windows_sub.yml
     with:
       key: ${{ matrix.build.key }}
-      fuse_ref: ${{ needs.resolve-refs.outputs.fuse_ref }}
+      fuse_ref: ${{ inputs.fuse_ref }}
       dependencies: ${{ matrix.build.dependencies }}
       configure_params: ${{ matrix.build.configure_params }}
       verify_ui: ${{ matrix.build.verify_ui }}

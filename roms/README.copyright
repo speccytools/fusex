@@ -35,6 +35,20 @@ plus3e-3.rom
 These are derived from Amstrad code, so the above statement applies. The
 modifications are copyright Garry Lancaster.
 
+128p-0.rom
+128p-1.rom
+256s-1.rom
+
+These are main ROMs of the Pentagon and the Scorpion ZS 256. They are
+derived from Amstrad code, so the above statement applies. The
+modifications are of unrecorded authorship.
+
+256s-0.rom
+
+This is derived from Amstrad code, but its copyright message has been
+removed, so the above statement does not apply. No permission for
+redistribution has been obtained.
+
 se-0.rom
 se-1.rom
 
@@ -71,3 +85,26 @@ IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
 CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+trdos.rom
+256s-3.rom
+
+These are TR-DOS, copyright Technology Research Ltd. No permission for
+redistribution has been obtained.
+
+256s-2.rom
+gluck.rom
+
+These are the Scorpion and Gluck service ROMs. Their copyright status is
+currently unknown.
+
+Copyright owners
+----------------
+
+Where no permission is recorded above, none has been obtained, and in some
+cases the copyright owner is unknown. If you own the copyright in any file
+in this directory and are reading this, please get in touch at
+<https://github.com/speccytools/fusex/issues>.
+
+Those files are distributed for archival and educational use only. No charge
+is made for them and no ownership of them is claimed.

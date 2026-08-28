@@ -171,9 +171,15 @@ static int parse_nonoption_args( int argc, char **argv, int first_arg,
 static int do_start_files( start_files_t *start_files );
 
 #ifdef UI_WIN32
+/* The Win32 UI supplies WinMain(), which calls this */
 int fuse_main(int argc, char **argv)
-#else
+#elif defined UI_COCOA
+/* fusepb/main.m supplies main() and Emulator.m calls fuse_init() itself, so
+   this entry point goes unused; it is renamed only to avoid colliding with
+   the one in main.m */
 int old_main(int argc, char **argv)
+#else
+int main(int argc, char **argv)
 #endif
 {
   int r = 0;

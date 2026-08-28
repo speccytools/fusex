@@ -454,7 +454,6 @@ MENU_CALLBACK( menu_machine_profiler_stop )
 #if !defined( UI_WIN32 )
 MENU_CALLBACK( menu_machine_debuglog )
 {
-  (void)action;
 }
 #endif				/* !defined( UI_WIN32 ) */
 

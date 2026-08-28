@@ -20,11 +20,6 @@ on:
         required: false
         default: false
         description: "Indicates if release notes should be automatically generated"
-      libspectrum_branch:
-        type: string
-        required: true
-        default: "master"
-        description: "Libspectrum's branch to use"
       add_date_time:
         type: boolean
         required: false
@@ -53,11 +48,6 @@ on:
         required: false
         default: false
         description: "Indicates if release notes should be automatically generated"
-      libspectrum_branch:
-        type: string
-        required: false
-        default: "master"
-        description: "Libspectrum's branch to use"
       add_date_time:
         type: boolean
         required: false
@@ -79,12 +69,11 @@ jobs:
   ########################################
 
   libspectrum-windows:
-    # Build libspectrum from the canonical SourceForge repository.
+    # Build the libspectrum commit pinned by the 3rdparty/libspectrum submodule.
     name: "Libspectrum lib"
     uses: ./.github/workflows/build_libspectrum_windows_sub.yml
     with:
       key: fuse-app
-      libspectrum_ref: ${{ inputs.libspectrum_branch }}
 
   ########################################
   ### Make Testing builds for Windows  ###

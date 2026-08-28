@@ -520,6 +520,8 @@ Media/IDE/ZXMMC/_Commit, Item,, menu_media_ide_commit,, 9
 Media/IDE/ZXMMC/_Eject, Item,, menu_media_ide_eject,, 9
 
 _Help, Branch
+#ifdef UI_WIN32
 Help/_Check for Updates..., Item,, menu_help_check_for_updates
+#endif				/* #ifdef UI_WIN32 */
 Help/_Keyboard..., Item
 Help/_About..., Item

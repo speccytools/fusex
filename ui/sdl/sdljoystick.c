@@ -32,7 +32,7 @@
 #include "input.h"
 #include "sdljoystick.h"
 #include "settings.h"
-#include "ui.h"
+#include "ui/ui.h"
 #include "ui/uijoystick.h"
 
 static SDL_Joystick *joystick1 = NULL;

@@ -54,10 +54,14 @@ struct scaler_info {
 
 };
 
-#ifdef _WIN32
-#define SCALER32( name ) name##_32
-#else
+/* Every build links scalers32.o (the 32-bit scaler routines) except the Cocoa
+   app, whose Xcode project compiles only the 16-bit variant.  Wire the 32-bit
+   routines into the table everywhere they exist; the Cocoa build renders at
+   16bpp and never uses them. */
+#ifdef UI_COCOA
 #define SCALER32( name ) NULL
+#else
+#define SCALER32( name ) name##_32
 #endif
 
 /* The expander functions */

@@ -65,6 +65,15 @@ if BUILD_SPECCYBOOT
 fuse_SOURCES += peripherals/nic/enc28j60.c
 endif
 
+# The xfs core (RAM-backed filesystem engine) is always built: the GDB vfile
+# debugger feature, which is compiled unconditionally, depends on it.  Only the
+# network engines (xfs_https.c) and their HTTP/TLS/SSH stack are Spectranet-only.
+fuse_SOURCES += \
+                peripherals/fs/xfs.c \
+                peripherals/fs/xfs_worker.c \
+                peripherals/fs/xfs_fs.c \
+                peripherals/fs/xfs_overlay.c
+
 if BUILD_SPECTRANET
 fuse_SOURCES += \
                 peripherals/flash/am29f010.c \
@@ -84,11 +93,7 @@ fuse_SOURCES += \
                 peripherals/nic/engines/parson.c \
                 peripherals/nic/spectranext_controller.c \
                 peripherals/nic/spectranext_stdout.c \
-                peripherals/fs/xfs.c \
                 peripherals/fs/xfs_compat.c \
-                peripherals/fs/xfs_worker.c \
-                peripherals/fs/xfs_fs.c \
-                peripherals/fs/xfs_overlay.c \
                 peripherals/fs/xfs_romfs.c \
                 peripherals/fs/ramfs.c \
                 peripherals/fs/xfs_https.c \

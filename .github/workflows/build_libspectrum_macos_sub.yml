@@ -7,10 +7,6 @@ on:
       key:
         type: string
         required: true
-      libspectrum_ref:
-        type: string
-        required: false
-        default: master
       use_zlib:
         type: boolean
         required: false
@@ -37,8 +33,7 @@ jobs:
       run:
         shell: bash
     env:
-      LIBSPECTRUM_DIR: libspectrum
-      LIBSPECTRUM_GIT_URL: https://github.com/fuse-emulator/libspectrum
+      LIBSPECTRUM_DIR: 3rdparty/libspectrum
 
     steps:
       - name: (1) Prepare environment
@@ -47,21 +42,19 @@ jobs:
           pwd
           ls -la
 
-          echo "Libspectrum URL: $LIBSPECTRUM_GIT_URL"
-          echo "Libspectrum ref: ${{ inputs.libspectrum_ref }}"
-
           echo "Use lib zlib: ${{ inputs.use_zlib && 'yes' || 'no' }}"
           echo "Use lib bzip2: ${{ inputs.use_bzip2 && 'yes' || 'no' }}"
           echo "Use lib libgcrypt: ${{ inputs.use_libgcrypt && 'yes' || 'no' }}"
           echo "Use lib libaudiofile: no"
           echo "Use fake glib: ${{ inputs.use_fake_glib && 'yes' || 'no' }}"
 
-      - name: (2) Clone libspectrum source
-        run: |
-          git init "$LIBSPECTRUM_DIR"
-          git -C "$LIBSPECTRUM_DIR" remote add origin "$LIBSPECTRUM_GIT_URL"
-          git -C "$LIBSPECTRUM_DIR" fetch --depth 1 origin "${{ inputs.libspectrum_ref }}"
-          git -C "$LIBSPECTRUM_DIR" checkout FETCH_HEAD
+      - name: (1b) Check out Fuse
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: (2) Fetch libspectrum source
+        run: git submodule update --init "$LIBSPECTRUM_DIR"
 
       - name: (2b) Capture libspectrum commit SHA for cache key
         id: libspectrum-sha

@@ -198,6 +198,14 @@
 		B68C32961D3BBF2D0082CBD4 /* startup_manager.c in Sources */ = {isa = PBXBuildFile; fileRef = B68C32941D3BBF2D0082CBD4 /* startup_manager.c */; };
 		B68C32991D3BBF620082CBD4 /* z80_debugger_variables.c in Sources */ = {isa = PBXBuildFile; fileRef = B68C32971D3BBF620082CBD4 /* z80_debugger_variables.c */; };
 		B69A00421723B8F300FF201C /* disciple.rom in Resources */ = {isa = PBXBuildFile; fileRef = B69A00411723B8F300FF201C /* disciple.rom */; };
+		DF64645D648D6690E0717A05 /* 128p-0.rom in Resources */ = {isa = PBXBuildFile; fileRef = 149707A6310CA776B49E44BB /* 128p-0.rom */; };
+		6823C0379589DBCFCE58368B /* 128p-1.rom in Resources */ = {isa = PBXBuildFile; fileRef = 182AC5F263F0617717FE0914 /* 128p-1.rom */; };
+		F5C0D7150F9D57C74254E7C8 /* 256s-0.rom in Resources */ = {isa = PBXBuildFile; fileRef = C92EF3866D22AE4CC08978A7 /* 256s-0.rom */; };
+		652334C79C3C45C66BE3C10B /* 256s-1.rom in Resources */ = {isa = PBXBuildFile; fileRef = BE0CE3A70B709644584824ED /* 256s-1.rom */; };
+		35734AD24A1AA881FBBBEB27 /* 256s-2.rom in Resources */ = {isa = PBXBuildFile; fileRef = BB363D13A266FD676FFE3610 /* 256s-2.rom */; };
+		BAE50FF21E9FEF6A73AC6175 /* 256s-3.rom in Resources */ = {isa = PBXBuildFile; fileRef = B47A67E8F3CF893BB8B0B51B /* 256s-3.rom */; };
+		9E7F68EF45D46C79F66004E9 /* gluck.rom in Resources */ = {isa = PBXBuildFile; fileRef = 0729E0464F01C4BF0C9CF069 /* gluck.rom */; };
+		6616B2D62512C764FFAC046E /* trdos.rom in Resources */ = {isa = PBXBuildFile; fileRef = 34AD35B155C536CA1C00E688 /* trdos.rom */; };
 		B69BE5331660DF5300C5D0CE /* socket.c in Sources */ = {isa = PBXBuildFile; fileRef = B69BE5321660DF5300C5D0CE /* socket.c */; };
 		B69BE5381660DF8B00C5D0CE /* movie.c in Sources */ = {isa = PBXBuildFile; fileRef = B69BE5361660DF8B00C5D0CE /* movie.c */; };
 		B69BE53C1660E01000C5D0CE /* am29f010.c in Sources */ = {isa = PBXBuildFile; fileRef = B69BE53A1660E01000C5D0CE /* am29f010.c */; };
@@ -646,6 +654,14 @@
 		B68CB2C503DD920300A804BA /* debugger.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = debugger.h; path = ../debugger/debugger.h; sourceTree = "<group>"; };
 		B68CB2C603DD920300A804BA /* disassemble.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; name = disassemble.c; path = ../debugger/disassemble.c; sourceTree = "<group>"; };
 		B69A00411723B8F300FF201C /* disciple.rom */ = {isa = PBXFileReference; lastKnownFileType = file; name = disciple.rom; path = ../roms/disciple.rom; sourceTree = SOURCE_ROOT; };
+		149707A6310CA776B49E44BB /* 128p-0.rom */ = {isa = PBXFileReference; lastKnownFileType = file; name = "128p-0.rom"; path = "../roms/128p-0.rom"; sourceTree = SOURCE_ROOT; };
+		182AC5F263F0617717FE0914 /* 128p-1.rom */ = {isa = PBXFileReference; lastKnownFileType = file; name = "128p-1.rom"; path = "../roms/128p-1.rom"; sourceTree = SOURCE_ROOT; };
+		C92EF3866D22AE4CC08978A7 /* 256s-0.rom */ = {isa = PBXFileReference; lastKnownFileType = file; name = "256s-0.rom"; path = "../roms/256s-0.rom"; sourceTree = SOURCE_ROOT; };
+		BE0CE3A70B709644584824ED /* 256s-1.rom */ = {isa = PBXFileReference; lastKnownFileType = file; name = "256s-1.rom"; path = "../roms/256s-1.rom"; sourceTree = SOURCE_ROOT; };
+		BB363D13A266FD676FFE3610 /* 256s-2.rom */ = {isa = PBXFileReference; lastKnownFileType = file; name = "256s-2.rom"; path = "../roms/256s-2.rom"; sourceTree = SOURCE_ROOT; };
+		B47A67E8F3CF893BB8B0B51B /* 256s-3.rom */ = {isa = PBXFileReference; lastKnownFileType = file; name = "256s-3.rom"; path = "../roms/256s-3.rom"; sourceTree = SOURCE_ROOT; };
+		0729E0464F01C4BF0C9CF069 /* gluck.rom */ = {isa = PBXFileReference; lastKnownFileType = file; name = "gluck.rom"; path = "../roms/gluck.rom"; sourceTree = SOURCE_ROOT; };
+		34AD35B155C536CA1C00E688 /* trdos.rom */ = {isa = PBXFileReference; lastKnownFileType = file; name = "trdos.rom"; path = "../roms/trdos.rom"; sourceTree = SOURCE_ROOT; };
 		B69BE5321660DF5300C5D0CE /* socket.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = socket.c; sourceTree = "<group>"; };
 		B69BE5351660DF8B00C5D0CE /* movie_tables.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = movie_tables.h; sourceTree = "<group>"; };
 		B69BE5361660DF8B00C5D0CE /* movie.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = movie.c; sourceTree = "<group>"; };
@@ -1745,6 +1761,14 @@
 				F559854E0389212301A804BA /* 128-1.rom */,
 				F559854C0389212301A804BA /* 48.rom */,
 				B69A00411723B8F300FF201C /* disciple.rom */,
+				149707A6310CA776B49E44BB /* 128p-0.rom */,
+				182AC5F263F0617717FE0914 /* 128p-1.rom */,
+				C92EF3866D22AE4CC08978A7 /* 256s-0.rom */,
+				BE0CE3A70B709644584824ED /* 256s-1.rom */,
+				BB363D13A266FD676FFE3610 /* 256s-2.rom */,
+				B47A67E8F3CF893BB8B0B51B /* 256s-3.rom */,
+				0729E0464F01C4BF0C9CF069 /* gluck.rom */,
+				34AD35B155C536CA1C00E688 /* trdos.rom */,
 				F55985520389213E01A804BA /* plus2-0.rom */,
 				F55985530389213E01A804BA /* plus2-1.rom */,
 				F55985540389213E01A804BA /* plus3-0.rom */,
@@ -2041,6 +2065,14 @@
 				B61F460E09121DF100C8096C /* 128-1.rom in Resources */,
 				B61F460C09121DF100C8096C /* 48.rom in Resources */,
 				B69A00421723B8F300FF201C /* disciple.rom in Resources */,
+				DF64645D648D6690E0717A05 /* 128p-0.rom in Resources */,
+				6823C0379589DBCFCE58368B /* 128p-1.rom in Resources */,
+				F5C0D7150F9D57C74254E7C8 /* 256s-0.rom in Resources */,
+				652334C79C3C45C66BE3C10B /* 256s-1.rom in Resources */,
+				35734AD24A1AA881FBBBEB27 /* 256s-2.rom in Resources */,
+				BAE50FF21E9FEF6A73AC6175 /* 256s-3.rom in Resources */,
+				9E7F68EF45D46C79F66004E9 /* gluck.rom in Resources */,
+				6616B2D62512C764FFAC046E /* trdos.rom in Resources */,
 				B61F461709121DF100C8096C /* plus2-0.rom in Resources */,
 				D1DF6DD826F8077F004A4AB7 /* debug.png in Resources */,
 				B61F461809121DF100C8096C /* plus2-1.rom in Resources */,

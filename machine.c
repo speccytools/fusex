@@ -493,10 +493,12 @@ machine_register_startup( void )
                             NULL, machine_end );
 }
 
-#ifndef __APPLE__
+/* The Cocoa app implements this in fusepb/FuseMenus.m; every other build,
+   macOS autotools included, needs the stub. */
+#ifndef UI_COCOA
 void
 SetEmulationHz( float hz )
 {
   (void)hz;
 }
-#endif
+#endif				/* #ifndef UI_COCOA */

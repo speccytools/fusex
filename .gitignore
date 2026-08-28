@@ -52,17 +52,9 @@
 /mkinstalldirs
 *.o
 /options.h
-/roms/128p-0.rom
-/roms/128p-1.rom
-/roms/256s-0.rom
-/roms/256s-1.rom
-/roms/256s-2.rom
-/roms/256s-3.rom
 /roms/didaktik80.rom
-/roms/gluck.rom
 /roms/if1-2.rom
 /roms/opus.rom
-/roms/trdos.rom
 /roms/usource.rom
 /settings.c
 /settings.h

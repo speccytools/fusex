@@ -9,7 +9,7 @@ settings.h: ../settings.dat settings-header.pl
 	cd .. && perl -Iperl fusepb/settings-header.pl settings.dat > fusepb/settings.h
 
 settings.m: ../settings.dat ../settings.pl
-	cd .. && perl -Iperl settings.pl settings.dat > fusepb/settings.m
+	cd .. && perl -Iperl settings.pl --cocoa settings.dat > fusepb/settings.m
 
 options_cocoa.h: ../perl/cpp-perl.pl config.h ../ui/cocoa/options-cocoa-header.pl ../ui/options.dat ../perl/Fuse.pm ../perl/Fuse/Dialog.pm
 	cd .. && perl perl/cpp-perl.pl fusepb/config.h ui/options.dat | perl -Iperl ui/cocoa/options-cocoa-header.pl - public > fusepb/$@.tmp && mv fusepb/$@.tmp fusepb/$@

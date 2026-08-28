@@ -7,10 +7,10 @@ on:
       key:
         type: string
         required: true
-      libspectrum_ref:
+      fuse_ref:
         type: string
         required: false
-        default: master
+        default: ""
       use_zlib:
         type: boolean
         required: false
@@ -42,8 +42,7 @@ jobs:
       LDFLAGS: "-L/usr/local/i686-w64-mingw32/lib"
       PKG_CONFIG_LIBDIR: "/usr/local/i686-w64-mingw32/lib/pkgconfig:/usr/i686-w64-mingw32/sys-root/mingw/lib/pkgconfig"
       CYGWIN_LIBDIR: "/usr/i686-w64-mingw32/sys-root/mingw/bin/"
-      LIBSPECTRUM_DIR: libspectrum
-      LIBSPECTRUM_GIT_URL: https://github.com/fuse-emulator/libspectrum
+      LIBSPECTRUM_DIR: 3rdparty/libspectrum
 
     steps:
       - name: (1) Prepare environment
@@ -53,22 +52,22 @@ jobs:
           echo "Adjust autocrlf in git.."
           git config --global core.autocrlf input
 
-          echo "Libspectrum URL: $LIBSPECTRUM_GIT_URL"
-          echo "Libspectrum ref: ${{ inputs.libspectrum_ref }}"
-
           echo "Use lib zlib: ${{ inputs.use_zlib && 'yes' || 'no' }}"
           echo "Use lib bzip2: ${{ inputs.use_bzip2 && 'yes' || 'no' }}"
           echo "Use lib libgcrypt: ${{ inputs.use_libgcrypt && 'yes' || 'no' }}"
           echo "Use lib libaudiofile: ${{ inputs.use_libaudiofile && 'yes' || 'no' }}"
 
-      - name: (2) Clone libspectrum source
+      - name: (1b) Check out Fuse
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.fuse_ref }}
+          persist-credentials: false
+
+      - name: (2) Fetch libspectrum source
         run: |
           cd ${GITHUB_WORKSPACE}
 
-          git init "$LIBSPECTRUM_DIR"
-          git -C "$LIBSPECTRUM_DIR" remote add origin "$LIBSPECTRUM_GIT_URL"
-          git -C "$LIBSPECTRUM_DIR" fetch --depth 1 origin "${{ inputs.libspectrum_ref }}"
-          git -C "$LIBSPECTRUM_DIR" checkout FETCH_HEAD
+          git submodule update --init "$LIBSPECTRUM_DIR"
 
       - name: (2b) Resolve Cygwin package cache path
         id: cygwin-cache-path

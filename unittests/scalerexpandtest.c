@@ -14,6 +14,7 @@
 #include "settings.h"
 #include "ui/scaler/scaler.h"
 #include "ui/ui.h"
+#include "ui/uidisplay.h"
 #include "utils.h"
 
 settings_info settings_current;
@@ -28,6 +29,11 @@ int
 uidisplay_hotswap_gfx_mode( void )
 {
   return 0;
+}
+
+void
+uidisplay_set_next_hotswap_reason( uidisplay_hotswap_reason reason GCC_UNUSED )
+{
 }
 
 char*

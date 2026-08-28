@@ -23,8 +23,15 @@
 ROMS = \
        roms/128-0.rom \
        roms/128-1.rom \
+       roms/128p-0.rom \
+       roms/128p-1.rom \
+       roms/256s-0.rom \
+       roms/256s-1.rom \
+       roms/256s-2.rom \
+       roms/256s-3.rom \
        roms/48.rom \
        roms/disciple.rom \
+       roms/gluck.rom \
        roms/plus2-0.rom \
        roms/plus2-1.rom \
        roms/plus3-0.rom \
@@ -39,6 +46,7 @@ ROMS = \
        roms/tc2048.rom \
        roms/tc2068-0.rom \
        roms/tc2068-1.rom \
+       roms/trdos.rom \
        roms/se-0.rom \
        roms/se-1.rom \
        roms/speccyboot-1.4.rom \

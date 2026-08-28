@@ -6,9 +6,8 @@ on: [pull_request]
 
 jobs:
   libspectrum:
-    # Build libspectrum from the canonical SourceForge repository.
+    # Build the libspectrum commit pinned by the 3rdparty/libspectrum submodule.
     name: "Libspectrum lib (Windows)"
     uses: ./.github/workflows/build_libspectrum_windows_sub.yml
     with:
       key: fuse-app
-      libspectrum_ref: master

@@ -232,8 +232,30 @@ cocoadisplay_allocate_colours( int numColours, uint16_t *colour_values,
   }
 }
 
+/* Size the current scaler asks the window's content area to be. A window that
+   would not fit the screen ends up smaller than this. */
+static NSSize
+cocoadisplay_scaler_content_size( void )
+{
+  float factor = scaler_get_scaling_factor( current_scaler );
+
+  return NSMakeSize( image_width * factor, image_height * factor );
+}
+
+/* Content size most recently requested of the window; main thread only.
+
+   Holds what was requested rather than what AppKit granted: an oversized
+   frame comes back shrunk, and asking for that same oversized size again
+   still has to count as no change.
+
+   Seeded at the first rendered frame so that the first scaler change of a
+   session compares against the scaler in effect rather than against zero,
+   which would resize a window the user sized by hand and AppKit restored. */
+static NSSize last_resized_content_size = { 0.0, 0.0 };
+
 /* Resize the emulator window after an explicit scaler change to match the
-   unscaled framebuffer times the current scaler factor.
+   unscaled framebuffer times the current scaler factor, anchored at the
+   window's top-left corner.
 
    Callers may be on a worker thread (fuse_init runs on the emulator thread
    spawned by -[Emulator connectWithPorts:]) or the main thread
@@ -247,8 +269,7 @@ cocoadisplay_resize_window( void )
      AppKit keep the restored window frame until emulation is visibly running. */
   if( !display_ui_initialised || !window_resize_enabled ) return;
 
-  float factor = scaler_get_scaling_factor( current_scaler );
-  NSSize size = NSMakeSize( image_width * factor, image_height * factor );
+  NSSize size = cocoadisplay_scaler_content_size();
 
   dispatch_async( dispatch_get_main_queue(), ^{
     NSWindow *win = [[DisplayOpenGLView instance] window];
@@ -259,16 +280,35 @@ cocoadisplay_resize_window( void )
        read on main. */
     if( ( [win styleMask] & NSWindowStyleMaskFullScreen ) != 0 ) return;
 
-    /* Preserve the window's perceived centre; setContentSize: would anchor
-       the top-left and drift the centre across repeated scaler changes. */
+    /* Recorded past the fullscreen bail above, so a scaler change made in
+       fullscreen does not claim a resize that never happened. */
+    if( NSEqualSizes( size, last_resized_content_size ) ) return;
+    last_resized_content_size = size;
+
     NSRect old = [win frame];
     NSRect frame = [win frameRectForContentRect:
                             NSMakeRect( 0, 0, size.width, size.height )];
-    frame.origin.x = NSMidX( old ) - frame.size.width / 2.0;
-    frame.origin.y = NSMidY( old ) - frame.size.height / 2.0;
-    /* A 4x scaler from a corner-positioned window can otherwise push the
-       title bar off-screen and make the window hard to recover. */
-    frame = [win constrainFrameRect:frame toScreen:[win screen]];
+
+    /* AppKit's origin is the bottom-left one, so holding the top edge means
+       moving the origin down as the window grows. */
+    frame.origin.x = old.origin.x;
+    frame.origin.y = NSMaxY( old ) - frame.size.height;
+
+    /* constrainFrameRect: only keeps the title bar reachable and would leave a
+       widened window off the right edge. Clamp last-write-wins so a window too
+       big to fit lands on the top-left. -screen is nil when fully off-screen. */
+    NSScreen *win_screen = [win screen] ?: [NSScreen mainScreen];
+    if( win_screen ) {
+      NSRect visible = [win_screen visibleFrame];
+
+      frame.origin.x = MIN( frame.origin.x, NSMaxX( visible ) - frame.size.width );
+      frame.origin.x = MAX( frame.origin.x, NSMinX( visible ) );
+      frame.origin.y = MAX( frame.origin.y, NSMinY( visible ) );
+      frame.origin.y = MIN( frame.origin.y, NSMaxY( visible ) - frame.size.height );
+    }
+
+    /* AppKit trims a frame taller than the visible area, and the 4:3
+       contentAspectRatio then pulls the width down to match. */
     [win setFrame:frame display:YES animate:YES];
   });
 }
@@ -537,7 +577,18 @@ uidisplay_frame_end( void )
 {
   int i;
 
-  window_resize_enabled = 1;
+  if( !window_resize_enabled ) {
+    /* Adopt the scaler already in effect as the baseline for the session.
+       Dispatched because last_resized_content_size belongs to the main
+       thread and this runs on the emulator one. */
+    NSSize size = cocoadisplay_scaler_content_size();
+
+    dispatch_async( dispatch_get_main_queue(), ^{
+      last_resized_content_size = size;
+    });
+
+    window_resize_enabled = 1;
+  }
 
   if( display_updated ) {
     /* obtain lock for buffered screen */
