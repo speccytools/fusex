@@ -11,6 +11,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #endif
+#include <limits.h>
 #include <string.h>
 
 #include "engines/engine.h"
@@ -21,8 +22,9 @@
 #include "peripherals/fs/xfs_engines.h"
 #include "peripherals/spectranet.h"
 
-#define SPECTRANEXT_DOT_PAGE_FIRST 0xD8u
-#define SPECTRANEXT_DOT_PAGE_COUNT 2u
+#define SPECTRANEXT_RAM_PAGE_FIRST 0xC0u
+#define SPECTRANEXT_RAM_PAGE_LAST 0xDFu
+#define SPECTRANEXT_RAM_PAGE_COUNT (SPECTRANEXT_RAM_PAGE_LAST - SPECTRANEXT_RAM_PAGE_FIRST + 1u)
 
 spectranext_enginecall_args_t spectranext_enginecall_args;
 
@@ -44,33 +46,30 @@ volatile struct spectranext_controller_t spectranext_controller = {
 };
 
 /*
- * DOT lookup is controller-owned, rather than tied to the Z80's selected
- * mountpoint. Mount the default RAM-over-ROMFS overlay for this short-lived
- * operation, then fill the two dedicated DOT RAM pages directly.
+ * XFS_READ is controller-owned: mount the default RAM-over-ROMFS overlay for
+ * this short-lived operation, resolving the caller's absolute path unchanged.
  */
-static int16_t spectranext_load_dot(const char *name)
+static int16_t spectranext_xfs_read(const char *path,
+                                    const uint32_t source_offset,
+                                    const uint8_t target_first_page,
+                                    const uint16_t target_first_page_offset,
+                                    const uint32_t maximum_data,
+                                    uint32_t *const bytes_read_out)
 {
-    char path[XFS_PATH_MAX];
-    const size_t prefix_len = sizeof("/bin/") - 1u;
-    size_t name_len = 0;
-
-    if (name == NULL || name[0] == '\0')
+    if (path == NULL || path[0] == '\0' || path[0] != '/' ||
+        source_offset > INT32_MAX ||
+        target_first_page < SPECTRANEXT_RAM_PAGE_FIRST ||
+        target_first_page > SPECTRANEXT_RAM_PAGE_LAST ||
+        target_first_page_offset >= 0x1000u)
         return XFS_ERR_INVAL;
 
-    memcpy(path, "/bin/", prefix_len);
-    while (name[name_len] != '\0')
-    {
-        if (name_len >= sizeof(path) - prefix_len - 1u)
-            return XFS_ERR_NAMETOOLONG;
+    const uint32_t destination_offset =
+        (uint32_t)(target_first_page - SPECTRANEXT_RAM_PAGE_FIRST) * 0x1000u + target_first_page_offset;
+    const uint32_t destination_capacity = SPECTRANEXT_RAM_PAGE_COUNT * 0x1000u - destination_offset;
+    if (maximum_data > destination_capacity)
+        return XFS_ERR_INVAL;
 
-        unsigned char c = (unsigned char)name[name_len];
-        if (c == '/' || c == '\\')
-            return XFS_ERR_INVAL;
-        if (c >= 'A' && c <= 'Z')
-            c = (unsigned char)(c + ('a' - 'A'));
-        path[prefix_len + name_len++] = (char)c;
-    }
-    path[prefix_len + name_len] = '\0';
+    *bytes_read_out = 0;
 
     struct xfs_engine_mount_t mount = { .engine = &xfs_overlay_engine };
     int16_t err = mount.engine->mount(mount.engine, "ram", "/", &mount);
@@ -81,29 +80,34 @@ static int16_t spectranext_load_dot(const char *name)
     err = mount.engine->open(&mount, &handle, path, XFS_O_RDONLY);
     if (err == XFS_ERR_OK)
     {
-        uint8_t *destination[SPECTRANEXT_DOT_PAGE_COUNT];
-        uint8_t page;
-        for (page = 0; page < SPECTRANEXT_DOT_PAGE_COUNT; ++page)
+        if (mount.engine->lseek(&mount, &handle, (int32_t)source_offset, XFS_SEEK_SET) < 0)
+            err = XFS_ERR_IO;
+
+        uint8_t page = target_first_page;
+        uint16_t page_offset = target_first_page_offset;
+        uint32_t remaining = maximum_data;
+        while (err == XFS_ERR_OK && remaining != 0)
         {
-            destination[page] = spectranet_ram_page(SPECTRANEXT_DOT_PAGE_FIRST + page);
-            if (destination[page] == NULL)
+            uint8_t *const destination = spectranet_ram_page(page);
+            if (destination == NULL)
             {
                 err = XFS_ERR_IO;
                 break;
             }
-            memset(destination[page], 0, 0x1000u);
-        }
-
-        for (page = 0; err == XFS_ERR_OK && page < SPECTRANEXT_DOT_PAGE_COUNT; ++page)
-        {
-            const int32_t bytes_read = mount.engine->read(&mount, &handle, destination[page], 0x1000u);
-            if (bytes_read < 0)
+            const uint32_t chunk_size = remaining < 0x1000u - page_offset
+                ? remaining : 0x1000u - page_offset;
+            const int32_t read_result = mount.engine->read(&mount, &handle, destination + page_offset, chunk_size);
+            if (read_result < 0)
             {
-                err = (int16_t)bytes_read;
+                err = (int16_t)read_result;
                 break;
             }
-            if ((uint32_t)bytes_read < 0x1000u)
+            *bytes_read_out += (uint32_t)read_result;
+            if ((uint32_t)read_result < chunk_size)
                 break;
+            remaining -= (uint32_t)read_result;
+            ++page;
+            page_offset = 0;
         }
 
         const int16_t close_err = mount.engine->close(&mount, &handle);
@@ -320,14 +324,28 @@ static void spectranext_controller_process_command(void)
             spectranext_controller_get_message();
             break;
 
-        case SPECTRANEXT_CMD_LOAD_DOT:
+        case SPECTRANEXT_CMD_XFS_READ:
         {
-            char name[SPECTRANEXT_LOAD_DOT_NAME_MAX];
-            memcpy(name, (const void *)spectranext_controller.workspace.load_dot.in.name,
-                   sizeof(name) - 1u);
-            name[sizeof(name) - 1u] = '\0';
+            char path[SPECTRANEXT_XFS_READ_PATH_MAX];
+            memcpy(path, (const void *)spectranext_controller.workspace.xfs_read.in.source_filename,
+                   sizeof(path));
+            if (memchr(path, '\0', sizeof(path)) == NULL)
+            {
+                spectranext_set_status(SPECTRANEXT_STATUS_ERROR);
+                break;
+            }
+
+            uint32_t bytes_read = 0;
+            const int16_t result = spectranext_xfs_read(
+                path,
+                spectranext_controller.workspace.xfs_read.in.source_offset,
+                spectranext_controller.workspace.xfs_read.in.target_first_page,
+                spectranext_controller.workspace.xfs_read.in.target_first_page_offset,
+                spectranext_controller.workspace.xfs_read.in.maximum_data,
+                &bytes_read);
+            spectranext_controller.workspace.xfs_read.out.bytes_read = bytes_read;
             spectranext_set_status(
-                spectranext_load_dot(name) == XFS_ERR_OK ? SPECTRANEXT_STATUS_SUCCESS : SPECTRANEXT_STATUS_ERROR);
+                result == XFS_ERR_OK ? SPECTRANEXT_STATUS_SUCCESS : SPECTRANEXT_STATUS_ERROR);
             break;
         }
 
