@@ -322,8 +322,7 @@ movie_start_fmf( const char *name )
 #else	/* HAVE_ZLIB_H */
   fwrite( "U", 1, 1, of );		/* cannot be compressed */
 #endif	/* HAVE_ZLIB_H */
-  movie_init_sound( settings_current.sound_freq,
-                    sound_stereo_ay != SOUND_STEREO_AY_NONE );
+  movie_init_sound( settings_current.sound_freq, sound_channels == 2 );
   head[0] = settings_current.frame_rate;
   head[1] = get_screentype();
   head[2] = get_timing();

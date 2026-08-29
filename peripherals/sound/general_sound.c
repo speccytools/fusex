@@ -32,6 +32,7 @@
 #include "options.h"
 #include "periph.h"
 #include "settings.h"
+#include "sound.h"
 #include "spectrum.h"
 #include "ui/ui.h"
 #include "utils.h"
@@ -122,6 +123,7 @@ static void gs_apply_settings( int force );
 static void gs_reset( int hard_reset );
 static void gs_reset_card( void );
 static void gs_enabled_snapshot( libspectrum_snap *snap );
+static void gs_resync_sound( void );
 static void gs_activate( void );
 
 static libspectrum_byte gs_read( libspectrum_word port,
@@ -308,14 +310,6 @@ gs_update_mem_mapping( void )
   }
 }
 
-/* The module system's reset hook. The card's own reset is separate so that
-   internal callers reach it without the ignored argument. */
-static void
-gs_reset( int hard_reset GCC_UNUSED )
-{
-  gs_reset_card();
-}
-
 static void
 gs_reset_card( void )
 {
@@ -335,6 +329,27 @@ gs_reset_card( void )
   memset( gs_volume, 0, sizeof( gs_volume ) );
   gs_update_mem_mapping();
   gs_z80_reset();
+}
+
+/* The module system's reset hook. The card's own reset is separate so that
+   internal callers reach it without the ignored argument. */
+static void
+gs_reset( int hard_reset GCC_UNUSED )
+{
+  gs_reset_card();
+  gs_resync_sound();
+}
+
+/* Fitting or removing the card changes whether the output has a right
+   channel, which sound_init settles once. There is no deactivation hook,
+   so this runs from the module reset that follows either change. */
+static void
+gs_resync_sound( void )
+{
+  if( !sound_layout_stale() ) return;
+
+  sound_end();
+  sound_init( settings_current.sound_device );
 }
 
 /* A span of host T-states as a count of the card's. */
