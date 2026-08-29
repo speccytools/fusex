@@ -113,7 +113,11 @@ static int rzx_instructions_offset;
 static libspectrum_byte
 gs_z80_readbyte( libspectrum_word address )
 {
-  return general_sound_bank_read[ address >> 14 ][ address & 0x3fff ];
+  libspectrum_byte b = general_sound_bank_read[ address >> 14 ][ address & 0x3fff ];
+
+  if( ( address & 0xe000 ) == 0x6000 ) general_sound_dac_read( address, b );
+
+  return b;
 }
 
 static void

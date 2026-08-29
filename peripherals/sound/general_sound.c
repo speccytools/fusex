@@ -61,6 +61,11 @@
    the bit reads back clear. */
 #define GS_CFG0_8CHANS 0x04
 
+/* A channel swings +-128 against a six-bit volume, so a side reaches
+   about +-12000 before scaling; this puts the card in the same range as
+   the other digitized sources. */
+#define GS_MIX_SCALE 2
+
 static libspectrum_byte gs_status;
 static libspectrum_byte gs_command;
 static libspectrum_byte gs_data_to_host;
@@ -87,6 +92,10 @@ static libspectrum_byte gs_cfg0;
 
 /* Six-bit attenuation per channel, written by the card's own Z80. */
 static libspectrum_byte gs_volume[4];
+
+/* Last byte each channel's DAC was handed. The card powers up with all
+   four at mid-scale. */
+static libspectrum_byte gs_dac[4] = { 0x80, 0x80, 0x80, 0x80 };
 
 /* The card's absolute T-state count at the start of the current host
    frame. Its clock runs at a fixed ratio to the host's, so a flush maps
@@ -116,6 +125,7 @@ static void gs_update_mem_mapping( void );
 static int gs_allocate( void );
 static void gs_flush( void );
 static void gs_apply_settings( int force );
+static void gs_mix( void );
 
 /* The card's paging registers rotate their operand left by one bit. */
 #define GS_ROL8( v ) ( (libspectrum_byte)( ( (v) << 1 ) | ( (v) >> 7 ) ) )
@@ -327,8 +337,13 @@ gs_reset_card( void )
   gs_page_ext = 1;
   gs_cfg0 = 0;
   memset( gs_volume, 0, sizeof( gs_volume ) );
+  memset( gs_dac, 0x80, sizeof( gs_dac ) );
   gs_update_mem_mapping();
   gs_z80_reset();
+
+  /* Return the output to silence rather than leaving the last level
+     standing in the mixer for as long as the card is stopped. */
+  gs_mix();
 }
 
 /* The module system's reset hook. The card's own reset is separate so that
@@ -350,6 +365,34 @@ gs_resync_sound( void )
 
   sound_end();
   sound_init( settings_current.sound_device );
+}
+
+/* Channels 0 and 1 feed the left output, 2 and 3 the right, and each side
+   is then mixed into the other at half level. The samples go in at the
+   host T-state the card has reached, which is where they belong in the
+   output buffer. */
+static void
+gs_mix( void )
+{
+  int v[4], l, r, i;
+  libspectrum_dword at;
+
+  for( i = 0; i < 4; i++ )
+    v[i] = ( (int)gs_dac[i] - 0x80 ) * gs_volume[i];
+
+  l = ( ( v[0] + v[1] ) + ( v[2] + v[3] ) / 2 ) / 2;
+  r = ( ( v[2] + v[3] ) + ( v[0] + v[1] ) / 2 ) / 2;
+
+  at = (libspectrum_dword)
+       ( ( gs_z80_now() - gs_frame_base ) *
+         machine_current->timings.processor_speed / GS_Z80_CLOCK_SPEED );
+
+  /* A whole instruction can carry the card past the point the host has
+     reached; the samples belong no later than the frame it is in. */
+  if( at >= machine_current->timings.tstates_per_frame )
+    at = machine_current->timings.tstates_per_frame - 1;
+
+  sound_generalsound_write( at, l * GS_MIX_SCALE, r * GS_MIX_SCALE );
 }
 
 /* A span of host T-states as a count of the card's. */
@@ -457,6 +500,16 @@ static void
 gs_enabled_snapshot( libspectrum_snap *snap GCC_UNUSED )
 {
   settings_current.general_sound = gs_fitted;
+}
+
+/* The DACs are not written through a port: the card reads its sample
+   bytes out of 0x6000-0x7fff, and address bits 9 and 8 pick the channel.
+   Called for every read in that window, instruction fetches included. */
+void
+general_sound_dac_read( libspectrum_word address, libspectrum_byte b )
+{
+  gs_dac[ ( address >> 8 ) & 3 ] = b;
+  gs_mix();
 }
 
 /* Re-anchor the card's frame origin on the host's T-state count, for the
@@ -596,6 +649,8 @@ general_sound_port_write( libspectrum_word port, libspectrum_byte b )
 
   }
 
-  if( ( port & 0xff ) >= GS_PORT_VOL1 && ( port & 0xff ) <= GS_PORT_VOL4 )
+  if( ( port & 0xff ) >= GS_PORT_VOL1 && ( port & 0xff ) <= GS_PORT_VOL4 ) {
     gs_volume[ ( port & 0xff ) - GS_PORT_VOL1 ] = b & 0x3f;
+    gs_mix();
+  }
 }

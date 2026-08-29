@@ -130,6 +130,8 @@ static int ula_beeper_on;
 
 Blip_Synth *ay_a_synth = NULL, *ay_b_synth = NULL, *ay_c_synth = NULL;
 Blip_Synth *ay_a_synth_r = NULL, *ay_b_synth_r = NULL, *ay_c_synth_r = NULL;
+static Blip_Synth *left_generalsound_synth = NULL;
+static Blip_Synth *right_generalsound_synth = NULL;
 
 Blip_Synth *left_specdrum_synth = NULL, *right_specdrum_synth = NULL;
 
@@ -307,6 +309,11 @@ sound_init( const char *device )
   blip_synth_set_output( left_specdrum_synth, left_buf );
   blip_synth_set_treble_eq( left_specdrum_synth, 0.0 );
 
+  left_generalsound_synth = new_Blip_Synth();
+  blip_synth_set_volume( left_generalsound_synth, sound_get_volume( 100 ) );
+  blip_synth_set_output( left_generalsound_synth, left_buf );
+  blip_synth_set_treble_eq( left_generalsound_synth, 0.0 );
+
   left_covox_synth = new_Blip_Synth();
   blip_synth_set_volume( left_covox_synth,
                          sound_get_volume( settings_current.volume_covox ) );
@@ -391,6 +398,11 @@ sound_init( const char *device )
     blip_synth_set_output( right_specdrum_synth, right_buf );
     blip_synth_set_treble_eq( right_specdrum_synth, 0.0 );
 
+    right_generalsound_synth = new_Blip_Synth();
+    blip_synth_set_volume( right_generalsound_synth, sound_get_volume( 100 ) );
+    blip_synth_set_output( right_generalsound_synth, right_buf );
+    blip_synth_set_treble_eq( right_generalsound_synth, 0.0 );
+
     right_covox_synth = new_Blip_Synth();
     blip_synth_set_volume( right_covox_synth,
                            sound_get_volume( settings_current.volume_covox ) );
@@ -469,6 +481,9 @@ sound_end( void )
 
     delete_Blip_Synth( &left_specdrum_synth );
     delete_Blip_Synth( &right_specdrum_synth );
+
+    delete_Blip_Synth( &left_generalsound_synth );
+    delete_Blip_Synth( &right_generalsound_synth );
 
     delete_Blip_Synth( &left_covox_synth );
     delete_Blip_Synth( &right_covox_synth );
@@ -775,6 +790,27 @@ sound_specdrum_write( libspectrum_word port GCC_UNUSED, libspectrum_byte val )
     }
     machine_current->specdrum.specdrum_dac = val - 128;
   }
+}
+
+/*
+ * sound_generalsound_write - the card mixes its own channels, so this
+ * takes a stereo pair already summed and placed in time
+ */
+void
+sound_generalsound_write( libspectrum_dword at_tstates, int left, int right )
+{
+  if( !sound_enabled ) return;
+
+  if( !right_generalsound_synth ) {
+    /* Each side already carries the other's channels at half level, so
+       their average holds every channel at equal weight. */
+    blip_synth_update( left_generalsound_synth, at_tstates,
+		       ( left + right ) / 2 );
+    return;
+  }
+
+  blip_synth_update( left_generalsound_synth, at_tstates, left );
+  blip_synth_update( right_generalsound_synth, at_tstates, right );
 }
 
 /*

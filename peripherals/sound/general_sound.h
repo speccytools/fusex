@@ -38,6 +38,9 @@ extern libspectrum_byte *general_sound_bank_write[4];
 
 /* The card's own I/O map, as seen by its Z80 (not the host's ports). */
 libspectrum_byte general_sound_port_read( libspectrum_word port );
+
+/* Called for each of the card's memory reads in its DAC window. */
+void general_sound_dac_read( libspectrum_word address, libspectrum_byte b );
 void general_sound_port_write( libspectrum_word port, libspectrum_byte b );
 
 #endif			/* #ifndef FUSE_GENERAL_SOUND_H */
