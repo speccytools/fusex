@@ -80,6 +80,8 @@ z80_is_cmos, boolean, 0,, cmos-z80
 late_timings, boolean, 0
 unittests, boolean, 0
 fuller, boolean, 0
+general_sound, boolean, 0
+general_sound_ram, string, "2048 KB", option_enumerate_string_peripherals_sound_general_sound_ram
 melodik, boolean, 0
 speccyboot, boolean, 0
 specdrum, boolean, 0
@@ -276,6 +278,7 @@ rom_beta128, string, "trdos.rom",
 rom_plusd, string, "plusd.rom",
 rom_didaktik80, string, "didaktik80.rom",
 rom_disciple, string, "disciple.rom",
+rom_general_sound, string, "gs.rom",
 rom_multiface1, string, "mf1.rom",
 rom_multiface128, string, "mf128.rom",
 rom_multiface3, string, "mf3.rom",

@@ -121,6 +121,8 @@ Checkbox, M(e)lodik, melodik, INPUT_KEY_e
 Checkbox, Spec(D)rum interface, specdrum, INPUT_KEY_d
 Checkbox, C(o)vox interface, covox, INPUT_KEY_o
 Checkbox, (u)Speech, uspeech, INPUT_KEY_u
+Checkbox, (G)eneral Sound, general_sound, INPUT_KEY_g
+Combo, General Sound (R)AM, general_sound_ram, INPUT_KEY_r, 512 KB|1024 KB|*2048 KB|4096 KB
 Postcheck, periph_postcheck
 Posthook, periph_posthook
 
