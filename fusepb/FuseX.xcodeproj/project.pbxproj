@@ -18,6 +18,7 @@
 		58ED2BB163960C572FE0F3E3 /* pzx.icns in Resources */ = {isa = PBXBuildFile; fileRef = 23103D2BCD71D4B9DEC65FCF /* pzx.icns */; };
 		652334C79C3C45C66BE3C10B /* 256s-1.rom in Resources */ = {isa = PBXBuildFile; fileRef = BE0CE3A70B709644584824ED /* 256s-1.rom */; };
 		6616B2D62512C764FFAC046E /* trdos.rom in Resources */ = {isa = PBXBuildFile; fileRef = 34AD35B155C536CA1C00E688 /* trdos.rom */; };
+		B6E1F1AD14F653FB00600EC3 /* gs.rom in Resources */ = {isa = PBXBuildFile; fileRef = B6E1F1A914F653FB00600EC3 /* gs.rom */; };
 		6823C0379589DBCFCE58368B /* 128p-1.rom in Resources */ = {isa = PBXBuildFile; fileRef = 182AC5F263F0617717FE0914 /* 128p-1.rom */; };
 		70561DA4F03E4F3DA5B85553 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EAA54F20E902456BACB24998 /* MetalKit.framework */; };
 		70C4AAF3348BCAAF406ABD72 /* fdi.icns in Resources */ = {isa = PBXBuildFile; fileRef = 0434807795A36A2ADBE801FD /* fdi.icns */; };
@@ -498,6 +499,7 @@
 		29B97325FDCFA39411CA2CEA /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = /System/Library/Frameworks/Foundation.framework; sourceTree = "<absolute>"; };
 		2BDC12F02C4E48F98494D156 /* DisplayShaders.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = DisplayShaders.metal; sourceTree = "<group>"; };
 		34AD35B155C536CA1C00E688 /* trdos.rom */ = {isa = PBXFileReference; lastKnownFileType = file; name = trdos.rom; path = ../roms/trdos.rom; sourceTree = SOURCE_ROOT; };
+		B6E1F1A914F653FB00600EC3 /* gs.rom */ = {isa = PBXFileReference; lastKnownFileType = file; name = gs.rom; path = ../roms/gs.rom; sourceTree = SOURCE_ROOT; };
 		384001994B177FFEB8AE6C99 /* udi.icns */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.icns; name = udi.icns; path = resources/udi.icns; sourceTree = SOURCE_ROOT; };
 		3B061F2A9CBA3011FBE7A640 /* d80.icns */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.icns; name = d80.icns; path = resources/d80.icns; sourceTree = SOURCE_ROOT; };
 		6B9DA7F77DF8F6DD5023E33A /* spc.icns */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.icns; name = spc.icns; path = resources/spc.icns; sourceTree = SOURCE_ROOT; };
@@ -1768,6 +1770,7 @@
 			children = (
 				FE3FF184294F1220009F571F /* spectranet.rom */,
 				F559854D0389212301A804BA /* 128-0.rom */,
+				B6E1F1A914F653FB00600EC3 /* gs.rom */,
 				F559854E0389212301A804BA /* 128-1.rom */,
 				F559854C0389212301A804BA /* 48.rom */,
 				B69A00411723B8F300FF201C /* disciple.rom */,
@@ -2083,6 +2086,7 @@
 				BAE50FF21E9FEF6A73AC6175 /* 256s-3.rom in Resources */,
 				9E7F68EF45D46C79F66004E9 /* gluck.rom in Resources */,
 				6616B2D62512C764FFAC046E /* trdos.rom in Resources */,
+				B6E1F1AD14F653FB00600EC3 /* gs.rom in Resources */,
 				B61F461709121DF100C8096C /* plus2-0.rom in Resources */,
 				D1DF6DD826F8077F004A4AB7 /* debug.png in Resources */,
 				B61F461809121DF100C8096C /* plus2-1.rom in Resources */,

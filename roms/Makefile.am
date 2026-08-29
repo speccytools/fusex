@@ -32,6 +32,7 @@ ROMS = \
        roms/48.rom \
        roms/disciple.rom \
        roms/gluck.rom \
+       roms/gs.rom \
        roms/plus2-0.rom \
        roms/plus2-1.rom \
        roms/plus3-0.rom \

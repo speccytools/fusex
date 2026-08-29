@@ -98,6 +98,14 @@ gluck.rom
 These are the Scorpion and Gluck service ROMs. Their copyright status is
 currently unknown.
 
+gs.rom
+
+This is the General Sound card firmware, taken from a NeoGS image. It
+carries "General Sound (tm) ROM Copyright 1997 Stinger Version 1.10"
+together with a NeoGS loader marked "improved ROM Version 1.04 Beta.
+Bugfixes by psb & Evgeny Muchkin, 2007". No permission for redistribution
+has been obtained.
+
 Copyright owners
 ----------------
 
