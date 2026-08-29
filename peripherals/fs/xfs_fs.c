@@ -642,8 +642,15 @@ static int16_t fs_getcwd(const struct xfs_engine_mount_t* engine, char* buffer, 
 // Rename file/directory
 static int16_t fs_rename(const struct xfs_engine_mount_t* engine, const char* old_path, const char* new_path)
 {
-    char* full_old_path = build_path(old_path);
-    char* full_new_path = build_path(new_path);
+    /* build_path() uses a single static buffer. Preserve the old path before
+     * resolving the new one, otherwise both arguments to rename() point at
+     * the new path. */
+    char full_old_path[PATH_MAX];
+    char full_new_path[PATH_MAX];
+    strncpy(full_old_path, build_path(old_path), sizeof(full_old_path) - 1);
+    full_old_path[sizeof(full_old_path) - 1] = '\0';
+    strncpy(full_new_path, build_path(new_path), sizeof(full_new_path) - 1);
+    full_new_path[sizeof(full_new_path) - 1] = '\0';
     int ret = rename(full_old_path, full_new_path);
     
     if (ret != 0) {
