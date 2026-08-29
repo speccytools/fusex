@@ -181,6 +181,7 @@ static void
 base_peripherals( void )
 {
   periph_set_present( PERIPH_TYPE_DIVIDE, PERIPH_PRESENT_OPTIONAL );
+  periph_set_present( PERIPH_TYPE_GENERAL_SOUND, PERIPH_PRESENT_OPTIONAL );
   periph_set_present( PERIPH_TYPE_DIVMMC, PERIPH_PRESENT_OPTIONAL );
   periph_set_present( PERIPH_TYPE_KEMPSTON, PERIPH_PRESENT_OPTIONAL );
   periph_set_present( PERIPH_TYPE_KEMPSTON_MOUSE, PERIPH_PRESENT_OPTIONAL );

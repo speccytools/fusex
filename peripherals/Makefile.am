@@ -36,6 +36,8 @@ fuse_SOURCES += \
                 peripherals/sound/ay.c \
                 peripherals/sound/covox.c \
                 peripherals/sound/fuller.c \
+                peripherals/sound/general_sound.c \
+                peripherals/sound/gs_z80.c \
                 peripherals/sound/melodik.c \
                 peripherals/sound/sp0256.c \
                 peripherals/sound/specdrum.c \
@@ -116,6 +118,8 @@ noinst_HEADERS += \
                   peripherals/sound/ay.h \
                   peripherals/sound/covox.h \
                   peripherals/sound/fuller.h \
+                  peripherals/sound/general_sound.h \
+                  peripherals/sound/gs_z80.h \
                   peripherals/sound/melodik.h \
                   peripherals/sound/sp0256.h \
                   peripherals/sound/specdrum.h \

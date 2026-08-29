@@ -91,6 +91,7 @@ static Emulator *instance = nil;
     settings_current.rom_beta128,
     settings_current.rom_didaktik80,
     settings_current.rom_disciple,
+    settings_current.rom_general_sound,
     settings_current.rom_interface1,
     settings_current.rom_multiface1,
     settings_current.rom_multiface128,

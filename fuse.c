@@ -70,6 +70,7 @@
 #include "peripherals/dck.h"
 #include "peripherals/sound/ay.h"
 #include "peripherals/sound/fuller.h"
+#include "peripherals/sound/general_sound.h"
 #include "peripherals/sound/melodik.h"
 #include "peripherals/disk/beta.h"
 #include "peripherals/disk/didaktik.h"
@@ -313,6 +314,7 @@ run_startup_manager( int *argc, char ***argv )
   event_register_startup();
   fdd_register_startup();
   fuller_register_startup();
+  general_sound_register_startup();
   if1_register_startup();
   if2_register_startup();
   joystick_register_startup();

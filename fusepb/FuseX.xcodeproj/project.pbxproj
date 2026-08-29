@@ -295,6 +295,8 @@
 		B6E1F1A514F653CE00600EB0 /* machines_periph.c in Sources */ = {isa = PBXBuildFile; fileRef = B6E1F1A314F653CE00600EB0 /* machines_periph.c */; };
 		B6E1F1AB14F653FB00600EB0 /* speccyboot.c in Sources */ = {isa = PBXBuildFile; fileRef = B6E1F1A714F653FB00600EB0 /* speccyboot.c */; };
 		B6E1F1AD14F653FB00600EB0 /* specdrum.c in Sources */ = {isa = PBXBuildFile; fileRef = B6E1F1A914F653FB00600EB0 /* specdrum.c */; };
+		B6E1F1AD14F653FB00600EC1 /* general_sound.c in Sources */ = {isa = PBXBuildFile; fileRef = B6E1F1A914F653FB00600EC1 /* general_sound.c */; };
+		B6E1F1AD14F653FB00600EC2 /* gs_z80.c in Sources */ = {isa = PBXBuildFile; fileRef = B6E1F1A914F653FB00600EC2 /* gs_z80.c */; };
 		B6E1F1B114F6555400600EB0 /* disciple.c in Sources */ = {isa = PBXBuildFile; fileRef = B6E1F1AF14F6555400600EB0 /* disciple.c */; };
 		B6E1F26E14F85BD500600EB0 /* speccyboot-1.4.rom in Resources */ = {isa = PBXBuildFile; fileRef = B6E1F26D14F85BD500600EB0 /* speccyboot-1.4.rom */; };
 		B6F0480F0952B597006D8005 /* dck.icns in Resources */ = {isa = PBXBuildFile; fileRef = B6F0480E0952B597006D8005 /* dck.icns */; };
@@ -823,6 +825,10 @@
 		B6E1F1A814F653FB00600EB0 /* speccyboot.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = speccyboot.h; sourceTree = "<group>"; };
 		B6E1F1A914F653FB00600EB0 /* specdrum.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = specdrum.c; path = sound/specdrum.c; sourceTree = "<group>"; };
 		B6E1F1AA14F653FB00600EB0 /* specdrum.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = specdrum.h; path = sound/specdrum.h; sourceTree = "<group>"; };
+		B6E1F1A914F653FB00600EC1 /* general_sound.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = general_sound.c; path = sound/general_sound.c; sourceTree = "<group>"; };
+		B6E1F1AA14F653FB00600EC1 /* general_sound.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = general_sound.h; path = sound/general_sound.h; sourceTree = "<group>"; };
+		B6E1F1A914F653FB00600EC2 /* gs_z80.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = gs_z80.c; path = sound/gs_z80.c; sourceTree = "<group>"; };
+		B6E1F1AA14F653FB00600EC2 /* gs_z80.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = gs_z80.h; path = sound/gs_z80.h; sourceTree = "<group>"; };
 		B6E1F1AF14F6555400600EB0 /* disciple.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = disciple.c; sourceTree = "<group>"; };
 		B6E1F1B014F6555400600EB0 /* disciple.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = disciple.h; sourceTree = "<group>"; };
 		B6E1F26D14F85BD500600EB0 /* speccyboot-1.4.rom */ = {isa = PBXFileReference; lastKnownFileType = file; name = "speccyboot-1.4.rom"; path = "../roms/speccyboot-1.4.rom"; sourceTree = "<group>"; };
@@ -1703,6 +1709,10 @@
 				B6E1F1A814F653FB00600EB0 /* speccyboot.h */,
 				B6E1F1A914F653FB00600EB0 /* specdrum.c */,
 				B6E1F1AA14F653FB00600EB0 /* specdrum.h */,
+				B6E1F1A914F653FB00600EC1 /* general_sound.c */,
+				B6E1F1AA14F653FB00600EC1 /* general_sound.h */,
+				B6E1F1A914F653FB00600EC2 /* gs_z80.c */,
+				B6E1F1AA14F653FB00600EC2 /* gs_z80.h */,
 				FE9900020000000000000002 /* sp0256.c */,
 				FE9900030000000000000003 /* sp0256.h */,
 				FE9900050000000000000005 /* uspeech.c */,
@@ -2429,6 +2439,8 @@
 				B6E1F1AB14F653FB00600EB0 /* speccyboot.c in Sources */,
 				FE981C372FA55F84005FE59F /* gdbserver_remote_commands.c in Sources */,
 				B6E1F1AD14F653FB00600EB0 /* specdrum.c in Sources */,
+				B6E1F1AD14F653FB00600EC1 /* general_sound.c in Sources */,
+				B6E1F1AD14F653FB00600EC2 /* gs_z80.c in Sources */,
 				FE9900010000000000000001 /* sp0256.c in Sources */,
 				FE9900040000000000000004 /* uspeech.c in Sources */,
 				B6E1F1B114F6555400600EB0 /* disciple.c in Sources */,

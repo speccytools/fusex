@@ -48,6 +48,7 @@ typedef enum periph_type {
   PERIPH_TYPE_DIDAKTIK80,     /* Didaktik 40/80 disk interface */
   PERIPH_TYPE_DISCIPLE,       /* DISCiPLE disk interface */
   PERIPH_TYPE_FULLER,         /* Fuller box */
+  PERIPH_TYPE_GENERAL_SOUND,  /* General Sound card */
   PERIPH_TYPE_INTERFACE1,     /* Interface 1 */
   PERIPH_TYPE_INTERFACE2,     /* Interface 2 */
 
