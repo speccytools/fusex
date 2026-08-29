@@ -131,3 +131,14 @@ OPTION | DESCRIPTION
 *Multiface 128* | If this option is selected, Fuse will emulate the Multiface 128. Available for 16K, 48K, Timex TC2048, 128K, +2 and SE machines. The required ROM file is not supplied with Fuse for macOSX and so must be installed before the interface can be used. The expected file is an 8KB dump of the interface ROM named mf128.rom and placed in the Fuse packages Contents/Resources directory.
 *Multiface 3* | If this option is selected, Fuse will emulate the Multiface 3. Available for +2A, +3 and +3e machines. The required ROM file is not supplied with Fuse for macOSX and so must be installed before the interface can be used. The expected file is an 8KB dump of the interface ROM named mf3.rom and placed in the Fuse packages Contents/Resources directory.
 *Multiface One Stealth* | This option controls the 'invisible' or 'stealth' mode of Multiface One, as the physical switch on the side of the interface.
+
+<br>
+### General Sound options
+
+General Sound is a sound card built around a second Z80 with its own ROM, its own RAM and four 8-bit DACs, mixed to a stereo output with the first two channels on the left and the other two on the right. It was widely used on the Russian scene, and a number of demos and games have soundtracks written for it.
+
+OPTION | DESCRIPTION
+:--- | :---
+*General Sound* | If this option is selected, Fuse will emulate a General Sound card. It is an expansion-bus device and can be fitted alongside any other sound interface. Its ports are the ones the real card used, which the DivIDE, Multiface 128, Multiface 3 and DISCiPLE interfaces also decode; enabling one of those at the same time will interfere with it, as it would on real hardware. Fitting the card makes the sound output stereo even with AY stereo separation set to None.
+*RAM* | The amount of memory fitted to the card. Cards were built with anywhere from 512KB to 4MB. Leave this at 2048KB unless a particular program asks for something else: the card's firmware sizes memory by a method that cannot see a smaller card, and will place sample data by the size it expects rather than the size fitted.
+*ROM* | The card's firmware. A 512KB image named gs.rom is supplied in the Fuse packages Contents/Resources directory and is used by default; the Choose button will point the card at any other 512KB image instead. Fuse will report an error and leave the card inactive if the file is missing or the wrong size.
