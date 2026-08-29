@@ -158,6 +158,7 @@ static BOOL appTerminating = NO;
   diskTryMerge = cocoa_diskoptions_disk_try_merge();
   movieCompression = cocoa_movie_movie_compr();
   phantomTypistMode = cocoa_media_phantom_typist_mode();
+  generalSoundRam = cocoa_peripherals_sound_general_sound_ram();
 
   return self;
 }
@@ -410,6 +411,23 @@ static BOOL appTerminating = NO;
 
     // Update underlying model
     [[machineRomsController selection] setValue:romString forKey:key];
+  }
+}
+
+/* The General Sound ROM is the card's own, not one of the machine's, so it
+   is held in the defaults rather than the machine ROM table. */
+- (IBAction)chooseGeneralSoundROM:(id)sender
+{
+  NSOpenPanel *oPanel = [NSOpenPanel openPanel];
+
+  [oPanel setAllowedFileTypes:@[@"rom", @"ROM"]];
+
+  if( [oPanel runModal] == NSOKButton ) {
+    NSString *oFile = [[oPanel URL] path];
+
+    [[AppSandboxFileAccess fileAccess] persistPermissionPath:oFile];
+    [[NSUserDefaults standardUserDefaults] setObject:oFile
+                                              forKey:@"romgeneralsound"];
   }
 }
 

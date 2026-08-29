@@ -578,11 +578,11 @@
             <point key="canvasLocation" x="132" y="885"/>
         </customView>
         <customView id="1432" userLabel="Peripherals">
-            <rect key="frame" x="0" y="0" width="800" height="457"/>
+            <rect key="frame" x="0" y="0" width="800" height="563"/>
             <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
             <subviews>
                 <box autoresizesSubviews="NO" fixedFrame="YES" borderType="line" title="External sound interface" translatesAutoresizingMaskIntoConstraints="NO" id="1833">
-                    <rect key="frame" x="561" y="308" width="222" height="129"/>
+                    <rect key="frame" x="561" y="414" width="222" height="129"/>
                     <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                     <view key="contentView" id="3G9-p5-WYZ">
                         <rect key="frame" x="0" y="0" width="222" height="117"/>
@@ -641,8 +641,87 @@
                         </subviews>
                     </view>
                 </box>
+                <box fixedFrame="YES" title="General Sound" translatesAutoresizingMaskIntoConstraints="NO" id="GSb-ox-001">
+                    <rect key="frame" x="18" y="16" width="218" height="142"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <view key="contentView" id="GSb-ox-002">
+                        <rect key="frame" x="0" y="0" width="218" height="130"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <button fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="GSc-hk-001">
+                                <rect key="frame" x="12" y="108" width="170" height="18"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <buttonCell key="cell" type="check" title="General Sound" bezelStyle="regularSquare" imagePosition="left" alignment="left" inset="2" id="GSc-hk-002">
+                                    <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                                    <font key="font" metaFont="system"/>
+                                </buttonCell>
+                                <connections>
+                                    <binding destination="270" name="value" keyPath="values.generalsound" id="GSc-hk-003"/>
+                                </connections>
+                            </button>
+                            <textField focusRingType="none" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="GSr-am-001">
+                                <rect key="frame" x="12" y="80" width="34" height="17"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <textFieldCell key="cell" sendsActionOnEndEditing="YES" alignment="left" title="RAM" id="GSr-am-002">
+                                    <font key="font" metaFont="system"/>
+                                    <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
+                                    <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
+                                </textFieldCell>
+                            </textField>
+                            <popUpButton verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="GSr-am-003">
+                                <rect key="frame" x="50" y="76" width="150" height="26"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <popUpButtonCell key="cell" type="push" title="2048 KB" bezelStyle="rounded" alignment="left" lineBreakMode="truncatingTail" state="on" borderStyle="borderAndBezel" imageScaling="proportionallyDown" inset="2" selectedItem="GSr-am-006" id="GSr-am-004">
+                                    <behavior key="behavior" lightByBackground="YES" lightByGray="YES"/>
+                                    <font key="font" metaFont="message"/>
+                                    <menu key="menu" id="GSr-am-005">
+                                        <items>
+                                            <menuItem title="2048 KB" state="on" id="GSr-am-006"/>
+                                        </items>
+                                    </menu>
+                                    <connections>
+                                        <binding destination="GSa-rr-001" name="contentValues" keyPath="arrangedObjects" id="GSr-am-007"/>
+                                        <binding destination="270" name="selectedValue" keyPath="values.generalsoundram" previousBinding="GSr-am-007" id="GSr-am-008"/>
+                                    </connections>
+                                </popUpButtonCell>
+                            </popUpButton>
+                            <textField focusRingType="none" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="GSo-rm-001">
+                                <rect key="frame" x="12" y="50" width="34" height="17"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <textFieldCell key="cell" sendsActionOnEndEditing="YES" alignment="left" title="ROM" id="GSo-rm-002">
+                                    <font key="font" metaFont="system"/>
+                                    <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
+                                    <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
+                                </textFieldCell>
+                            </textField>
+                            <textField focusRingType="none" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="GSo-rm-003">
+                                <rect key="frame" x="50" y="48" width="150" height="22"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" borderStyle="bezel" alignment="left" drawsBackground="YES" state="on" id="GSo-rm-004">
+                                    <font key="font" metaFont="system"/>
+                                    <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
+                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                </textFieldCell>
+                                <connections>
+                                    <binding destination="270" name="value" keyPath="values.romgeneralsound" id="GSo-rm-005"/>
+                                </connections>
+                            </textField>
+                            <button fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="GSo-rm-006">
+                                <rect key="frame" x="50" y="8" width="100" height="28"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <buttonCell key="cell" type="push" title="Choose..." bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="GSo-rm-007">
+                                    <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                                    <font key="font" metaFont="system"/>
+                                </buttonCell>
+                                <connections>
+                                    <action selector="chooseGeneralSoundROM:" target="-2" id="GSo-rm-008"/>
+                                </connections>
+                            </button>
+                        </subviews>
+                    </view>
+                </box>
                 <box fixedFrame="YES" title="Printers" translatesAutoresizingMaskIntoConstraints="NO" id="1433">
-                    <rect key="frame" x="256" y="16" width="534" height="134"/>
+                    <rect key="frame" x="256" y="122" width="534" height="134"/>
                     <autoresizingMask key="autoresizingMask"/>
                     <view key="contentView" id="ojx-X9-Ioy">
                         <rect key="frame" x="0.0" y="0.0" width="534" height="122"/>
@@ -738,7 +817,7 @@
                     </view>
                 </box>
                 <box fixedFrame="YES" title="Mass storage/ROM Interfaces" translatesAutoresizingMaskIntoConstraints="NO" id="1434">
-                    <rect key="frame" x="18" y="64" width="218" height="373"/>
+                    <rect key="frame" x="18" y="170" width="218" height="373"/>
                     <autoresizingMask key="autoresizingMask"/>
                     <view key="contentView" id="y0s-Gg-gqJ">
                         <rect key="frame" x="0" y="0" width="218" height="361"/>
@@ -878,7 +957,7 @@
                     </view>
                 </box>
                 <box fixedFrame="YES" title="Options" translatesAutoresizingMaskIntoConstraints="NO" id="EhT-Xj-lWm">
-                    <rect key="frame" x="256" y="191" width="289" height="246"/>
+                    <rect key="frame" x="256" y="297" width="289" height="246"/>
                     <autoresizingMask key="autoresizingMask"/>
                     <view key="contentView" id="Tsp-i8-Tc0">
                         <rect key="frame" x="0" y="0" width="289" height="234"/>
@@ -1002,7 +1081,7 @@
                     </view>
                 </box>
                 <box autoresizesSubviews="NO" fixedFrame="YES" borderType="line" title="Romantic Robot Multiface" translatesAutoresizingMaskIntoConstraints="NO" id="6eE-xu-7vV">
-                    <rect key="frame" x="561" y="162" width="222" height="134"/>
+                    <rect key="frame" x="561" y="268" width="222" height="134"/>
                     <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                     <view key="contentView" id="4mh-bA-ptt">
                         <rect key="frame" x="0" y="0" width="222" height="122"/>
@@ -2221,6 +2300,11 @@
         <arrayController id="1889" userLabel="StereoAY">
             <connections>
                 <binding destination="-2" name="contentArray" keyPath="soundStereoAY" id="1894"/>
+            </connections>
+        </arrayController>
+        <arrayController id="GSa-rr-001" userLabel="GeneralSoundRam">
+            <connections>
+                <binding destination="-2" name="contentArray" keyPath="generalSoundRam" id="GSa-rr-002"/>
             </connections>
         </arrayController>
         <arrayController id="EwE-p0-R91" userLabel="PhantomTypistMode">
