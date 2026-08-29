@@ -6,6 +6,8 @@
 #include <stdint.h>
 
 #define XFS_SPECTRANET_PAGE (0x49)
+#define XFS_PATH_MAX (256)
+#define XFS_OVERLAY_MAX_LAYERS 4
 
 // XFS error codes (mapped from LittleFS error codes)
 enum xfs_error {
@@ -83,15 +85,20 @@ struct xfs_handle_t;
 
 struct xfs_engine_mount_t
 {
-    struct xfs_engine_t* engine;
+    const struct xfs_engine_t* engine;
     void* mount_data;
+    char* cwd;
 };
 
+#ifndef FS_STORAGE_ENUM_DEFINED
+#define FS_STORAGE_ENUM_DEFINED
 enum
 {
     FS_STORAGE_RAM = 0,
     FS_STORAGE_FLASH = 1,
+    FS_STORAGE_SYSTEM = 2
 };
+#endif
 
 struct xfs_stat_info
 {
@@ -130,6 +137,8 @@ struct xfs_engine_t
     // Directory operations
     int16_t (*opendir)(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle, const char* path);
     int16_t (*readdir)(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle, struct xfs_stat_info* info);
+    int16_t (*telldir)(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle, uint32_t* position);
+    int16_t (*seekdir)(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle, uint32_t position);
     int16_t (*closedir)(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle);
 
     // Path operations
@@ -145,6 +154,30 @@ struct xfs_engine_t
     // Handle management
     void (*free_handle)(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle);
 };
+
+typedef struct
+{
+    const struct xfs_engine_t* engine;
+    const char* hostname;
+    const char* path;
+} xfs_overlay_layer_config_t;
+
+typedef struct
+{
+    const xfs_overlay_layer_config_t* layers[XFS_OVERLAY_MAX_LAYERS + 1];
+    const xfs_overlay_layer_config_t* default_layer;
+} xfs_overlay_config_t;
+
+typedef struct
+{
+    const uint8_t* start;
+    const uint8_t* end;
+    const char* name;
+    uint8_t storage;
+} xfs_romfs_config_t;
+
+extern const xfs_overlay_config_t xfs_default_overlay;
+extern xfs_romfs_config_t xfs_default_romfs;
 
 enum xfs_handle_type_t
 {
@@ -165,6 +198,8 @@ struct xfs_handle_t
     enum xfs_handle_type_t type;
     /** Mount point this handle belongs to (0–3); 0xFF when unallocated. */
     uint8_t owner_mount;
+    uint32_t dir_position;
+    char dir_path[XFS_PATH_MAX];
     void* data;
 };
 
@@ -200,6 +235,20 @@ struct xfs_args_write_t
 struct xfs_args_opendir_t
 {
     char path[256];
+};
+
+struct xfs_args_readdir_t
+{
+    uint32_t position;
+    uint8_t operation;
+    uint8_t reserved[251];
+};
+
+enum xfs_readdir_operation_t
+{
+    XFS_READDIR_NEXT = 0,
+    XFS_READDIR_SEEK = 1,
+    XFS_READDIR_TELL = 2,
 };
 
 struct xfs_args_stat_t
@@ -274,6 +323,7 @@ union xfs_arguments_t
     struct xfs_args_read_t read;
     struct xfs_args_write_t write;
     struct xfs_args_opendir_t opendir;
+    struct xfs_args_readdir_t readdir;
     struct xfs_args_stat_t stat;
     struct xfs_args_unlink_t unlink;
     struct xfs_args_mkdir_t mkdir;
@@ -328,6 +378,9 @@ _Static_assert(0x200 == offsetof(struct xfs_registers_t, workspace), "workspace 
 _Static_assert(0x008 == offsetof(struct xfs_registers_t, arguments), "arguments is not at 0x008");
 
 extern void xfs_init();
+/** Serialize access to XFS mounts and handle state. */
+extern void xfs_lock(void);
+extern void xfs_unlock(void);
 extern void xfs_reset(void);
 
 /** Close all XFS handles for this mount (call from engine unmount; idempotent if already empty). */
@@ -337,7 +390,10 @@ void xfs_close_handles_for_mount(const struct xfs_engine_mount_t *mount);
 extern void xfs_debug_enable(bool enable);
 extern bool xfs_debug_is_enabled(void);
 extern void xfs_debug_log(const char *format, ...);
-#define XFS_DEBUG(...) do { if( xfs_debug_is_enabled() ) xfs_debug_log( __VA_ARGS__ ); } while(0)
+#define XFS_DEBUG(...) do { if (xfs_debug_is_enabled()) xfs_debug_log(__VA_ARGS__); } while(0)
+
+char* xfs_compat_get_cwd_buffer(uint8_t mount_point);
+void xfs_compat_init(void);
 
 // Command handlers (FreeRTOS-independent, usable in emulator)
 extern void xfs_handle_command(volatile struct xfs_registers_t* registers);

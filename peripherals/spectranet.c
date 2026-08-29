@@ -82,10 +82,16 @@ static libspectrum_dword spectranet_source_rom_hash;
 int spectranet_available = 0;
 int spectranet_paged;
 int spectranet_paged_via_io;
-int spectranet_w5100_paged_a = 0, spectranet_w5100_paged_b = 0;
-int spectranet_xfs_paged_a = 0, spectranet_xfs_paged_b = 0;
-int spectranet_spectranext_config_paged_a = 0, spectranet_spectranext_config_paged_b = 0;
-int spectranet_flash_paged_a = 0, spectranet_flash_paged_b = 0;
+int spectranet_w5100_paged_0 = 0, spectranet_w5100_paged_a = 0,
+    spectranet_w5100_paged_b = 0, spectranet_w5100_paged_3 = 0;
+int spectranet_xfs_paged_0 = 0, spectranet_xfs_paged_a = 0,
+    spectranet_xfs_paged_b = 0, spectranet_xfs_paged_3 = 0;
+int spectranet_spectranext_config_paged_0 = 0,
+    spectranet_spectranext_config_paged_a = 0,
+    spectranet_spectranext_config_paged_b = 0,
+    spectranet_spectranext_config_paged_3 = 0;
+int spectranet_flash_paged_0 = 0, spectranet_flash_paged_a = 0,
+    spectranet_flash_paged_b = 0, spectranet_flash_paged_3 = 0;
 
 /* Whether the programmable trap is active */
 int spectranet_programmable_trap_active;
@@ -291,7 +297,7 @@ spectranet_nmi_flipflop( void )
   return nmi_flipflop;
 }
 
-static void
+void
 spectranet_map_page( int dest, int source )
 {
   int i;
@@ -306,6 +312,12 @@ spectranet_map_page( int dest, int source )
 
   switch( dest )
   {
+    case 0:
+      spectranet_w5100_paged_0 = w5100_page;
+      spectranet_xfs_paged_0 = xfs_page;
+      spectranet_spectranext_config_paged_0 = spectranext_config_page;
+      spectranet_flash_paged_0 = flash_page;
+      break;
     case 1: 
       spectranet_w5100_paged_a = w5100_page;
       spectranet_xfs_paged_a = xfs_page;
@@ -318,14 +330,32 @@ spectranet_map_page( int dest, int source )
       spectranet_spectranext_config_paged_b = spectranext_config_page;
       spectranet_flash_paged_b = flash_page;
       break;
+    case 3:
+      spectranet_w5100_paged_3 = w5100_page;
+      spectranet_xfs_paged_3 = xfs_page;
+      spectranet_spectranext_config_paged_3 = spectranext_config_page;
+      spectranet_flash_paged_3 = flash_page;
+      break;
   }
+}
+
+uint8_t *
+spectranet_ram_page( uint8_t page )
+{
+  if( !spectranet_memory_allocated || page < SPECTRANET_RAM_BASE ||
+      page >= SPECTRANET_RAM_BASE + SPECTRANET_RAM_LENGTH / SPECTRANET_PAGE_LENGTH )
+    return NULL;
+
+  return spectranet_full_map[ page * MEMORY_PAGES_IN_4K ].page;
 }
 
 static void
 spectranet_hard_reset( void )
 {
+  spectranet_map_page( 0, 0x00 );
   spectranet_map_page( 1, 0xff ); /* Map something into 0x1000 to 0x1fff */
   spectranet_map_page( 2, 0xff ); /* And 0x2000 to 0x2fff */
+  spectranet_map_page( 3, 0xc0 );
 
   spectranet_programmable_trap = 0x0000;
   spectranet_programmable_trap_active = 0;
@@ -338,6 +368,9 @@ spectranet_hard_reset( void )
 static void
 spectranet_reset( int hard_reset )
 {
+  spectranet_map_page( 0, 0x00 );
+  spectranet_map_page( 3, 0xc0 );
+
   if( !periph_is_active( PERIPH_TYPE_SPECTRANET ) ) {
     spectranet_available = 0;
     spectranet_paged = 0;
@@ -554,6 +587,13 @@ static module_info_t spectranet_module_info = {
 };
 
 static void
+spectranet_page_0( libspectrum_word port, libspectrum_byte data )
+{
+  spectranet_map_page( 0, data );
+  memory_map_romcs_full( spectranet_current_map );
+}
+
+static void
 spectranet_page_a( libspectrum_word port, libspectrum_byte data )
 {
   spectranet_map_page( 1, data );
@@ -564,6 +604,13 @@ static void
 spectranet_page_b( libspectrum_word port, libspectrum_byte data )
 {
   spectranet_map_page( 2, data );
+  memory_map_romcs_full( spectranet_current_map );
+}
+
+static void
+spectranet_page_3( libspectrum_word port, libspectrum_byte data )
+{
+  spectranet_map_page( 3, data );
   memory_map_romcs_full( spectranet_current_map );
 }
 
@@ -625,6 +672,8 @@ static const periph_port_t spectranet_ports[] = {
   { 0xffff, 0x023b, spectranet_cpld_version, spectranet_trap },
   { 0xffff, 0x033b, spectranet_control_read, spectranet_control_write },
   { 0xffff, 0x043b, NULL, spectranext_stdout_write },
+  { 0xffff, 0x053b, NULL, spectranet_page_0 },
+  { 0xffff, 0x063b, NULL, spectranet_page_3 },
   { 0, 0, NULL, NULL }
 };
 
@@ -786,11 +835,15 @@ spectranet_get_paging_info( void )
   info.paged = spectranet_paged;
 
   if( spectranet_memory_allocated ) {
+    info.page_0 = spectranet_current_map[0 * MEMORY_PAGES_IN_4K].page_num;
     info.page_a = spectranet_current_map[1 * MEMORY_PAGES_IN_4K].page_num;
     info.page_b = spectranet_current_map[2 * MEMORY_PAGES_IN_4K].page_num;
+    info.page_3 = spectranet_current_map[3 * MEMORY_PAGES_IN_4K].page_num;
   } else {
+    info.page_0 = 0xff;
     info.page_a = 0xff;
     info.page_b = 0xff;
+    info.page_3 = 0xff;
   }
 
   return info;
@@ -1413,7 +1466,7 @@ spectranet_dump_ram( const char *filename GCC_UNUSED )
 spectranet_paging_info_t
 spectranet_get_paging_info( void )
 {
-  spectranet_paging_info_t info = { 0, 0, 0xff, 0xff };
+  spectranet_paging_info_t info = { 0, 0, 0xff, 0xff, 0xff, 0xff };
 
   return info;
 }

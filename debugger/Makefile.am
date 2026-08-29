@@ -32,11 +32,15 @@ fuse_SOURCES += \
                 debugger/gdbserver.c \
                 debugger/gdbserver_remote_commands.c \
                 debugger/gdbserver_utils.c \
-                debugger/vfile.c \
-                debugger/vfile_ext.c \
                 debugger/system_variable.c \
                 debugger/packets.c \
                 debugger/variable.c
+
+if BUILD_SPECTRANET
+fuse_SOURCES += \
+                debugger/vfile.c \
+                debugger/vfile_ext.c
+endif
 
 debugger/commandl.c: debugger/commandy.c
 debugger/commandy.h: debugger/commandy.c

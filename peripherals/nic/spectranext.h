@@ -17,7 +17,8 @@ enum spectranext_cmd_t
     SPECTRANEXT_CMD_WIFI_DISCONNECT = 4,
     SPECTRANEXT_CMD_DNS_GETHOSTBYNAME = 5,
     SPECTRANEXT_CMD_ENGINECALL = 6,
-    SPECTRANEXT_CMD_GET_MESSAGE = 7
+    SPECTRANEXT_CMD_GET_MESSAGE = 7,
+    SPECTRANEXT_CMD_XFS_READ = 8
 };
 
 #define WIFI_CONTROLLER_STATUS_OFFLINE (0u)
@@ -45,6 +46,9 @@ enum spectranext_cmd_t
 #define SPECTRANEXT_SCAN_AP_MAX 64
 
 #define SPECTRANEXT_MESSAGE_MAX 128
+
+/* Maximum XFS path supplied by the Z80, including its NUL terminator. */
+#define SPECTRANEXT_XFS_READ_PATH_MAX 128
 
 #define SPECTRANEXT_CMD_REG_IDLE 0xFFu
 
@@ -141,8 +145,32 @@ typedef union spectranext_workspace
         } out;
     } get_message;
 
+    /* XFS_READ input and output. */
+    struct
+    {
+        struct
+        {
+            char source_filename[SPECTRANEXT_XFS_READ_PATH_MAX];
+            uint32_t source_offset;
+            uint8_t target_first_page;
+            uint16_t target_first_page_offset;
+            uint32_t maximum_data;
+        } in;
+        struct
+        {
+            uint32_t bytes_read;
+        } out;
+    } xfs_read;
+
     char page[4096 - 2];
 } spectranext_workspace_t;
+
+_Static_assert(offsetof(spectranext_workspace_t, xfs_read.in.source_filename) == 0u, "");
+_Static_assert(offsetof(spectranext_workspace_t, xfs_read.in.source_offset) == 128u, "");
+_Static_assert(offsetof(spectranext_workspace_t, xfs_read.in.target_first_page) == 132u, "");
+_Static_assert(offsetof(spectranext_workspace_t, xfs_read.in.target_first_page_offset) == 133u, "");
+_Static_assert(offsetof(spectranext_workspace_t, xfs_read.in.maximum_data) == 135u, "");
+_Static_assert(offsetof(spectranext_workspace_t, xfs_read.out.bytes_read) == 139u, "");
 
 struct spectranext_controller_t
 {

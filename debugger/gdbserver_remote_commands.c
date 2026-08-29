@@ -1,17 +1,23 @@
+#include "config.h"
+
 #include "gdbserver_remote_commands.h"
 #include "gdbserver.h"
 
 #include <ctype.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "fuse.h"
 #include "libspectrum.h"
-#include "peripherals/fs/xfs.h"
 #include "peripherals/spectranet.h"
 #include "snapshot.h"
 #include "utils.h"
+
+#ifdef BUILD_SPECTRANET
+#include "peripherals/fs/xfs.h"
+#endif
 
 static const char *
 skip_spaces( const char *text )
@@ -116,17 +122,98 @@ static uint8_t remote_command_spectranet_info( const char *args GCC_UNUSED )
     snprintf( buffer, sizeof( buffer ),
               "Spectranet available: %s\n"
               "Spectranet paged in: %s\n"
+              "Page 0: 0x%02x\n"
               "Page A: 0x%02x\n"
-              "Page B: 0x%02x\n",
+              "Page B: 0x%02x\n"
+              "Page 3: 0x%02x\n",
               info.available ? "yes" : "no",
               info.paged ? "yes" : "no",
+              info.page_0,
               info.page_a,
-              info.page_b );
+              info.page_b,
+              info.page_3 );
     gdbserver_send_remote_console_output( buffer );
 
     return 0;
 }
 
+static uint8_t
+remote_command_spectranet_set_page( const char *args )
+{
+    char section;
+    const char *end;
+    char *page_end;
+    unsigned long page;
+    int destination;
+    char buffer[64];
+
+    args = skip_spaces( args );
+    if( !args || !*args ) goto usage;
+
+    section = tolower( (unsigned char)*args++ );
+    if( *args && !isspace( (unsigned char)*args ) ) goto usage;
+    args = skip_spaces( args );
+    if( !args || !*args ) goto usage;
+
+    if( *args == '$' )
+        page = strtoul( args + 1, &page_end, 16 );
+    else
+        page = strtoul( args, &page_end, 0 );
+    end = page_end;
+    if( end == args || (args[0] == '$' && end == args + 1) ||
+        *skip_spaces( end ) || page > 0xff ) goto usage;
+
+    switch( section ) {
+    case '0': destination = 0; break;
+    case 'a': destination = 1; break;
+    case 'b': destination = 2; break;
+    case '3': destination = 3; break;
+    default: goto usage;
+    }
+
+    spectranet_map_page( destination, (int)page );
+    snprintf( buffer, sizeof( buffer ), "Spectranet page %c set to 0x%02lx\n",
+              section, page );
+    gdbserver_send_remote_console_output( buffer );
+    return 0;
+
+usage:
+    gdbserver_send_remote_console_output(
+        "Usage: spectranet-set-page <a|b|0|3> <page>\n" );
+    return 1;
+}
+
+static uint8_t
+remote_command_spectranet_set_pagein( const char *args )
+{
+    const char *end;
+    size_t length;
+
+    args = skip_spaces( args );
+    if( !args || !*args ) goto usage;
+    end = args;
+    while( *end && !isspace( (unsigned char)*end ) ) end++;
+    length = end - args;
+    if( *skip_spaces( end ) ) goto usage;
+
+    if( length == 3 && !strncmp( args, "yes", length ) ) {
+        spectranet_page( 0 );
+        gdbserver_send_remote_console_output( "Spectranet paged in\n" );
+        return 0;
+    }
+    if( length == 2 && !strncmp( args, "no", length ) ) {
+        spectranet_unpage();
+        gdbserver_send_remote_console_output( "Spectranet paged out\n" );
+        return 0;
+    }
+
+usage:
+    gdbserver_send_remote_console_output(
+        "Usage: spectranet-set-pagein <yes|no>\n" );
+    return 1;
+}
+
+#ifdef BUILD_SPECTRANET
 static uint8_t remote_command_xfs_debug( const char *args )
 {
     int enable;
@@ -179,12 +266,17 @@ static uint8_t remote_command_xfs_debug( const char *args )
 
     return 0;
 }
+#endif
 
 const struct remote_command_entry_t remote_commands[] = {
     { "help", remote_command_help },
     { "reset", remote_command_reset },
     { "dump", remote_command_dump },
     { "spectranet-info", remote_command_spectranet_info },
+    { "spectranet-set-page", remote_command_spectranet_set_page },
+    { "spectranet-set-pagein", remote_command_spectranet_set_pagein },
+#ifdef BUILD_SPECTRANET
     { "xfs-debug", remote_command_xfs_debug },
+#endif
     { NULL, NULL }
 };

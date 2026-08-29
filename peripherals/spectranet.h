@@ -61,10 +61,12 @@ typedef struct {
 } spectranet_config_option_t;
 
 typedef struct {
-    int available;
-    int paged;
-    int page_a;
-    int page_b;
+  int available;
+  int paged;
+  int page_0;
+  int page_a;
+  int page_b;
+  int page_3;
 } spectranet_paging_info_t;
 
 // get currently loaded config
@@ -87,6 +89,9 @@ uint16_t spectranet_config_get_total_size(void);
 bool spectranet_config_is_valid(void);
 
 void spectranet_register_startup( void );
+void spectranet_map_page( int dest, int source );
+/* Return the backing storage for a 4K Spectranet RAM page, or NULL. */
+uint8_t *spectranet_ram_page( uint8_t page );
 void spectranet_page( int via_io );
 void spectranet_nmi( void );
 void spectranet_unpage( void );
@@ -105,10 +110,16 @@ void spectranet_flash_rom_write( libspectrum_word address, libspectrum_byte b );
 
 extern int spectranet_available;
 extern int spectranet_paged;
-extern int spectranet_w5100_paged_a, spectranet_w5100_paged_b;
-extern int spectranet_xfs_paged_a, spectranet_xfs_paged_b;
-extern int spectranet_spectranext_config_paged_a, spectranet_spectranext_config_paged_b;
-extern int spectranet_flash_paged_a, spectranet_flash_paged_b;
+extern int spectranet_w5100_paged_0, spectranet_w5100_paged_a,
+           spectranet_w5100_paged_b, spectranet_w5100_paged_3;
+extern int spectranet_xfs_paged_0, spectranet_xfs_paged_a,
+           spectranet_xfs_paged_b, spectranet_xfs_paged_3;
+extern int spectranet_spectranext_config_paged_0,
+           spectranet_spectranext_config_paged_a,
+           spectranet_spectranext_config_paged_b,
+           spectranet_spectranext_config_paged_3;
+extern int spectranet_flash_paged_0, spectranet_flash_paged_a,
+           spectranet_flash_paged_b, spectranet_flash_paged_3;
 extern int spectranet_programmable_trap_active;
 extern libspectrum_word spectranet_programmable_trap;
 
