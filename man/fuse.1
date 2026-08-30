@@ -26,7 +26,7 @@
 .\" E-mail: philip-fuse@shadowmagic.org.uk
 .\"
 .\"
-.TH fuse 1 "4th August, 2026" "Version 1.9.1-fusex-0.1" "Emulators"
+.TH fuse 1 "29th August, 2026" "Version 1.9.2-fusex-0.1" "Emulators"
 .\"
 .\"------------------------------------------------------------------
 .\"
@@ -1799,8 +1799,8 @@ support a single frequency or a limited range (e.g.
 .B \-\-speaker\-type
 .I type
 .RS
-Select the output speaker emulation, type can be TV speaker, Beeper
-or Unfiltered. Same as the Sound Options dialog's
+Select the output speaker emulation, type can be Automatic, TV speaker,
+Beeper or Unfiltered. Same as the Sound Options dialog's
 .I "Speaker type"
 option.
 .RE
@@ -2685,12 +2685,12 @@ this option unless you have a specific need for it.
 .PP
 .I "Speaker type"
 .RS
-This option allows the emulation of the sound output system to be
-modified. Different choices of speaker limit the bass and treble
-response that can be produced from the machine. Choose between a
-\(lqTV\(rq type speaker and a small \(lqBeeper\(rq type speaker that
-significantly limits bass and treble response. Choose \(lqUnfiltered\(rq
-to get unmodified (but less accurate) sound output.
+Choose the character of ULA beeper sound. \(lqAutomatic\(rq uses the built-in
+speaker response for machines which have one and the TV speaker response for
+other machines. \(lqTV speaker\(rq is suited to sound heard through a TV or an
+external audio connection from the MIC socket. \(lqBeeper\(rq emulates a
+built-in speaker. \(lqUnfiltered\(rq gives the direct ULA signal without sound
+colouring. The non-automatic choices apply to every machine.
 .RE
 .PP
 .I "AY volume"
@@ -3459,13 +3459,15 @@ up the main menu.
 .br
 .I "Machine, Reset"
 .RS
-Reset the emulated Spectrum.
+Reset the emulated Spectrum. A soft reset preserves the active ROM and
+cartridge images loaded from a snapshot.
 .RE
 .PP
 .I "Machine, Hard reset"
 .RS
 Reset the emulated Spectrum. A hard reset is equivalent to turning the
-Spectrum's power off, and then turning it back on.
+Spectrum's power off, and then turning it back on; it reloads configured ROM
+and cartridge images.
 .RE
 .PP
 .I F9

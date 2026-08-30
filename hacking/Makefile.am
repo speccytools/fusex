@@ -24,6 +24,7 @@
 EXTRA_DIST += \
               hacking/code_beautifiers.txt \
               hacking/coding_style.txt \
+              hacking/display-timing.txt \
               hacking/cvs-tags \
               hacking/implementation_notes.txt \
               hacking/input.txt \

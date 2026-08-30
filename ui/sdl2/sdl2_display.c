@@ -17,6 +17,7 @@
 #include "fuse.h"
 #include "machine.h"
 #include "settings.h"
+#include "ui/display_timing.h"
 #include "ui/ui.h"
 #include "ui/scaler/scaler.h"
 #include "ui/uidisplay.h"
@@ -51,6 +52,13 @@ static Uint32 bw_values[ 16 ];
 static SDL_Rect updated_rects[ 300 ];
 static int num_rects;
 static libspectrum_byte sdl2display_force_full_refresh = 1;
+
+/* Scaler input areas accumulated for the current emulated frame. */
+struct sdl2display_dirty_area {
+  int x, y, width, height;
+};
+static struct sdl2display_dirty_area dirty_areas[ DISPLAY_SCREEN_HEIGHT ];
+static size_t dirty_area_count = 0;
 
 static int image_width;
 static int image_height;
@@ -244,20 +252,54 @@ sdl2display_free_status_icons( void )
 }
 
 static void
-sdl2display_add_scaled_rect( int x, int y, int w, int h )
+merge_dirty_areas( struct sdl2display_dirty_area *destination,
+                   const struct sdl2display_dirty_area *source )
 {
+  int right = destination->x + destination->width;
+  int bottom = destination->y + destination->height;
+  int source_right = source->x + source->width;
+  int source_bottom = source->y + source->height;
+
+  if( source->x < destination->x ) destination->x = source->x;
+  if( source->y < destination->y ) destination->y = source->y;
+  if( source_right > right ) right = source_right;
+  if( source_bottom > bottom ) bottom = source_bottom;
+
+  destination->width = right - destination->x;
+  destination->height = bottom - destination->y;
+}
+
+static void
+sdl2display_add_dirty_area( int x, int y, int width, int height )
+{
+  struct sdl2display_dirty_area area;
+  size_t i;
+
   if( sdl2display_force_full_refresh ) return;
 
-  if( num_rects == (int)ARRAY_SIZE( updated_rects ) ){
-    sdl2display_force_full_refresh = 1;
-    return;
+  area.x = x; area.y = y; area.width = width; area.height = height;
+
+  /* Merge touching regions too. PAL TV expands every region to the full
+     scanline, so this prevents the same expanded line being scaled twice. */
+  for( i = 0; i < dirty_area_count; ) {
+    struct sdl2display_dirty_area *old = &dirty_areas[i];
+
+    if( area.x <= old->x + old->width && old->x <= area.x + area.width &&
+        area.y <= old->y + old->height && old->y <= area.y + area.height ) {
+      merge_dirty_areas( &area, old );
+      dirty_areas[i] = dirty_areas[ --dirty_area_count ];
+    } else {
+      i++;
+    }
   }
 
-  updated_rects[num_rects].x = x;
-  updated_rects[num_rects].y = y;
-  updated_rects[num_rects].w = w;
-  updated_rects[num_rects].h = h;
-  num_rects++;
+  if( dirty_area_count == DISPLAY_SCREEN_HEIGHT ) {
+    for( i = 0; i < dirty_area_count; i++ )
+      merge_dirty_areas( &area, &dirty_areas[i] );
+    dirty_area_count = 0;
+  }
+
+  dirty_areas[ dirty_area_count++ ] = area;
 }
 
 static void
@@ -266,19 +308,19 @@ sdl2display_queue_status_rects( void )
   int scale = machine_current->timex ? 2 : 1;
 
   if( red_disk[ machine_current->timex ] ) {
-    sdl2display_add_scaled_rect( 243 * scale, 218 * scale,
-                                 red_disk[ machine_current->timex ]->w,
-                                 red_disk[ machine_current->timex ]->h );
+    sdl2display_add_dirty_area( 243 * scale, 218 * scale,
+                                red_disk[ machine_current->timex ]->w,
+                                red_disk[ machine_current->timex ]->h );
   }
   if( red_mdr[ machine_current->timex ] ) {
-    sdl2display_add_scaled_rect( 264 * scale, 218 * scale,
-                                 red_mdr[ machine_current->timex ]->w,
-                                 red_mdr[ machine_current->timex ]->h );
+    sdl2display_add_dirty_area( 264 * scale, 218 * scale,
+                                red_mdr[ machine_current->timex ]->w,
+                                red_mdr[ machine_current->timex ]->h );
   }
   if( red_cassette[ machine_current->timex ] ) {
-    sdl2display_add_scaled_rect( 285 * scale, 220 * scale,
-                                 red_cassette[ machine_current->timex ]->w,
-                                 red_cassette[ machine_current->timex ]->h );
+    sdl2display_add_dirty_area( 285 * scale, 220 * scale,
+                                red_cassette[ machine_current->timex ]->w,
+                                red_cassette[ machine_current->timex ]->h );
   }
 }
 
@@ -624,6 +666,8 @@ uidisplay_init( int width, int height )
   image_width = width;
   image_height = height;
 
+  display_timing_init( "sdl2" );
+
   init_scalers();
   sdl2_scaler_state_init( &scaler_state );
 
@@ -810,19 +854,12 @@ uidisplay_area( int x, int y, int width, int height )
 {
   if( sdl2display_force_full_refresh ) return;
 
-  if( num_rects == (int)ARRAY_SIZE( updated_rects ) ){
-    sdl2display_force_full_refresh = 1;
-    return;
-  }
+  display_timing_area( width, height );
 
   if( scaler_flags & SCALER_FLAGS_EXPAND )
     scaler_expander( &x, &y, &width, &height, image_width, image_height );
 
-  updated_rects[num_rects].x = x;
-  updated_rects[num_rects].y = y;
-  updated_rects[num_rects].w = width;
-  updated_rects[num_rects].h = height;
-  num_rects++;
+  sdl2display_add_dirty_area( x, y, width, height );
 }
 
 void
@@ -840,21 +877,15 @@ uidisplay_frame_end( void )
     }
   }
 
-  full_refresh = sdl2display_force_full_refresh;
+  full_refresh = sdl2display_force_full_refresh ||
+                 ( scaler_flags & SCALER_FLAGS_FULL_REFRESH );
 
   if( sdl2_status_updated ) sdl2display_queue_status_rects();
 
-  if( sdl2display_force_full_refresh ||
-      ( scaler_flags & SCALER_FLAGS_FULL_REFRESH ) ) {
-    num_rects = 1;
-    updated_rects[0].x = 0;
-    updated_rects[0].y = 0;
-    updated_rects[0].w = image_width;
-    updated_rects[0].h = image_height;
-  }
+  if( full_refresh ) dirty_area_count = 0;
 
-  if( !( ui_widget_level >= 0 ) && num_rects == 0 &&
-      !sdl2_status_updated ) return;
+  if( !( ui_widget_level >= 0 ) && dirty_area_count == 0 && !full_refresh )
+    return;
 
   sdl2display_sync_presentation_surfaces();
 
@@ -862,32 +893,55 @@ uidisplay_frame_end( void )
 
   if( full_refresh ) SDL_FillRect( scaled_screen, NULL, 0 );
 
-  for( i = 0; i < num_rects; i++ ) {
-    SDL_Rect *r = &updated_rects[i];
-    sdl2_display_rect dst;
+  num_rects = 0;
 
+  display_timing_scaler_begin();
+  if( full_refresh ) {
     scaler_proc16(
       (libspectrum_byte *)tmp_screen->pixels +
-      ( r->x + 1 ) * tmp_screen->format->BytesPerPixel +
-      ( r->y + 1 ) * tmp_screen->pitch,
+      1 * tmp_screen->format->BytesPerPixel +
+      1 * tmp_screen->pitch,
       tmp_screen->pitch,
       (libspectrum_byte *)scaled_screen->pixels +
-      ( fullscreen_x_off + (int)( r->x * sdl2display_current_size ) ) *
-      scaled_screen->format->BytesPerPixel +
-      ( fullscreen_y_off + (int)( r->y * sdl2display_current_size ) ) *
+      fullscreen_x_off * scaled_screen->format->BytesPerPixel +
+      fullscreen_y_off * scaled_screen->pitch,
       scaled_screen->pitch,
-      scaled_screen->pitch,
-      r->w,
-      r->h );
+      image_width,
+      image_height );
+  } else {
+    for( i = 0; i < (int)dirty_area_count; i++ ) {
+      const struct sdl2display_dirty_area *area = &dirty_areas[i];
+      sdl2_display_rect dst;
 
-    sdl2display_update_rect( r->x, r->y, r->w, r->h,
-                             sdl2display_current_size,
-                             fullscreen_x_off, fullscreen_y_off, &dst );
-    r->x = dst.x;
-    r->y = dst.y;
-    r->w = dst.w;
-    r->h = dst.h;
+      scaler_proc16(
+        (libspectrum_byte *)tmp_screen->pixels +
+        ( area->x + 1 ) * tmp_screen->format->BytesPerPixel +
+        ( area->y + 1 ) * tmp_screen->pitch,
+        tmp_screen->pitch,
+        (libspectrum_byte *)scaled_screen->pixels +
+        ( fullscreen_x_off + (int)( area->x * sdl2display_current_size ) ) *
+        scaled_screen->format->BytesPerPixel +
+        ( fullscreen_y_off + (int)( area->y * sdl2display_current_size ) ) *
+        scaled_screen->pitch,
+        scaled_screen->pitch,
+        area->width,
+        area->height );
+
+      sdl2display_update_rect( area->x, area->y, area->width, area->height,
+                               sdl2display_current_size,
+                               fullscreen_x_off, fullscreen_y_off, &dst );
+
+      if( num_rects < (int)ARRAY_SIZE( updated_rects ) ) {
+        updated_rects[num_rects].x = dst.x;
+        updated_rects[num_rects].y = dst.y;
+        updated_rects[num_rects].w = dst.w;
+        updated_rects[num_rects].h = dst.h;
+        num_rects++;
+      }
+    }
+    dirty_area_count = 0;
   }
+  display_timing_scaler_end();
 
   if( SDL_MUSTLOCK( scaled_screen ) ) SDL_UnlockSurface( scaled_screen );
 
@@ -909,10 +963,13 @@ uidisplay_frame_end( void )
 
   SDL_RenderClear( sdl2_renderer );
   SDL_RenderCopy( sdl2_renderer, sdl2_texture, NULL, NULL );
+  display_timing_presentation_begin();
   SDL_RenderPresent( sdl2_renderer );
+  display_timing_presentation_end();
 
-  num_rects = 0;
   sdl2display_force_full_refresh = 0;
+
+  display_timing_frame_end();
 }
 
 int

@@ -38,6 +38,7 @@
 #include "peripherals/dck.h"
 #include "peripherals/disk/beta.h"
 #include "peripherals/joystick.h"
+#include "pokefinder/pokefinder.h"
 #include "psg.h"
 #include "rzx.h"
 #include "screenshot.h"
@@ -719,6 +720,8 @@ menu_machine_pokememory( int action )
 void
 menu_machine_pokefinder( int action )
 {
+  if( !pokefinder_is_allocated() ) pokefinder_clear();
+
   widget_do_pokefinder();
 }
 

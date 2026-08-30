@@ -38,6 +38,7 @@ void if1_unpage( void );
 void if1_memory_map( void );
 
 int if1_mdr_insert( int drive, const char *filename );
+int if1_mdr_insert_loaded( int drive, const struct utils_file *file );
 int if1_mdr_write( int drive, const char *filename );
 int if1_mdr_eject( int drive );
 int if1_mdr_save( int drive, int saveas );

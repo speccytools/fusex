@@ -24,6 +24,8 @@
 #ifndef FUSE_DISK_H
 #define FUSE_DISK_H
 
+#include "utils.h"
+
 static const unsigned int DISK_FLAG_NONE = 0x00;
 static const unsigned int DISK_FLAG_PLUS3_CPC = 0x01;	/* try to fix some CPC issue */
 static const unsigned int DISK_FLAG_OPEN_DS = 0x02;	/* try to open the other side too */
@@ -150,6 +152,8 @@ int disk_new( disk_t *d, int sides, int cylinders, disk_dens_t dens, disk_type_t
    supported
 */
 int disk_open( disk_t *d, const char *filename, int preindex, int disk_merge );
+int disk_open_loaded( disk_t *d, const utils_file *file, int preindex,
+                      int disk_merge );
 /* merge two one sided disk (d1, d2) to a two sided one (d),
    after merge closes d1 and d2
 */

@@ -59,7 +59,7 @@ static int normal_memory_map( int rom, int page );
 static void special_memory_map( int which );
 static void select_special_map( int page1, int page2, int page3, int page4 );
 
-static int specplus3_reset( void );
+static int specplus3_reset( int hard_reset );
 
 upd_fdc *specplus3_fdc;
 static fdd_t specplus3_drives[ SPECPLUS3_NUM_DRIVES ];
@@ -172,7 +172,7 @@ specplus3_765_init( void )
 }
 
 void
-specplus3_765_reset( void )
+specplus3_765_reset( int hard_reset )
 {
   const fdd_params_t *dt;
 
@@ -186,7 +186,7 @@ specplus3_765_reset( void )
 }
 
 static int
-specplus3_reset( void )
+specplus3_reset( int hard_reset )
 {
   int error;
 
@@ -203,7 +203,7 @@ specplus3_reset( void )
                             settings_default.rom_plus3_3, 0x4000 );
   if( error ) return error;
 
-  error = specplus3_plus2a_common_reset();
+  error = specplus3_plus2a_common_reset( hard_reset );
   if( error ) return error;
 
   periph_clear();
@@ -213,7 +213,7 @@ specplus3_reset( void )
 
   periph_update();
 
-  specplus3_765_reset();
+  specplus3_765_reset( hard_reset );
   specplus3_menu_items();
 
   spec48_common_display_setup();
@@ -222,7 +222,7 @@ specplus3_reset( void )
 }
 
 int
-specplus3_plus2a_common_reset( void )
+specplus3_plus2a_common_reset( int hard_reset )
 {
   int error;
   size_t i;

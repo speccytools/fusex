@@ -49,6 +49,7 @@ libspectrum_byte scld_last_hsr = 0; /* The last byte sent to Timex HSR port */
 
 memory_page * timex_home[MEMORY_PAGES_IN_64K];
 memory_page timex_exrom[MEMORY_PAGES_IN_64K];
+static memory_rom_bank scld_snapshot_banks[2][8];
 memory_page timex_dock[MEMORY_PAGES_IN_64K];
 
 static void scld_reset( int hard_reset );
@@ -144,8 +145,16 @@ scld_dec_write( libspectrum_word port GCC_UNUSED, libspectrum_byte b )
 }
 
 static void
-scld_reset( int hard_reset GCC_UNUSED )
+scld_reset( int hard_reset )
 {
+  int bank_type, page_num;
+
+  if( hard_reset ) {
+    for( bank_type = 0; bank_type < 2; bank_type++ )
+      for( page_num = 0; page_num < 8; page_num++ )
+        memory_rom_bank_clear( &scld_snapshot_banks[ bank_type ][ page_num ] );
+  }
+
   scld_last_dec.byte = 0;
 }
 
@@ -219,10 +228,15 @@ static void
 scld_dock_exrom_from_snapshot( memory_page *dest, int page_num, int writable,
                                void *source )
 {
+  memory_rom_bank *bank;
+  int bank_type;
   int i;
-  libspectrum_byte *data = memory_pool_allocate( 0x2000 );
-  
-  memcpy( data, source, 0x2000 );
+  libspectrum_byte *data;
+
+  bank_type = dest == timex_dock ? 0 : 1;
+  bank = &scld_snapshot_banks[ bank_type ][ page_num ];
+  if( memory_rom_bank_set( bank, source, 0x2000, 1 ) ) return;
+  data = bank->data;
 
   for( i = 0; i < MEMORY_PAGES_IN_8K; i++ ) {
     memory_page *page = &dest[ page_num * MEMORY_PAGES_IN_8K + i ];

@@ -36,7 +36,7 @@
 #include "spec48.h"
 #include "spectrum.h"
 
-static int spec48_ntsc_reset( void );
+static int spec48_ntsc_reset( int hard_reset );
 
 int spec48_ntsc_init( fuse_machine_info *machine )
 {
@@ -62,7 +62,7 @@ int spec48_ntsc_init( fuse_machine_info *machine )
 }
 
 static int
-spec48_ntsc_reset( void )
+spec48_ntsc_reset( int hard_reset )
 {
   int error;
 
@@ -79,5 +79,5 @@ spec48_ntsc_reset( void )
 
   spec48_common_display_setup();
 
-  return spec48_common_reset();
+  return spec48_common_reset( hard_reset );
 }

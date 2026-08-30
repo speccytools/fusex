@@ -61,7 +61,7 @@ typedef struct fuse_machine_info {
   const char *id;	/* Used to select from command line */
   int capabilities;	/* Capabilities of this machine */
 
-  int (*reset)(void);	/* Reset function */
+  int (*reset)(int hard_reset);	/* Reset function */
 
   int timex;      /* Timex machine (keyboard emulation/loading sounds etc.) */
 
@@ -106,6 +106,9 @@ int machine_load_rom_bank_from_buffer( memory_page* bank_map, int page_num,
   unsigned char *buffer, size_t length, int custom );
 int machine_load_rom_bank( memory_page* bank_map, int page_num,
   const char *filename, const char *fallback, size_t expected_length );
+int machine_load_rom_bank_from_snapshot( memory_page* bank_map, int page_num,
+  unsigned char *buffer, size_t length, int custom );
+void machine_clear_snapshot_rom_bank( memory_page *bank_map, int page_num );
 int machine_load_rom( int page_num, const char *filename, const char *fallback,
   size_t expected_length );
 

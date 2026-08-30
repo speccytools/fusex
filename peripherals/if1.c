@@ -474,7 +474,7 @@ if1_from_snapshot( libspectrum_snap *snap )
   if( libspectrum_snap_interface1_custom_rom( snap ) &&
       libspectrum_snap_interface1_rom( snap, 0 ) &&
       libspectrum_snap_interface1_rom_length( snap, 0 ) >= ROM_SIZE &&
-      machine_load_rom_bank_from_buffer(
+      machine_load_rom_bank_from_snapshot(
                              if1_memory_map_romcs, 0,
                              libspectrum_snap_interface1_rom( snap, 0 ),
                              ROM_SIZE, 1 ) )
@@ -1107,8 +1107,9 @@ if1_mdr_new( microdrive_t *mdr )
 
 }
 
-int
-if1_mdr_insert( int which, const char *filename )
+static int
+if1_mdr_insert_internal( int which, const char *filename,
+                         const utils_file *file )
 {
   microdrive_t *mdr;
   int m, i;
@@ -1148,19 +1149,27 @@ if1_mdr_insert( int which, const char *filename )
     return 0;
   }
 
-  if( utils_read_file( filename, &mdr->file ) ) {
-    ui_error( UI_ERROR_ERROR, "Failed to open cartridge image" );
-    return 1;
-  }
+  if( file ) {
+    if( libspectrum_microdrive_mdr_read( mdr->cartridge, file->buffer,
+                                         file->length ) ) {
+      ui_error( UI_ERROR_ERROR, "Failed to open cartridge image" );
+      return 1;
+    }
+  } else {
+    if( utils_read_file( filename, &mdr->file ) ) {
+      ui_error( UI_ERROR_ERROR, "Failed to open cartridge image" );
+      return 1;
+    }
 
-  if( libspectrum_microdrive_mdr_read( mdr->cartridge, mdr->file.buffer,
-				       mdr->file.length ) ) {
+    if( libspectrum_microdrive_mdr_read( mdr->cartridge, mdr->file.buffer,
+                                         mdr->file.length ) ) {
+      utils_close_file( &mdr->file );
+      ui_error( UI_ERROR_ERROR, "Failed to open cartridge image" );
+      return 1;
+    }
+
     utils_close_file( &mdr->file );
-    ui_error( UI_ERROR_ERROR, "Failed to open cartridge image" );
-    return 1;
   }
-
-  utils_close_file( &mdr->file );
 
   mdr->inserted = 1;
   mdr->modified = 0;
@@ -1173,6 +1182,19 @@ if1_mdr_insert( int which, const char *filename )
   update_menu( UMENU_MDRV1 + which );
 
   return 0;
+}
+
+int
+if1_mdr_insert( int which, const char *filename )
+{
+  return if1_mdr_insert_internal( which, filename, NULL );
+}
+
+int
+if1_mdr_insert_loaded( int which, const utils_file *file )
+{
+  if( !file || !file->filename || !file->buffer ) return 1;
+  return if1_mdr_insert_internal( which, file->filename, file );
 }
 
 int
@@ -1342,6 +1364,10 @@ if1_unplug( int what )
 int
 if1_unittest( void )
 {
+  static char rom_filename[] = "roms/if1-1.rom";
+  libspectrum_snap *snap;
+  libspectrum_byte *rom;
+  char *saved_rom = settings_current.rom_interface1;
   int r = 0;
 
   if1_page();
@@ -1353,6 +1379,29 @@ if1_unittest( void )
   r += unittests_assert_16k_ram_page( 0xc000, 0 );
 
   if1_unpage();
+
+  settings_current.rom_interface1 = rom_filename;
+
+  snap = libspectrum_snap_alloc();
+  if( !snap ) {
+    settings_current.rom_interface1 = saved_rom;
+    return r + 1;
+  }
+
+  rom = libspectrum_new( libspectrum_byte, ROM_SIZE );
+  memset( rom, 0xa5, ROM_SIZE );
+  libspectrum_snap_set_interface1_active( snap, 1 );
+  libspectrum_snap_set_interface1_custom_rom( snap, 1 );
+  libspectrum_snap_set_interface1_rom_length( snap, 0, ROM_SIZE );
+  libspectrum_snap_set_interface1_rom( snap, 0, rom );
+  if1_from_snapshot( snap );
+
+  if( machine_reset( 0 ) || if1_memory_map_romcs[ 0 ].page[ 0 ] != 0xa5 )
+    r++;
+
+  if( libspectrum_snap_free( snap ) ) r++;
+
+  settings_current.rom_interface1 = saved_rom;
 
   r += unittests_paging_test_48( 2 );
 

@@ -26,6 +26,7 @@
 
 #include "config.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "libspectrum.h"
@@ -39,6 +40,7 @@
 #include "settings.h"
 #include "unittests/unittests.h"
 #include "usource.h"
+#include "utils.h"
 
 /* An 8 KiB memory chunk accessible by the Z80 when /ROMCS is low
  * (mirrored in the second 8 KiB when active) */
@@ -173,7 +175,50 @@ usource_toggle_write( libspectrum_word port GCC_UNUSED, libspectrum_byte val )
 int
 usource_unittest( void )
 {
+  static const char rom_filename[] = "unittests-usource.rom";
+  libspectrum_byte *test_rom;
+  libspectrum_snap *snap = NULL;
+  char *saved_rom = settings_current.rom_usource;
   int r = 0;
+  int was_active = periph_is_active( PERIPH_TYPE_USOURCE );
+
+  test_rom = libspectrum_new0( libspectrum_byte, 0x2000 );
+  if( utils_write_file( rom_filename, test_rom, 0x2000 ) ) {
+    libspectrum_free( test_rom );
+    return 1;
+  }
+  libspectrum_free( test_rom );
+
+  settings_current.rom_usource = (char *)rom_filename;
+  if( !was_active )
+    periph_activate_type( PERIPH_TYPE_USOURCE, 1 );
+
+  usource_reset( 1 );
+  if( !usource_available ) {
+    fprintf( stderr, "uSource unavailable for unit test\n" );
+    r++;
+    goto cleanup;
+  }
+
+  snap = libspectrum_snap_alloc();
+  if( !snap ) {
+    fprintf( stderr, "Couldn't allocate uSource unit test snapshot\n" );
+    r++;
+    goto cleanup;
+  }
+
+  test_rom = libspectrum_new( libspectrum_byte, 0x2000 );
+  memset( test_rom, 0xa5, 0x2000 );
+  libspectrum_snap_set_usource_active( snap, 1 );
+  libspectrum_snap_set_usource_custom_rom( snap, 1 );
+  libspectrum_snap_set_usource_rom_length( snap, 0, 0x2000 );
+  libspectrum_snap_set_usource_rom( snap, 0, test_rom );
+  usource_from_snapshot( snap );
+
+  if( machine_reset( 0 ) || usource_memory_map_romcs[ 0 ].page[ 0 ] != 0xa5 ) {
+    fprintf( stderr, "uSource snapshot ROM was not preserved by soft reset\n" );
+    r++;
+  }
 
   usource_active = 1;
   usource_memory_map();
@@ -188,6 +233,19 @@ usource_unittest( void )
   machine_current->memory_map();
 
   r += unittests_paging_test_48( 2 );
+
+cleanup:
+  if( snap && libspectrum_snap_free( snap ) ) {
+    fprintf( stderr, "Couldn't free uSource unit test snapshot\n" );
+    r++;
+  }
+  if( !was_active )
+    periph_activate_type( PERIPH_TYPE_USOURCE, 0 );
+  settings_current.rom_usource = saved_rom;
+  if( remove( rom_filename ) ) {
+    fprintf( stderr, "Couldn't remove uSource unit test ROM\n" );
+    r++;
+  }
 
   return r;
 }
@@ -205,7 +263,7 @@ usource_from_snapshot( libspectrum_snap *snap )
 
   if( libspectrum_snap_usource_custom_rom( snap ) &&
       libspectrum_snap_usource_rom( snap, 0 ) &&
-      machine_load_rom_bank_from_buffer(
+      machine_load_rom_bank_from_snapshot(
                              usource_memory_map_romcs, 0,
                              libspectrum_snap_usource_rom( snap, 0 ),
                              libspectrum_snap_usource_rom_length( snap, 0 ),

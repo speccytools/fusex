@@ -17,6 +17,25 @@
     <category>Emulator</category>
   </categories>
   <releases>
+    <release date="2026-08-29" version="1.9.2-fusex-0.1">
+      <description>
+        <ul>
+          <li>FuseX fork release (macOS app, CLI options, headless mode, debugger)</li>
+        </ul>
+      </description>
+    </release>
+    <release date="2026-08-26" version="1.9.2">
+      <description>
+        <ul>
+          <li>Improved ZX Spectrum Beeper emulation</li>
+          <li>Automatically select the appropriate speaker response for each emulated machine</li>
+          <li>Improved tape trap handling and accuracy</li>
+          <li>Improved GTK3 and SDL2 display rendering performance</li>
+          <li>Preserved snapshot peripheral ROMs across soft resets</li>
+          <li>Various other minor bug fixes and improvements</li>
+        </ul>
+      </description>
+    </release>
     <release date="2026-08-04" version="1.9.1-fusex-0.1">
       <description>
         <ul>

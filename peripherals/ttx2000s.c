@@ -52,9 +52,12 @@
 int ttx2000s_paged = 0;
 
 #ifdef BUILD_TTX2000S
+#define TTX2000S_RAM_SIZE 2048
+
 static memory_page ttx2000s_memory_map_romcs_rom[ MEMORY_PAGES_IN_8K ];
 static memory_page ttx2000s_memory_map_romcs_ram[ MEMORY_PAGES_IN_8K ];
-static libspectrum_byte ttx2000s_ram[2048];
+static libspectrum_byte *ttx2000s_ram;
+static int ttx2000s_ram_allocated;
 /* FIXME: our pages are really 1k but the minimum is currently 2k 
    this is fixed as far as the z80 is concerned by masking off the address
    in ttx2000s_sram_read and ttx2000s_sram_write, but the debugger etc. will
@@ -75,6 +78,7 @@ static void ttx2000s_write( libspectrum_word port, libspectrum_byte val );
 static void ttx2000s_change_channel( int channel );
 static void ttx2000s_reset( int hard_reset );
 static void ttx2000s_memory_map( void );
+static void ttx2000s_activate( void );
 
 static int field_event;
 static void ttx2000s_field_event( libspectrum_dword last_tstates, int event,
@@ -129,7 +133,7 @@ static const periph_t ttx2000s_periph = {
   /* .option = */ &settings_current.ttx2000s,
   /* .ports = */ ttx2000s_ports,
   /* .hard_reset = */ 1,
-  /* .activate = */ NULL,
+  /* .activate = */ ttx2000s_activate,
 };
 
 static int
@@ -228,6 +232,15 @@ ttx2000s_reset( int hard_reset GCC_UNUSED )
   ttx2000s_paged = 1;
   machine_current->memory_map();
   machine_current->ram.romcs = 1;
+}
+
+static void
+ttx2000s_activate( void )
+{
+  if( !ttx2000s_ram_allocated ) {
+    ttx2000s_ram = memory_pool_allocate_persistent( TTX2000S_RAM_SIZE, 1 );
+    ttx2000s_ram_allocated = 1;
+  }
 }
 
 static void
@@ -496,6 +509,23 @@ ttx2000s_unittest( void )
   int r = 0;
 
   #ifdef BUILD_TTX2000S
+  int was_active = periph_is_active( PERIPH_TYPE_TTX2000S );
+  int saved_line_counter = ttx2000s_line_counter;
+  libspectrum_byte saved_first;
+  libspectrum_byte saved_last;
+
+  if( !was_active )
+    periph_activate_type( PERIPH_TYPE_TTX2000S, 1 );
+
+  saved_first = ttx2000s_sram_read( 0x2000 );
+  saved_last = ttx2000s_sram_read( 0x23ff );
+
+  ttx2000s_sram_write( 0x2000, 0x55 );
+  ttx2000s_sram_write( 0x23ff, 0xaa );
+  if( ttx2000s_sram_read( 0x2400 ) != 0x55 ||
+      ttx2000s_sram_read( 0x27ff ) != 0xaa )
+    r++;
+
   ttx2000s_paged = 1;
   ttx2000s_memory_map();
   machine_current->ram.romcs = 1;
@@ -514,7 +544,13 @@ ttx2000s_unittest( void )
   machine_current->ram.romcs = 0;
 
   r += unittests_paging_test_48( 2 );
-  
+
+  ttx2000s_sram_write( 0x2000, saved_first );
+  ttx2000s_sram_write( 0x23ff, saved_last );
+  ttx2000s_line_counter = saved_line_counter;
+  if( !was_active )
+    periph_activate_type( PERIPH_TYPE_TTX2000S, 0 );
+
   #endif
 
   return r;

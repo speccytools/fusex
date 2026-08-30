@@ -30,6 +30,7 @@
 #include "compat.h"
 #include "infrastructure/startup_manager.h"
 #include "machine.h"
+#include "display.h"
 #include "memory_pages.h"
 #include "peripherals/scld.h"
 #include "rectangle.h"
@@ -398,6 +399,76 @@ write_reads_from_appropriate_y( void )
 }
 
 static int
+write_reads_from_middle_third( void )
+{
+  /* y=64 is the first pixel row of the middle screen third.
+     display_line_start[64] = 32*64 = 2048; attr at display_attr_start[64] = 0x1900.
+     beam_x = 0 + 4 = 4, beam_y = 64 + 24 = 88, last_screen index = 4 + 88*40 = 3524 */
+  RAM[0][2048] = 0xa5;
+  RAM[0][0x1900] = 0x38;    /* ink=0, paper=7 */
+
+  display_write_if_dirty_sinclair( 0, 64 );
+
+  if( plot8_assert( 1, 4, 88, 0xa5, 0, 7 ) ) return 1;
+  if( display_last_screen[ 3524 ] != 0x38a5 ) {
+    fprintf( stderr, "display_last_screen[3524]: expected 0x38a5, got 0x%x\n",
+             display_last_screen[ 3524 ] );
+    return 1;
+  }
+  if( display_get_is_dirty( 88 ) != ( (libspectrum_qword)1 << 4 ) ) return 1;
+
+  return 0;
+}
+
+static int
+write_reads_from_bottom_third( void )
+{
+  /* y=128 is the first pixel row of the bottom screen third.
+     display_line_start[128] = 32*128 = 4096; attr at display_attr_start[128] = 0x1a00.
+     beam_x = 0 + 4 = 4, beam_y = 128 + 24 = 152, last_screen index = 4 + 152*40 = 6084 */
+  RAM[0][4096] = 0x99;
+  RAM[0][0x1a00] = 0x09;    /* ink=1, paper=1 */
+
+  display_write_if_dirty_sinclair( 0, 128 );
+
+  if( plot8_assert( 1, 4, 152, 0x99, 1, 1 ) ) return 1;
+  if( display_last_screen[ 6084 ] != 0x0999 ) {
+    fprintf( stderr, "display_last_screen[6084]: expected 0x0999, got 0x%x\n",
+             display_last_screen[ 6084 ] );
+    return 1;
+  }
+  if( display_get_is_dirty( 152 ) != ( (libspectrum_qword)1 << 4 ) ) return 1;
+
+  return 0;
+}
+
+static int
+no_redraw_if_cached_after_write( void )
+{
+  /* First call writes new data and caches it in display_last_screen */
+  RAM[0][0] = 0x01;
+  RAM[0][DISPLAY_PIXEL_BYTES] = 0x02;
+
+  display_write_if_dirty_sinclair( 0, 0 );
+  if( !plot8_count ) {
+    fprintf( stderr, "expected plot8 on first call, got none\n" );
+    return 1;
+  }
+
+  /* Second call with identical RAM data: cache hit, no redraw expected */
+  plot8_count = 0;
+  display_write_if_dirty_sinclair( 0, 0 );
+  if( plot8_count ) {
+    fprintf( stderr,
+             "expected no plot8 on second call with same data, got %d\n",
+             plot8_count );
+    return 1;
+  }
+
+  return 0;
+}
+
+static int
 flash_inverts_colours( void )
 {
   /* Arrange */
@@ -494,7 +565,7 @@ attribute_write_marks_correct_cell( void )
   /* Arrange: the final attribute byte is column 31, character row 23. */
 
   /* Act */
-  display_dirty_sinclair( 0x1aff );
+  display_dirty_sinclair( DISPLAY_PIXEL_BYTES + DISPLAY_ATTR_BYTES - 1 );
 
   /* Assert: mark column 31 in each of the cell's eight pixel rows only. */
   for( y = 0; y < DISPLAY_HEIGHT; y++ ) {
@@ -502,6 +573,102 @@ attribute_write_marks_correct_cell( void )
       y >= 184 ? ( (libspectrum_dword)1 << 31 ) : 0;
 
     if( display_get_maybe_dirty( y ) != expected ) return 1;
+  }
+
+  return 0;
+}
+
+static int
+attribute_write_marks_correct_cells( void )
+{
+  /* Verify the display_dirty64() attribute address decoder against
+     boundary and representative offsets.
+
+     The attribute area begins at DISPLAY_PIXEL_BYTES and is
+     laid out linearly: idx = offset - DISPLAY_PIXEL_BYTES, x = idx % 32,
+     char_row = idx / 32.  Each attribute covers eight pixel rows
+     (char_row*8 .. char_row*8+7), so eight consecutive dirty bits
+     must be set for column x. */
+
+  static const struct {
+    libspectrum_word offset;
+    int expected_x;
+    int expected_char_row;   /* y = expected_char_row * 8 */
+  } cases[] = {
+    { DISPLAY_PIXEL_BYTES,                               0,  0 },  /* first attr byte: col 0, char row 0 */
+    { DISPLAY_PIXEL_BYTES + DISPLAY_WIDTH_COLS - 1,     31,  0 },  /* last col of first char row */
+    { DISPLAY_PIXEL_BYTES + DISPLAY_WIDTH_COLS,          0,  1 },  /* first col of second char row */
+    { DISPLAY_PIXEL_BYTES + 2 * DISPLAY_WIDTH_COLS,      0,  2 },  /* first col of third char row */
+    { DISPLAY_PIXEL_BYTES + 23 * DISPLAY_WIDTH_COLS,     0, 23 },  /* first col of last char row */
+    { DISPLAY_PIXEL_BYTES + DISPLAY_ATTR_BYTES - 1,     31, 23 },  /* last attr byte */
+  };
+  int c;
+
+  for( c = 0; c < (int)( sizeof cases / sizeof cases[0] ); c++ ) {
+    int y;
+    libspectrum_word offset = cases[c].offset;
+    int expected_x = cases[c].expected_x;
+    int first_y = cases[c].expected_char_row * 8;
+    libspectrum_dword expected_bit = (libspectrum_dword)1 << expected_x;
+
+    test_before();
+
+    display_dirty_sinclair( offset );
+
+    for( y = 0; y < DISPLAY_HEIGHT; y++ ) {
+      libspectrum_dword expected =
+        ( y >= first_y && y < first_y + 8 ) ? expected_bit : 0;
+      if( display_get_maybe_dirty( y ) != expected ) return 1;
+    }
+  }
+
+  return 0;
+}
+
+static int
+pixel_write_marks_correct_cells( void )
+{
+  /* Verify the display_dirty8() address decoder against a representative
+     sample of the ZX Spectrum pixel-area layout.
+
+     The screen is encoded as:
+       bits  4-0:  column x (0-31)
+       bits  7-5:  character row within third j (0-7)
+       bits 10-8:  pixel row within character k (0-7)
+       bits 12-11: third of screen i (0-2)
+     giving screen line y = 64*i + 8*j + k.
+
+     We write to a specific offset, then confirm that exactly bit x of
+     display_maybe_dirty[y] is set. */
+
+  static const struct {
+    libspectrum_word offset;
+    int expected_x, expected_y;
+  } cases[] = {
+    { 0x0000,  0,   0 },  /* col 0, first scan line of top third */
+    { 0x001f, 31,   0 },  /* col 31, first scan line of top third */
+    { 0x0020,  0,   8 },  /* col 0, first scan line of second char row */
+    { 0x0100,  0,   1 },  /* col 0, second scan line of top char row */
+    { 0x0800,  0,  64 },  /* col 0, first scan line of middle third */
+    { DISPLAY_PIXEL_BYTES - 1, 31, 191 },  /* col 31, last scan line of bottom third */
+  };
+  int c;
+
+  for( c = 0; c < (int)( sizeof cases / sizeof cases[0] ); c++ ) {
+    int y;
+    libspectrum_word offset = cases[c].offset;
+    int expected_x = cases[c].expected_x;
+    int expected_y = cases[c].expected_y;
+    libspectrum_dword expected_bit = (libspectrum_dword)1 << expected_x;
+
+    test_before();
+
+    display_dirty_sinclair( offset );
+
+    for( y = 0; y < DISPLAY_HEIGHT; y++ ) {
+      libspectrum_dword expected = ( y == expected_y ) ? expected_bit : 0;
+      if( display_get_maybe_dirty( y ) != expected ) return 1;
+    }
   }
 
   return 0;
@@ -531,8 +698,8 @@ flash_dirty_with_flash_attr_row0_col0( void )
 {
   int i;
 
-  /* Arrange: set flash bit in attribute for row 0, col 0 (offset 0x1800) */
-  RAM[0][0x1800] = 0x80;
+  /* Arrange: set flash bit in attribute for row 0, col 0 */
+  RAM[0][DISPLAY_PIXEL_BYTES] = 0x80;
 
   /* Act */
   display_dirty_flashing_sinclair();
@@ -554,7 +721,7 @@ flash_dirty_non_flash_attr( void )
   int y;
 
   /* Arrange: non-flash attr at row 0, col 0 (bit 7 clear) */
-  RAM[0][0x1800] = 0x47;
+  RAM[0][DISPLAY_PIXEL_BYTES] = 0x47;
 
   /* Act */
   display_dirty_flashing_sinclair();
@@ -583,7 +750,7 @@ timex_flash_hires_skips_flashing( void )
   /* Arrange: hires mode; set flash bits in both screen areas */
   timex_flash_test_before( HIRES );
   RAM[0][ALTDFILE_OFFSET] = 0x80;
-  RAM[0][0x3800] = 0x80;
+  RAM[0][ALTDFILE_OFFSET + DISPLAY_PIXEL_BYTES] = 0x80;
 
   /* Act */
   display_dirty_flashing_timex();
@@ -640,7 +807,7 @@ timex_flash_altdfile_marks_dirty( void )
 
   /* Arrange: altdfile mode; flash attr at row 0, col 0 of second screen */
   timex_flash_test_before( ALTDFILE ); /* altdfile=1, b1=0, hires=0 */
-  RAM[0][0x3800] = 0x80;              /* second screen attr area, row 0 col 0 */
+  RAM[0][ALTDFILE_OFFSET + DISPLAY_PIXEL_BYTES] = 0x80;  /* second screen attr area, row 0 col 0 */
 
   /* Act */
   display_dirty_flashing_timex();
@@ -669,7 +836,7 @@ timex_flash_standard_delegates_to_sinclair( void )
 
   /* Arrange: standard Timex mode (scld=0); flash attr at row 0, col 0 */
   timex_flash_test_before( STANDARD );
-  RAM[0][0x1800] = 0x80;
+  RAM[0][DISPLAY_PIXEL_BYTES] = 0x80;
 
   /* Act: standard path delegates to display_dirty_flashing_sinclair() */
   display_dirty_flashing_timex();
@@ -875,12 +1042,100 @@ pentagon_page7_reads_correct_pages( void )
   return 0;
 }
 
+/* display_parse_attr() tests */
+
+/* Helper: parse attr and return non-zero if ink or paper don't match. */
+static int
+check_parse_attr( libspectrum_byte attr, libspectrum_byte expected_ink,
+                  libspectrum_byte expected_paper, const char *label )
+{
+  libspectrum_byte ink, paper;
+
+  display_parse_attr( attr, &ink, &paper );
+
+  if( ink != expected_ink ) {
+    fprintf( stderr, "%s: ink: expected %d, got %d\n",
+             label, (int)expected_ink, (int)ink );
+    return 1;
+  }
+  if( paper != expected_paper ) {
+    fprintf( stderr, "%s: paper: expected %d, got %d\n",
+             label, (int)expected_paper, (int)paper );
+    return 1;
+  }
+  return 0;
+}
+
+/* attr = 0x05: ink=5 (0b101), paper=0, bright=0, flash=0 */
+static int
+parse_attr_ink_only( void )
+{
+  display_set_flash_reversed( 0 );
+  return check_parse_attr( 0x05, 5, 0, "parse_attr_ink_only" );
+}
+
+/* attr = 0x28: ink=0, paper=5 (bits 3-5 = 0b101), bright=0, flash=0 */
+static int
+parse_attr_paper_only( void )
+{
+  display_set_flash_reversed( 0 );
+  return check_parse_attr( 0x28, 0, 5, "parse_attr_paper_only" );
+}
+
+/* attr = 0x45: ink=5, paper=0, bright=1 → both get +8 */
+static int
+parse_attr_bright( void )
+{
+  display_set_flash_reversed( 0 );
+  /* 0x45 = 0100 0101: ink=5, paper=0, bright=1, flash=0 */
+  return check_parse_attr( 0x45, 13, 8, "parse_attr_bright" );
+}
+
+/* attr = 0xa8: ink=0, paper=5, flash=1; flash_reversed=0 → no swap */
+static int
+parse_attr_flash_not_reversed( void )
+{
+  display_set_flash_reversed( 0 );
+  /* 0xa8 = 1010 1000: ink=0, paper=5 (0b101 in bits 3-5), flash=1 */
+  return check_parse_attr( 0xa8, 0, 5, "parse_attr_flash_not_reversed" );
+}
+
+/* Same attr but flash_reversed=1 → ink and paper are swapped */
+static int
+parse_attr_flash_reversed( void )
+{
+  int r;
+
+  display_set_flash_reversed( 1 );
+  /* ink and paper swap: expected ink=5, paper=0 */
+  r = check_parse_attr( 0xa8, 5, 0, "parse_attr_flash_reversed" );
+  display_set_flash_reversed( 0 );
+  return r;
+}
+
+/* attr = 0xed: ink=5, paper=5, bright=1, flash=1; flash_reversed=1 → swap
+   0xed = 1110 1101: bits 0-2=5 (ink), bits 3-5=5 (paper), bit6=1, bit7=1
+   normal ink = 5+8=13, paper = 5+8=13; swapped: still 13, 13 */
+static int
+parse_attr_flash_reversed_symmetric( void )
+{
+  int r;
+
+  display_set_flash_reversed( 1 );
+  r = check_parse_attr( 0xed, 13, 13, "parse_attr_flash_reversed_symmetric" );
+  display_set_flash_reversed( 0 );
+  return r;
+}
+
 static const struct test_t tests[] = {
   /* display_write_if_dirty_sinclair() tests */
   { "no_write_if_data_unchanged", no_write_if_data_unchanged },
   { "write_called_for_new_data", write_called_for_new_data },
   { "write_reads_from_appropriate_x", write_reads_from_appropriate_x },
   { "write_reads_from_appropriate_y", write_reads_from_appropriate_y },
+  { "write_reads_from_middle_third", write_reads_from_middle_third },
+  { "write_reads_from_bottom_third", write_reads_from_bottom_third },
+  { "no_redraw_if_cached_after_write", no_redraw_if_cached_after_write },
   { "flash_inverts_colours", flash_inverts_colours },
 
   /* display_dirty_sinclair() tests */
@@ -891,6 +1146,9 @@ static const struct test_t tests[] = {
   { "no_write_if_modified_area_ahead_of_critical_region",
     no_write_if_modified_area_ahead_of_critical_region },
   { "attribute_write_marks_correct_cell", attribute_write_marks_correct_cell },
+  { "attribute_write_marks_correct_cells",
+    attribute_write_marks_correct_cells },
+  { "pixel_write_marks_correct_cells", pixel_write_marks_correct_cells },
 
   /* display_dirty_flashing_sinclair() tests */
   { "flash_dirty_no_flash_attrs", flash_dirty_no_flash_attrs },
@@ -927,6 +1185,14 @@ static const struct test_t tests[] = {
     pentagon_write_called_for_new_data },
   { "pentagon_page7_reads_correct_pages",
     pentagon_page7_reads_correct_pages },
+
+  /* display_parse_attr() tests */
+  { "parse_attr_ink_only", parse_attr_ink_only },
+  { "parse_attr_paper_only", parse_attr_paper_only },
+  { "parse_attr_bright", parse_attr_bright },
+  { "parse_attr_flash_not_reversed", parse_attr_flash_not_reversed },
+  { "parse_attr_flash_reversed", parse_attr_flash_reversed },
+  { "parse_attr_flash_reversed_symmetric", parse_attr_flash_reversed_symmetric },
 
   /* End marker */
   { NULL, NULL }

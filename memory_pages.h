@@ -44,6 +44,12 @@ extern int memory_source_exrom; /* Timex EXROM */
 extern int memory_source_any; /* Used by the debugger to signify an absolute address */
 extern int memory_source_none; /* No memory attached here */
 
+typedef struct memory_rom_bank {
+  libspectrum_byte *data;
+  size_t length;
+  int save_to_snapshot;
+} memory_rom_bank;
+
 typedef struct memory_page {
 
   libspectrum_byte *page;	/* The data for this page */
@@ -120,6 +126,12 @@ libspectrum_byte *memory_pool_allocate( size_t length );
 libspectrum_byte *memory_pool_allocate_persistent( size_t length,
                                                    int persistent );
 void memory_pool_free( void );
+void memory_rom_bank_clear( memory_rom_bank *bank );
+int memory_rom_bank_set( memory_rom_bank *bank,
+                         const libspectrum_byte *data, size_t length,
+                         int save_to_snapshot );
+void memory_rom_bank_map( const memory_rom_bank *bank, memory_page *map,
+                          int page_num );
 
 /* Map in alternate bank if ROMCS is set */
 void memory_romcs_map( void );

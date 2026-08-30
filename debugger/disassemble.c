@@ -894,6 +894,14 @@ libspectrum_byte test24_data[] = { 0xdd, 0xcb, 0x55, 0xcf };  /* LD A,SET 1,(IX+
 libspectrum_byte test27_data[] = { 0xfd, 0xcb, 0x55, 0x87 };  /* LD A,RES 0,(IY+55) */
 libspectrum_byte test28_data[] = { 0xfd, 0xcb, 0x55, 0xcf };  /* LD A,SET 1,(IY+55) */
 
+/* DD CB / FD CB: BIT 7, RES 7, SET 7 (bit number 7 = bits 3-5 all set) */
+libspectrum_byte testbit7a_data[] = { 0xdd, 0xcb, 0x55, 0x7e };  /* BIT 7,(IX+55) */
+libspectrum_byte testbit7b_data[] = { 0xdd, 0xcb, 0x55, 0xbe };  /* RES 7,(IX+55) */
+libspectrum_byte testbit7c_data[] = { 0xdd, 0xcb, 0x55, 0xfe };  /* SET 7,(IX+55) */
+libspectrum_byte testbit7d_data[] = { 0xfd, 0xcb, 0x55, 0x7e };  /* BIT 7,(IY+55) */
+libspectrum_byte testbit7e_data[] = { 0xfd, 0xcb, 0x55, 0xbe };  /* RES 7,(IY+55) */
+libspectrum_byte testbit7f_data[] = { 0xfd, 0xcb, 0x55, 0xfe };  /* SET 7,(IY+55) */
+
 /* Negative (IX+d)/(IY+d) offset (offset >= 0x80) */
 libspectrum_byte test29_data[] = { 0xdd, 0xcb, 0xff, 0x46 };  /* BIT 0,(IX-01) */
 libspectrum_byte test30_data[] = { 0xfd, 0xcb, 0xff, 0x46 };  /* BIT 0,(IY-01) */
@@ -1044,6 +1052,19 @@ libspectrum_byte test139_data[] = { 0x03 };               /* INC BC */
 libspectrum_byte test140_data[] = { 0x0b };               /* DEC BC */
 libspectrum_byte test141_data[] = { 0x19 };               /* ADD HL,DE */
 
+/* ADD HL,rr — remaining three register pairs */
+static libspectrum_byte test352_data[] = { 0x09 };  /* ADD HL,BC */
+static libspectrum_byte test353_data[] = { 0x29 };  /* ADD HL,HL */
+static libspectrum_byte test354_data[] = { 0x39 };  /* ADD HL,SP */
+
+/* INC/DEC rr — remaining three register pairs (DE, HL, SP) */
+static libspectrum_byte test355_data[] = { 0x13 };  /* INC DE */
+static libspectrum_byte test356_data[] = { 0x23 };  /* INC HL */
+static libspectrum_byte test357_data[] = { 0x33 };  /* INC SP */
+static libspectrum_byte test358_data[] = { 0x1b };  /* DEC DE */
+static libspectrum_byte test359_data[] = { 0x2b };  /* DEC HL */
+static libspectrum_byte test360_data[] = { 0x3b };  /* DEC SP */
+
 /* 00xxx100/101/110: INC r, DEC r, LD r,n */
 libspectrum_byte test142_data[] = { 0x04 };        /* INC B */
 libspectrum_byte test143_data[] = { 0x05 };        /* DEC B */
@@ -1072,6 +1093,20 @@ libspectrum_byte test157_data[] = { 0xa2 };  /* AND D */
 libspectrum_byte test158_data[] = { 0xab };  /* XOR E */
 libspectrum_byte test159_data[] = { 0xb4 };  /* OR H */
 libspectrum_byte test160_data[] = { 0xbd };  /* CP L */
+
+/* 10xxxxxx: ADC A,r and SBC A,r (register forms — distinct from immediate) */
+static libspectrum_byte test342_data[] = { 0x88 };  /* ADC A,B */
+static libspectrum_byte test343_data[] = { 0x99 };  /* SBC A,C */
+
+/* 10xxxxxx: arithmetic/logic with (HL) operand (rrr = 110) */
+static libspectrum_byte test344_data[] = { 0x86 };  /* ADD A,(HL) */
+static libspectrum_byte test345_data[] = { 0x8e };  /* ADC A,(HL) */
+static libspectrum_byte test346_data[] = { 0x96 };  /* SUB (HL) */
+static libspectrum_byte test347_data[] = { 0x9e };  /* SBC A,(HL) */
+static libspectrum_byte test348_data[] = { 0xa6 };  /* AND (HL) */
+static libspectrum_byte test349_data[] = { 0xae };  /* XOR (HL) */
+static libspectrum_byte test350_data[] = { 0xb6 };  /* OR (HL) */
+static libspectrum_byte test351_data[] = { 0xbe };  /* CP (HL) */
 
 /* 11xxx110: immediate arithmetic/logic */
 libspectrum_byte test161_data[] = { 0xc6, 0x07 };  /* ADD A,07 */
@@ -1124,6 +1159,12 @@ libspectrum_byte testd5_data[] = { 0xdd, 0xcb, 0xff, 0x46 };  /* BIT 0,(IX-01h) 
 
 /* testd6: get_byte() via 11xxx110 path -- ADD A,n */
 libspectrum_byte testd6_data[] = { 0xc6, 0x07 };          /* ADD A,07h */
+
+/* testd7: ix_iy_offset() positive with IY in decimal mode -- LD A,(IY+d) */
+libspectrum_byte testd7_data[] = { 0xfd, 0x7e, 0x55 };    /* LD A,(IY+55h) */
+
+/* testd8: ix_iy_offset() negative with IY in decimal mode -- BIT b,(IY+d) */
+libspectrum_byte testd8_data[] = { 0xfd, 0xcb, 0xff, 0x46 };  /* BIT 0,(IY-01h) */
 
 /* ED NOPD boundary tests: opcodes that fall outside the valid ED range
    (b < 0x40 or b > 0xbb) are decoded as NOPD (2-byte instruction).
@@ -1284,6 +1325,13 @@ static libspectrum_byte test292_data[] = { 0xcb, 0x3e };  /* SRL (HL) */
 static libspectrum_byte test293_data[] = { 0xcb, 0x7e };  /* BIT 7,(HL) */
 static libspectrum_byte test294_data[] = { 0xcb, 0xbe };  /* RES 7,(HL) */
 static libspectrum_byte test295_data[] = { 0xcb, 0xfe };  /* SET 7,(HL) */
+
+/* CB prefix: BIT, RES and SET with bit 0 and (HL) (rrr = 110).
+   Exercises bit_op_bit() with the minimum bit number (b = 0) and
+   source_reg() with (HL), complementing the bit-7 tests above. */
+static libspectrum_byte test361_data[] = { 0xcb, 0x46 };  /* BIT 0,(HL) */
+static libspectrum_byte test362_data[] = { 0xcb, 0x86 };  /* RES 0,(HL) */
+static libspectrum_byte test363_data[] = { 0xcb, 0xc6 };  /* SET 0,(HL) */
 
 /* CB prefix: all eight rotation/shift ops for register C (rrr = 001).
    Verifies that the dest_reg()/source_reg() lookup returns "C" for
@@ -1447,6 +1495,14 @@ debugger_disassemble_unittest( void )
   r += run_test( test27_data, sizeof( test27_data ), "LD A,RES 0,(IY+55)" );
   r += run_test( test28_data, sizeof( test28_data ), "LD A,SET 1,(IY+55)" );
 
+  /* DDCB/FDCB: BIT 7, RES 7, SET 7 — exercises the full 0-7 bit range */
+  r += run_test( testbit7a_data, sizeof( testbit7a_data ), "BIT 7,(IX+55)" );
+  r += run_test( testbit7b_data, sizeof( testbit7b_data ), "RES 7,(IX+55)" );
+  r += run_test( testbit7c_data, sizeof( testbit7c_data ), "SET 7,(IX+55)" );
+  r += run_test( testbit7d_data, sizeof( testbit7d_data ), "BIT 7,(IY+55)" );
+  r += run_test( testbit7e_data, sizeof( testbit7e_data ), "RES 7,(IY+55)" );
+  r += run_test( testbit7f_data, sizeof( testbit7f_data ), "SET 7,(IY+55)" );
+
   /* Negative (IX+d)/(IY+d) offsets */
   r += run_test( test29_data, sizeof( test29_data ), "BIT 0,(IX-01)" );
   r += run_test( test30_data, sizeof( test30_data ), "BIT 0,(IY-01)" );
@@ -1599,6 +1655,19 @@ debugger_disassemble_unittest( void )
   r += run_test( test140_data, sizeof( test140_data ), "DEC BC" );
   r += run_test( test141_data, sizeof( test141_data ), "ADD HL,DE" );
 
+  /* ADD HL,rr — remaining three register pairs */
+  r += run_test( test352_data, sizeof( test352_data ), "ADD HL,BC" );
+  r += run_test( test353_data, sizeof( test353_data ), "ADD HL,HL" );
+  r += run_test( test354_data, sizeof( test354_data ), "ADD HL,SP" );
+
+  /* INC/DEC rr — remaining three register pairs (DE, HL, SP) */
+  r += run_test( test355_data, sizeof( test355_data ), "INC DE" );
+  r += run_test( test356_data, sizeof( test356_data ), "INC HL" );
+  r += run_test( test357_data, sizeof( test357_data ), "INC SP" );
+  r += run_test( test358_data, sizeof( test358_data ), "DEC DE" );
+  r += run_test( test359_data, sizeof( test359_data ), "DEC HL" );
+  r += run_test( test360_data, sizeof( test360_data ), "DEC SP" );
+
   /* 00xxx100/101/110: INC r, DEC r, LD r,n */
   r += run_test( test142_data, sizeof( test142_data ), "INC B" );
   r += run_test( test143_data, sizeof( test143_data ), "DEC B" );
@@ -1627,6 +1696,20 @@ debugger_disassemble_unittest( void )
   r += run_test( test158_data, sizeof( test158_data ), "XOR E" );
   r += run_test( test159_data, sizeof( test159_data ), "OR H" );
   r += run_test( test160_data, sizeof( test160_data ), "CP L" );
+
+  /* 10xxxxxx: ADC A,r and SBC A,r — register forms (distinct from immediate) */
+  r += run_test( test342_data, sizeof( test342_data ), "ADC A,B" );
+  r += run_test( test343_data, sizeof( test343_data ), "SBC A,C" );
+
+  /* 10xxxxxx: arithmetic/logic with (HL) operand */
+  r += run_test( test344_data, sizeof( test344_data ), "ADD A,(HL)" );
+  r += run_test( test345_data, sizeof( test345_data ), "ADC A,(HL)" );
+  r += run_test( test346_data, sizeof( test346_data ), "SUB (HL)" );
+  r += run_test( test347_data, sizeof( test347_data ), "SBC A,(HL)" );
+  r += run_test( test348_data, sizeof( test348_data ), "AND (HL)" );
+  r += run_test( test349_data, sizeof( test349_data ), "XOR (HL)" );
+  r += run_test( test350_data, sizeof( test350_data ), "OR (HL)" );
+  r += run_test( test351_data, sizeof( test351_data ), "CP (HL)" );
 
   /* 11xxx110: immediate arithmetic */
   r += run_test( test161_data, sizeof( test161_data ), "ADD A,07" );
@@ -1805,6 +1888,11 @@ debugger_disassemble_unittest( void )
   r += run_test( test294_data, sizeof( test294_data ), "RES 7,(HL)" );
   r += run_test( test295_data, sizeof( test295_data ), "SET 7,(HL)" );
 
+  /* CB prefix: BIT, RES, SET with bit 0 and (HL) */
+  r += run_test( test361_data, sizeof( test361_data ), "BIT 0,(HL)" );
+  r += run_test( test362_data, sizeof( test362_data ), "RES 0,(HL)" );
+  r += run_test( test363_data, sizeof( test363_data ), "SET 0,(HL)" );
+
   /* CB prefix: all rotation/shift ops for register C (rrr = 001) */
   r += run_test( test296_data, sizeof( test296_data ), "RLC C" );
   r += run_test( test297_data, sizeof( test297_data ), "RRC C" );
@@ -1887,6 +1975,12 @@ debugger_disassemble_decimal_unittest( void )
 
   /* get_byte() via 11xxx110 path: ADD A,07h -> "ADD A,7" */
   r += run_test( testd6_data, sizeof( testd6_data ), "ADD A,7" );
+
+  /* ix_iy_offset() positive with IY: LD A,(IY+55h) -> "LD A,(IY+85)" */
+  r += run_test( testd7_data, sizeof( testd7_data ), "LD A,(IY+85)" );
+
+  /* ix_iy_offset() negative with IY: BIT 0,(IY-01h) -> "BIT 0,(IY-1)" */
+  r += run_test( testd8_data, sizeof( testd8_data ), "BIT 0,(IY-1)" );
 
   debugger_output_base = saved_base;
 

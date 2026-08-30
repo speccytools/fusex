@@ -42,7 +42,7 @@ _fuse_phantom_typist()
 _fuse_speaker_type()
 {
     local IFS=$'\n'
-    COMPREPLY=( $( IFS='|' compgen -W 'TV speaker|Beeper|Unfiltered' -- "$cur" ) )
+    COMPREPLY=( $( IFS='|' compgen -W 'Automatic|TV speaker|Beeper|Unfiltered' -- "$cur" ) )
 }
 
 _fuse()

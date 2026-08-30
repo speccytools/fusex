@@ -34,7 +34,7 @@
 #include "spec48.h"
 #include "specplus3.h"
 
-static int specplus2a_reset( void );
+static int specplus2a_reset( int hard_reset );
 
 int
 specplus2a_init( fuse_machine_info *machine )
@@ -60,7 +60,7 @@ specplus2a_init( fuse_machine_info *machine )
 }
 
 static int
-specplus2a_reset( void )
+specplus2a_reset( int hard_reset )
 {
   int error;
 
@@ -77,7 +77,7 @@ specplus2a_reset( void )
                             settings_default.rom_plus2a_3, 0x4000 );
   if( error ) return error;
 
-  error = specplus3_plus2a_common_reset();
+  error = specplus3_plus2a_common_reset( hard_reset );
   if( error ) return error;
 
   periph_clear();

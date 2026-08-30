@@ -39,7 +39,7 @@
 #include "tc2068.h"
 #include "ui/ui.h"
 
-static int ts2068_reset( void );
+static int ts2068_reset( int hard_reset );
 
 int
 ts2068_init( fuse_machine_info *machine )
@@ -65,7 +65,7 @@ ts2068_init( fuse_machine_info *machine )
 }
 
 static int
-ts2068_reset( void )
+ts2068_reset( int hard_reset )
 {
   size_t i, j;
   int error;
@@ -111,9 +111,9 @@ ts2068_reset( void )
       exrom_page->page_num = i;
     }
 
-  tc2068_tc2048_common_reset();
+  tc2068_tc2048_common_reset( hard_reset );
 
-  error = dck_reset();
+  error = dck_reset( hard_reset );
   if( error ) {
     ui_error( UI_ERROR_INFO, "Ignoring Timex dock file '%s'",
             settings_current.dck_file );

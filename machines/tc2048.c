@@ -38,7 +38,7 @@
 #include "spec48.h"
 #include "tc2068.h"
 
-static int tc2048_reset( void );
+static int tc2048_reset( int hard_reset );
 
 int
 tc2048_port_from_ula( libspectrum_word port )
@@ -72,7 +72,7 @@ int tc2048_init( fuse_machine_info *machine )
 }
 
 static int
-tc2048_reset( void )
+tc2048_reset( int hard_reset )
 {
   size_t i, j;
   int error;
@@ -132,7 +132,7 @@ tc2048_reset( void )
       exrom_page->page_num = i;
     }
 
-  tc2068_tc2048_common_reset();
+  tc2068_tc2048_common_reset( hard_reset );
 
   return 0;
 }

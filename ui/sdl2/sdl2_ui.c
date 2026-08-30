@@ -15,6 +15,7 @@
 #include "fuse.h"
 #include "menu.h"
 #include "settings.h"
+#include "ui/display_timing.h"
 #include "ui/ui.h"
 #include "ui/uidisplay.h"
 #include "sdl2_display.h"
@@ -106,6 +107,7 @@ ui_event( void )
 {
   SDL_Event event;
 
+  display_timing_input_begin();
   while( SDL_PollEvent( &event ) ) {
     switch( event.type ) {
     case SDL_KEYDOWN:
@@ -157,6 +159,8 @@ ui_event( void )
       break;
     }
   }
+
+  display_timing_input_end();
 
   return 0;
 }

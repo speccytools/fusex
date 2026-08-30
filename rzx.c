@@ -310,6 +310,13 @@ int rzx_start_playback( const char *filename, int check_snapshot )
 int
 rzx_start_playback_from_buffer( const unsigned char *buffer, size_t length )
 {
+  return rzx_start_playback_from_buffer_with_snapshot_check( buffer, length, 1 );
+}
+
+int
+rzx_start_playback_from_buffer_with_snapshot_check(
+  const unsigned char *buffer, size_t length, int check_snapshot )
+{
   int error;
   libspectrum_snap* snap;
 
@@ -321,7 +328,7 @@ rzx_start_playback_from_buffer( const unsigned char *buffer, size_t length )
   if( error ) return error;
 
   snap = rzx_get_initial_snapshot();
-  if( !snap ) {
+  if( !snap && check_snapshot ) {
     error = utils_open_snap();
     if( error ) {
       libspectrum_rzx_free( rzx );

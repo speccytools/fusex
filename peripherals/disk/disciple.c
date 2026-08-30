@@ -498,10 +498,54 @@ disciple_activate( void )
 int
 disciple_unittest( void )
 {
+  static const char rom_filename[] = "unittests-disciple.rom";
+  libspectrum_byte *test_rom;
+  libspectrum_snap *snap = NULL;
+  char *saved_rom = settings_current.rom_disciple;
   int r = 0;
+  int was_active = periph_is_active( PERIPH_TYPE_DISCIPLE );
   /* We only support the use of an 8 KiB ROM.  Change this to 1 if adding
    * support for 16 KiB ROMs. */
   const int upper_rombank = 0;
+
+  test_rom = libspectrum_new0( libspectrum_byte, ROM_SIZE );
+  if( utils_write_file( rom_filename, test_rom, ROM_SIZE ) ) {
+    libspectrum_free( test_rom );
+    return 1;
+  }
+  libspectrum_free( test_rom );
+
+  settings_current.rom_disciple = (char *)rom_filename;
+  if( !was_active )
+    periph_activate_type( PERIPH_TYPE_DISCIPLE, 1 );
+
+  disciple_reset( 1 );
+  if( !disciple_available ) {
+    fprintf( stderr, "DISCiPLE unavailable for unit test\n" );
+    r++;
+    goto cleanup;
+  }
+
+  snap = libspectrum_snap_alloc();
+  if( !snap ) {
+    fprintf( stderr, "Couldn't allocate DISCiPLE unit test snapshot\n" );
+    r++;
+    goto cleanup;
+  }
+
+  test_rom = libspectrum_new( libspectrum_byte, ROM_SIZE );
+  memset( test_rom, 0xa5, ROM_SIZE );
+  libspectrum_snap_set_disciple_active( snap, 1 );
+  libspectrum_snap_set_disciple_custom_rom( snap, 1 );
+  libspectrum_snap_set_disciple_rom_length( snap, 0, ROM_SIZE );
+  libspectrum_snap_set_disciple_rom( snap, 0, test_rom );
+  disciple_from_snapshot( snap );
+
+  if( machine_reset( 0 ) ||
+      disciple_memory_map_romcs_rom[ 0 ].page[ 0 ] != 0xa5 ) {
+    fprintf( stderr, "DISCiPLE snapshot ROM was not preserved by soft reset\n" );
+    r++;
+  }
 
   disciple_page();
 
@@ -544,6 +588,19 @@ disciple_unittest( void )
   disciple_unpage();
 
   r += unittests_paging_test_48( 2 );
+
+cleanup:
+  if( snap && libspectrum_snap_free( snap ) ) {
+    fprintf( stderr, "Couldn't free DISCiPLE unit test snapshot\n" );
+    r++;
+  }
+  if( !was_active )
+    periph_activate_type( PERIPH_TYPE_DISCIPLE, 0 );
+  settings_current.rom_disciple = saved_rom;
+  if( remove( rom_filename ) ) {
+    fprintf( stderr, "Couldn't remove DISCiPLE unit test ROM\n" );
+    r++;
+  }
 
   return r;
 }
@@ -609,7 +666,7 @@ disciple_from_snapshot( libspectrum_snap *snap )
 
   if( libspectrum_snap_disciple_custom_rom( snap ) &&
       libspectrum_snap_disciple_rom( snap, 0 ) &&
-      machine_load_rom_bank_from_buffer(
+      machine_load_rom_bank_from_snapshot(
                              disciple_memory_map_romcs_rom, 0,
                              libspectrum_snap_disciple_rom( snap, 0 ),
                              libspectrum_snap_disciple_rom_length( snap, 0 ),

@@ -1,3 +1,47 @@
+2026-08-26  Fredrick Meunier  <fredm@spamcop.net>
+
+        * Fuse 1.9.2 released.
+
+        * Emulation core improvements:
+          * Improve ZX Spectrum ULA beeper emulation with separate MIC and
+            speaker paths and improved speaker-response modelling (Fredrick
+            Meunier) (thanks, kolbeck and experiment participants).
+          * Default to automatically selecting the appropriate speaker
+            response for each emulated machine and support universal manual
+            overrides (Fredrick Meunier).
+          * Preserve snapshot peripheral ROMs across soft resets (fixes bug
+            #132) (Fredrick Meunier).
+          * Correct Multiface ROM handling after a machine reset (Sergio
+            Baldoví).
+          * Handle short ROM tape blocks correctly with tape traps, fixing
+            Gauntlet II and splATTR (fixes bugs #400 and #403) (Fredrick
+            Meunier).
+          * Emulate the ROM flag comparison during tape traps, preserving the
+            accumulator and flags as on real hardware (part of bug #310)
+            (thanks, Woody) (Fredrick Meunier).
+
+        * UI improvements:
+          * GTK3, SDL2 and Win32: coalesce dirty display areas per frame to
+            reduce redundant scaling and presentation work (Fredrick Meunier).
+
+        * Debugger improvements:
+          * Allocate Pokefinder working memory only when it is needed
+            (Fredrick Meunier).
+
+        * Miscellaneous improvements:
+          * Avoid rereading startup media files (fixes bug #166) (Fredrick
+            Meunier).
+          * Reduce display dirty-tracking memory usage and improve its address
+            decoding (Fredrick Meunier).
+          * Improve Windows distribution dependency handling (Sergio Baldoví).
+          * Correct sound-backend error messages (Fredrick Meunier).
+
+        * Testing improvements:
+          * Expand display, scaler, snapshot, Pokefinder and Z80 disassembler
+            test coverage, including MinGW builds (Fredrick Meunier).
+
+        * Various other minor bugfixes.
+
 2026-07-25  Fredrick Meunier  <fredm@spamcop.net>
 
         * Fuse 1.9.1 released.

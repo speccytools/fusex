@@ -641,7 +641,7 @@ screenshot_scr_read( const char *filename )
                                   *(screen.buffer + i) );
 
       /* set attributes based on hires attribute byte */
-      for( i = 0; i < 768; i++ )
+      for( i = 0; i < DISPLAY_ATTR_BYTES; i++ )
         RAM[ memory_current_screen ][display_get_addr(0,0) +
             MONO_BITMAP_SIZE + i] = attr;
 

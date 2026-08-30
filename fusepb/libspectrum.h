@@ -644,6 +644,8 @@ LIBSPECTRUM_MACHINE_CAPABILITY_PENT512_MEMORY; /* Pentagon 512 memory paging */
 extern LIBSPECTRUM_API const int
 LIBSPECTRUM_MACHINE_CAPABILITY_PENT1024_MEMORY;
 					      /* Pentagon 1024 memory paging */
+extern LIBSPECTRUM_API const int
+LIBSPECTRUM_MACHINE_CAPABILITY_BEEPER;                    /* Beeper sound */
 
 /* Get the capabilities of a machine */
 LIBSPECTRUM_API int libspectrum_machine_capabilities( libspectrum_machine type );
@@ -1416,6 +1418,12 @@ libspectrum_tape_peek_last_block( libspectrum_tape *tape );
    and return it */
 LIBSPECTRUM_API libspectrum_tape_block *
 libspectrum_tape_select_next_block( libspectrum_tape *tape );
+
+/* Return the total number of blocks in the tape. The valid indices for
+   libspectrum_tape_nth_block() range from zero to one less than this
+   value; this value is the position immediately after the final block. */
+LIBSPECTRUM_API size_t
+libspectrum_tape_count( const libspectrum_tape *tape );
 
 /* Get the position on the tape of the current block */
 LIBSPECTRUM_API libspectrum_error

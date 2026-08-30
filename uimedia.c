@@ -381,8 +381,25 @@ int
 ui_media_drive_insert( const ui_media_drive_info_t *drive,
                        const char *filename, int autoload )
 {
+  utils_file file;
+  int error;
+
+  if( !filename ) return ui_media_drive_insert_file( drive, NULL, autoload );
+
+  utils_file_init( &file, filename );
+  if( utils_file_read( &file ) ) return 1;
+  error = ui_media_drive_insert_file( drive, &file, autoload );
+  utils_file_free( &file );
+  return error;
+}
+
+int
+ui_media_drive_insert_file( const ui_media_drive_info_t *drive,
+                            const utils_file *file, int autoload )
+{
   int error;
   const fdd_params_t *dt;
+  const char *filename = file ? file->filename : NULL;
 
   /* Eject any disk already in the drive */
   if( drive->fdd->loaded ) {
@@ -392,8 +409,8 @@ ui_media_drive_insert( const ui_media_drive_info_t *drive,
   }
 
   if( filename ) {
-    error = disk_open( &drive->fdd->disk, filename, 0,
-                       DISK_TRY_MERGE( drive->fdd->fdd_heads ) );
+    error = disk_open_loaded( &drive->fdd->disk, file, 0,
+                              DISK_TRY_MERGE( drive->fdd->fdd_heads ) );
     if( error != DISK_OK ) {
       ui_error( UI_ERROR_ERROR, "Failed to open disk image: %s",
                 disk_strerror( error ) );

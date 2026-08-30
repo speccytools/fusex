@@ -38,7 +38,7 @@
 #include "spec48.h"
 #include "specplus3.h"
 
-static int spec128_reset( void );
+static int spec128_reset( int hard_reset );
 
 int spec128_init( fuse_machine_info *machine )
 {
@@ -63,7 +63,7 @@ int spec128_init( fuse_machine_info *machine )
 }
 
 static int
-spec128_reset( void )
+spec128_reset( int hard_reset )
 {
   int error;
 

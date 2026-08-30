@@ -22,6 +22,7 @@ fuse_SOURCES += $(ui_sdl2_files)
 endif
 
 ui_sdl2_files = \
+                ui/display_timing.c \
                 ui/sdl2/sdl2_display_internal.c \
                 ui/sdl2/sdl2_display_internal.h \
                 ui/sdl2/sdl2_scaler_state.c \

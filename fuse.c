@@ -132,18 +132,18 @@ static const char * const LIBSPECTRUM_MIN_VERSION = "0.5.0";
 /* The various types of file we may want to run on startup */
 typedef struct start_files_t {
 
-  const char *disk_plus3;
-  const char *disk_opus;
-  const char *disk_plusd;
-  const char *disk_beta;
-  const char *disk_didaktik80;
-  const char *disk_disciple;
-  const char *dock;
-  const char *if2;
-  const char *playback;
+  utils_file disk_plus3;
+  utils_file disk_opus;
+  utils_file disk_plusd;
+  utils_file disk_beta;
+  utils_file disk_didaktik80;
+  utils_file disk_disciple;
+  utils_file dock;
+  utils_file if2;
+  utils_file playback;
   const char *recording;
-  const char *snapshot;
-  const char *tape;
+  utils_file snapshot;
+  utils_file tape;
 
   const char *simpleide_master, *simpleide_slave;
   const char *zxatasp_master, *zxatasp_slave;
@@ -151,7 +151,7 @@ typedef struct start_files_t {
   const char *divide_master, *divide_slave;
   const char *divmmc;
   const char *zxmmc;
-  const char *mdr[8];
+  utils_file mdr[8];
 
 } start_files_t;
 
@@ -169,6 +169,7 @@ static int setup_start_files( start_files_t *start_files );
 static int parse_nonoption_args( int argc, char **argv, int first_arg,
 				 start_files_t *start_files );
 static int do_start_files( start_files_t *start_files );
+static void free_start_files( start_files_t *start_files );
 
 #ifdef UI_WIN32
 /* The Win32 UI supplies WinMain(), which calls this */
@@ -404,8 +405,13 @@ int fuse_init(int argc, char **argv)
   if( error ) return error;
 
   if( setup_start_files( &start_files ) ) return 1;
-  if( parse_nonoption_args( argc, argv, first_arg, &start_files ) ) return 1;
-  if( do_start_files( &start_files ) ) return 1;
+  if( parse_nonoption_args( argc, argv, first_arg, &start_files ) ) {
+    free_start_files( &start_files );
+    return 1;
+  }
+  error = do_start_files( &start_files );
+  free_start_files( &start_files );
+  if( error ) return 1;
 
   gdbserver_init();
 
@@ -618,18 +624,18 @@ int fuse_emulation_unpause(void)
 static int
 setup_start_files( start_files_t *start_files )
 {
-  start_files->disk_plus3 = settings_current.plus3disk_file;
-  start_files->disk_opus = settings_current.opusdisk_file;
-  start_files->disk_plusd = settings_current.plusddisk_file;
-  start_files->disk_didaktik80 = settings_current.didaktik80disk_file;
-  start_files->disk_disciple = settings_current.discipledisk_file;
-  start_files->disk_beta = settings_current.betadisk_file;
-  start_files->dock = settings_current.dck_file;
-  start_files->if2 = settings_current.if2_file;
-  start_files->playback = settings_current.playback_file;
+  utils_file_init( &start_files->disk_plus3, settings_current.plus3disk_file );
+  utils_file_init( &start_files->disk_opus, settings_current.opusdisk_file );
+  utils_file_init( &start_files->disk_plusd, settings_current.plusddisk_file );
+  utils_file_init( &start_files->disk_didaktik80, settings_current.didaktik80disk_file );
+  utils_file_init( &start_files->disk_disciple, settings_current.discipledisk_file );
+  utils_file_init( &start_files->disk_beta, settings_current.betadisk_file );
+  utils_file_init( &start_files->dock, settings_current.dck_file );
+  utils_file_init( &start_files->if2, settings_current.if2_file );
+  utils_file_init( &start_files->playback, settings_current.playback_file );
   start_files->recording = settings_current.record_file;
-  start_files->snapshot = settings_current.snapshot;
-  start_files->tape = settings_current.tape_file;
+  utils_file_init( &start_files->snapshot, settings_current.snapshot );
+  utils_file_init( &start_files->tape, settings_current.tape_file );
 
   start_files->simpleide_master =
     utils_safe_strdup( settings_current.simpleide_master_file );
@@ -653,16 +659,35 @@ setup_start_files( start_files_t *start_files )
 
   start_files->zxmmc = utils_safe_strdup( settings_current.zxmmc_file );
 
-  start_files->mdr[0] = settings_current.mdr_file;
-  start_files->mdr[1] = settings_current.mdr_file2;
-  start_files->mdr[2] = settings_current.mdr_file3;
-  start_files->mdr[3] = settings_current.mdr_file4;
-  start_files->mdr[4] = settings_current.mdr_file5;
-  start_files->mdr[5] = settings_current.mdr_file6;
-  start_files->mdr[6] = settings_current.mdr_file7;
-  start_files->mdr[7] = settings_current.mdr_file8;
+  utils_file_init( &start_files->mdr[0], settings_current.mdr_file );
+  utils_file_init( &start_files->mdr[1], settings_current.mdr_file2 );
+  utils_file_init( &start_files->mdr[2], settings_current.mdr_file3 );
+  utils_file_init( &start_files->mdr[3], settings_current.mdr_file4 );
+  utils_file_init( &start_files->mdr[4], settings_current.mdr_file5 );
+  utils_file_init( &start_files->mdr[5], settings_current.mdr_file6 );
+  utils_file_init( &start_files->mdr[6], settings_current.mdr_file7 );
+  utils_file_init( &start_files->mdr[7], settings_current.mdr_file8 );
 
   return 0;
+}
+
+static void
+free_start_files( start_files_t *start_files )
+{
+  int i;
+
+  utils_file_free( &start_files->disk_plus3 );
+  utils_file_free( &start_files->disk_opus );
+  utils_file_free( &start_files->disk_plusd );
+  utils_file_free( &start_files->disk_beta );
+  utils_file_free( &start_files->disk_didaktik80 );
+  utils_file_free( &start_files->disk_disciple );
+  utils_file_free( &start_files->dock );
+  utils_file_free( &start_files->if2 );
+  utils_file_free( &start_files->playback );
+  utils_file_free( &start_files->snapshot );
+  utils_file_free( &start_files->tape );
+  for( i = 0; i < 8; i++ ) utils_file_free( &start_files->mdr[i] );
 }
 
 /* Make 'best guesses' as to what to do with non-option arguments */
@@ -675,6 +700,7 @@ parse_nonoption_args( int argc, char **argv, int first_arg,
   utils_file file;
   libspectrum_id_t type;
   libspectrum_class_t class;
+
   int error;
 
 #ifdef GEKKO
@@ -686,23 +712,23 @@ parse_nonoption_args( int argc, char **argv, int first_arg,
 
     filename = argv[i];
 
-    error = utils_read_file( filename, &file );
-    if( error ) return error;
-
-    error = libspectrum_identify_file_with_class( &type, &class, filename,
-						  file.buffer, file.length );
+    utils_file_init( &file, filename );
+    error = utils_file_identify( &file );
     if( error ) {
-      utils_close_file( &file );
+      utils_file_free( &file );
       return error;
     }
+
+    type = file.type;
+    class = file.class;
 
     switch( class ) {
 
     case LIBSPECTRUM_CLASS_CARTRIDGE_TIMEX:
-      start_files->dock = filename; break;
+      utils_file_move( &start_files->dock, &file ); break;
 
     case LIBSPECTRUM_CLASS_CARTRIDGE_IF2:
-      start_files->if2 = filename; break;
+      utils_file_move( &start_files->if2, &file ); break;
 
     case LIBSPECTRUM_CLASS_HARDDISK:
       if( settings_current.zxcf_active ) {
@@ -725,62 +751,62 @@ parse_nonoption_args( int argc, char **argv, int first_arg,
       break;
 
     case LIBSPECTRUM_CLASS_DISK_PLUS3:
-      start_files->disk_plus3 = filename; break;
+      utils_file_move( &start_files->disk_plus3, &file ); break;
 
     case LIBSPECTRUM_CLASS_DISK_OPUS:
-      start_files->disk_opus = filename; break;
+      utils_file_move( &start_files->disk_opus, &file ); break;
 
     case LIBSPECTRUM_CLASS_DISK_DIDAKTIK:
-      start_files->disk_didaktik80 = filename; break;
+      utils_file_move( &start_files->disk_didaktik80, &file ); break;
 
     case LIBSPECTRUM_CLASS_DISK_PLUSD:
       if( periph_is_active( PERIPH_TYPE_DISCIPLE ) )
-        start_files->disk_disciple = filename;
+        utils_file_move( &start_files->disk_disciple, &file );
       else
-        start_files->disk_plusd = filename;
+        utils_file_move( &start_files->disk_plusd, &file );
       break;
 
     case LIBSPECTRUM_CLASS_DISK_TRDOS:
-      start_files->disk_beta = filename; break;
+      utils_file_move( &start_files->disk_beta, &file ); break;
 
     case LIBSPECTRUM_CLASS_DISK_GENERIC:
       if( machine_current->capabilities &
                  LIBSPECTRUM_MACHINE_CAPABILITY_PLUS3_DISK )
-        start_files->disk_plus3 = filename;
+        utils_file_move( &start_files->disk_plus3, &file );
       else if( machine_current->capabilities &
                  LIBSPECTRUM_MACHINE_CAPABILITY_TRDOS_DISK )
-        start_files->disk_beta = filename; 
+        utils_file_move( &start_files->disk_beta, &file );
       else {
         if( periph_is_active( PERIPH_TYPE_BETA128 ) )
-          start_files->disk_beta = filename; 
+          utils_file_move( &start_files->disk_beta, &file );
         else if( periph_is_active( PERIPH_TYPE_PLUSD ) )
-          start_files->disk_plusd = filename;
+          utils_file_move( &start_files->disk_plusd, &file );
         else if( periph_is_active( PERIPH_TYPE_DIDAKTIK80 ) )
-          start_files->disk_didaktik80 = filename;
+          utils_file_move( &start_files->disk_didaktik80, &file );
         else if( periph_is_active( PERIPH_TYPE_DISCIPLE ) )
-          start_files->disk_disciple = filename;
+          utils_file_move( &start_files->disk_disciple, &file );
         else if( periph_is_active( PERIPH_TYPE_OPUS ) )
-          start_files->disk_opus = filename;
+          utils_file_move( &start_files->disk_opus, &file );
       }
       break;
 
     case LIBSPECTRUM_CLASS_RECORDING:
-      start_files->playback = filename; break;
+      utils_file_move( &start_files->playback, &file ); break;
 
     case LIBSPECTRUM_CLASS_SNAPSHOT:
-      start_files->snapshot = filename; break;
+      utils_file_move( &start_files->snapshot, &file ); break;
 
     case LIBSPECTRUM_CLASS_MICRODRIVE:
       for( j = 0; j < 8; j++ ) {
-        if( !start_files->mdr[j] ) {
-	  start_files->mdr[j] = filename;
+        if( !start_files->mdr[j].filename ) {
+	  utils_file_move( &start_files->mdr[j], &file );
 	  break;
 	}
       }
       break;
 
     case LIBSPECTRUM_CLASS_TAPE:
-      start_files->tape = filename; break;
+      utils_file_move( &start_files->tape, &file ); break;
 
     case LIBSPECTRUM_CLASS_AUXILIARY:
       if( type == LIBSPECTRUM_ID_AUX_POK ) {
@@ -804,6 +830,7 @@ parse_nonoption_args( int argc, char **argv, int first_arg,
   }
 
   return 0;
+
 }
 
 static int
@@ -812,7 +839,7 @@ do_start_files( start_files_t *start_files )
   int autoload, error, i, check_snapshot;
 
   /* Can't do both input recording and playback */
-  if( start_files->playback && start_files->recording ) {
+  if( start_files->playback.filename && start_files->recording ) {
     ui_error(
       UI_ERROR_WARNING,
       "can't do both input playback and recording; recording disabled"
@@ -821,36 +848,38 @@ do_start_files( start_files_t *start_files )
   }
 
   /* Can't use both +3 and TR-DOS disks simultaneously */
-  if( start_files->disk_plus3 && start_files->disk_beta ) {
+  if( start_files->disk_plus3.filename && start_files->disk_beta.filename ) {
     ui_error(
       UI_ERROR_WARNING,
       "can't use +3 and TR-DOS disks simultaneously; +3 disk ignored"
     );
-    start_files->disk_plus3 = NULL;
+    utils_file_free( &start_files->disk_plus3 );
   }
 
   /* Can't use disks and the dock simultaneously */
-  if( ( start_files->disk_plus3 || start_files->disk_beta ) &&
-      start_files->dock                                         ) {
+  if( ( start_files->disk_plus3.filename ||
+        start_files->disk_beta.filename ) &&
+      start_files->dock.filename ) {
     ui_error(
       UI_ERROR_WARNING,
       "can't use disks and the dock simultaneously; dock cartridge ignored"
     );
-    start_files->dock = NULL;
+    utils_file_free( &start_files->dock );
   }
 
   /* Can't use disks and the Interface 2 simultaneously */
-  if( ( start_files->disk_plus3 || start_files->disk_beta ) &&
-      start_files->if2                                          ) {
+  if( ( start_files->disk_plus3.filename ||
+        start_files->disk_beta.filename ) &&
+      start_files->if2.filename ) {
     ui_error(
       UI_ERROR_WARNING,
       "can't use disks and the Interface 2 simultaneously; cartridge ignored"
     );
-    start_files->if2 = NULL;
+    utils_file_free( &start_files->if2 );
   }
 
   /* If a snapshot has been specified, don't autoload tape, disks etc */
-  autoload = start_files->snapshot ? 0 : tape_can_autoload();
+  autoload = start_files->snapshot.filename ? 0 : tape_can_autoload();
 
   /* Load in each of the files. Input recording must be done after
      snapshot loading such that the right snapshot is embedded into
@@ -858,61 +887,61 @@ do_start_files( start_files_t *start_files )
      any embedded snapshot in the input recording will override any
      specified snapshot */
 
-  if( start_files->disk_plus3 ) {
-    error = utils_open_file( start_files->disk_plus3, autoload, NULL );
+  if( start_files->disk_plus3.filename ) {
+    error = utils_open_loaded_file( &start_files->disk_plus3, autoload, NULL );
     if( error ) return error;
   }
 
-  if( start_files->disk_plusd ) {
-    error = utils_open_file( start_files->disk_plusd, autoload, NULL );
+  if( start_files->disk_plusd.filename ) {
+    error = utils_open_loaded_file( &start_files->disk_plusd, autoload, NULL );
     if( error ) return error;
   }
 
-  if( start_files->disk_didaktik80 ) {
-    error = utils_open_file( start_files->disk_didaktik80, autoload, NULL );
+  if( start_files->disk_didaktik80.filename ) {
+    error = utils_open_loaded_file( &start_files->disk_didaktik80, autoload, NULL );
     if( error ) return error;
   }
 
-  if( start_files->disk_disciple ) {
-    error = utils_open_file( start_files->disk_disciple, autoload, NULL );
+  if( start_files->disk_disciple.filename ) {
+    error = utils_open_loaded_file( &start_files->disk_disciple, autoload, NULL );
     if( error ) return error;
   }
 
-  if( start_files->disk_opus ) {
-    error = utils_open_file( start_files->disk_opus, autoload, NULL );
+  if( start_files->disk_opus.filename ) {
+    error = utils_open_loaded_file( &start_files->disk_opus, autoload, NULL );
     if( error ) return error;
   }
 
-  if( start_files->disk_beta ) {
-    error = utils_open_file( start_files->disk_beta, autoload, NULL );
+  if( start_files->disk_beta.filename ) {
+    error = utils_open_loaded_file( &start_files->disk_beta, autoload, NULL );
     if( error ) return error;
   }
 
-  if( start_files->dock ) {
-    error = utils_open_file( start_files->dock, autoload, NULL );
+  if( start_files->dock.filename ) {
+    error = utils_open_loaded_file( &start_files->dock, autoload, NULL );
     if( error ) return error;
   }
 
-  if( start_files->if2 ) {
-    error = utils_open_file( start_files->if2, autoload, NULL );
+  if( start_files->if2.filename ) {
+    error = utils_open_loaded_file( &start_files->if2, autoload, NULL );
     if( error ) return error;
   }
 
-  if( start_files->snapshot ) {
-    error = utils_open_file( start_files->snapshot, autoload, NULL );
+  if( start_files->snapshot.filename ) {
+    error = utils_open_loaded_file( &start_files->snapshot, autoload, NULL );
     if( error ) return error;
   }
 
-  if( start_files->tape ) {
-    error = utils_open_file( start_files->tape, autoload, NULL );
+  if( start_files->tape.filename ) {
+    error = utils_open_loaded_file( &start_files->tape, autoload, NULL );
     if( error ) return error;
   }
 
   /* Microdrive cartridges */
 
   for( i = 0; i < 8; i++ ) {
-    if( start_files->mdr[i] ) {
-      error = utils_open_file( start_files->mdr[i], autoload, NULL );
+    if( start_files->mdr[i].filename ) {
+      error = utils_open_loaded_file( &start_files->mdr[i], autoload, NULL );
       if( error ) return error;
     }
   }
@@ -973,9 +1002,11 @@ do_start_files( start_files_t *start_files )
 
   /* Input recordings */
 
-  if( start_files->playback ) {
-    check_snapshot = start_files->snapshot ? 0 : 1;
-    error = rzx_start_playback( start_files->playback, check_snapshot );
+  if( start_files->playback.filename ) {
+    check_snapshot = start_files->snapshot.filename ? 0 : 1;
+    error = rzx_start_playback_from_buffer_with_snapshot_check(
+      start_files->playback.buffer, start_files->playback.length,
+      check_snapshot );
     if( error ) return error;
   }
 

@@ -32,7 +32,7 @@
 #include "specplus3.h"
 #include "ui/ui.h"
 
-static int specplus3e_reset( void );
+static int specplus3e_reset( int hard_reset );
 extern upd_fdc *specplus3_fdc;
 
 int
@@ -59,7 +59,7 @@ specplus3e_init( fuse_machine_info *machine )
 }
 
 static int
-specplus3e_reset( void )
+specplus3e_reset( int hard_reset )
 {
   int error;
 
@@ -76,7 +76,7 @@ specplus3e_reset( void )
                             settings_default.rom_plus3e_3, 0x4000 );
   if( error ) return error;
 
-  error = specplus3_plus2a_common_reset();
+  error = specplus3_plus2a_common_reset( hard_reset );
   if( error ) return error;
 
   periph_clear();
@@ -86,7 +86,7 @@ specplus3e_reset( void )
 
   periph_update();
 
-  specplus3_765_reset();
+  specplus3_765_reset( hard_reset );
   specplus3_menu_items();
 
   spec48_common_display_setup();

@@ -45,9 +45,30 @@
 
 /* Dock cart inserted? */
 int dck_active = 0;
+static const utils_file *dck_loaded_file;
+static memory_rom_bank dck_banks[3][8];
 
-int
-dck_insert( const char *filename )
+static void
+dck_clear_banks( void )
+{
+  int bank, page;
+
+  for( bank = 0; bank < 3; bank++ )
+    for( page = 0; page < 8; page++ )
+      memory_rom_bank_clear( &dck_banks[ bank ][ page ] );
+}
+
+static memory_rom_bank *
+dck_get_bank( libspectrum_dck_bank bank, int page )
+{
+  if( bank > LIBSPECTRUM_DCK_BANK_EXROM || page < 0 || page >= 8 )
+    return NULL;
+
+  return &dck_banks[ bank ][ page ];
+}
+
+static int
+dck_insert_internal( const char *filename, const utils_file *file )
 {
   if ( !( libspectrum_machine_capabilities( machine_current->machine ) &
 	  LIBSPECTRUM_MACHINE_CAPABILITY_TIMEX_DOCK ) ) {
@@ -56,10 +77,26 @@ dck_insert( const char *filename )
   }
 
   settings_set_string( &settings_current.dck_file, filename );
+  dck_active = 0;
 
+  dck_loaded_file = file;
   machine_reset( 0 );
+  dck_loaded_file = NULL;
 
   return 0;
+}
+
+int
+dck_insert( const char *filename )
+{
+  return dck_insert_internal( filename, NULL );
+}
+
+int
+dck_insert_loaded( const utils_file *file )
+{
+  if( !file || !file->filename || !file->buffer ) return 1;
+  return dck_insert_internal( file->filename, file );
 }
 
 void
@@ -96,8 +133,10 @@ dck_get_memory_page( libspectrum_dck_bank bank, size_t index )
 }
 
 int
-dck_reset( void )
+dck_reset( int hard_reset )
 {
+  if( hard_reset ) dck_clear_banks();
+  if( !hard_reset && dck_active ) return 0;
   utils_file file;
   size_t num_block = 0;
   libspectrum_dck *dck;
@@ -112,16 +151,20 @@ dck_reset( void )
 
   dck = libspectrum_dck_alloc();
 
-  error = utils_read_file( settings_current.dck_file, &file );
-  if( error ) { libspectrum_dck_free( dck, 0 ); return error; }
+  if( dck_loaded_file ) {
+    error = libspectrum_dck_read2( dck, dck_loaded_file->buffer,
+                                   dck_loaded_file->length,
+                                   dck_loaded_file->filename );
+    if( error ) { libspectrum_dck_free( dck, 0 ); return error; }
+  } else {
+    error = utils_read_file( settings_current.dck_file, &file );
+    if( error ) { libspectrum_dck_free( dck, 0 ); return error; }
 
-  error = libspectrum_dck_read2( dck, file.buffer, file.length,
-                                 settings_current.dck_file );
-  if( error ) {
-    utils_close_file( &file ); libspectrum_dck_free( dck, 0 ); return error;
+    error = libspectrum_dck_read2( dck, file.buffer, file.length,
+                                   settings_current.dck_file );
+    utils_close_file( &file );
+    if( error ) { libspectrum_dck_free( dck, 0 ); return error; }
   }
-
-  utils_close_file( &file );
 
   while( dck->dck[num_block] != NULL ) {
     memory_page *page;
@@ -148,8 +191,14 @@ dck_reset( void )
         break;
 
       case LIBSPECTRUM_DCK_PAGE_ROM:
-        data = memory_pool_allocate( 0x2000 );
-	memcpy( data, dck->dck[num_block]->pages[i], 0x2000 );
+      {
+        memory_rom_bank *bank = dck_get_bank( dck_bank, i );
+        if( !bank || memory_rom_bank_set( bank,
+              dck->dck[num_block]->pages[i], 0x2000, 1 ) ) {
+          libspectrum_dck_free( dck, 0 );
+          return 1;
+        }
+        data = bank->data;
         for( j = 0; j < MEMORY_PAGES_IN_8K; j++ ) {
           page = dck_get_memory_page( dck_bank, i * MEMORY_PAGES_IN_8K + j);
           page->offset = j * MEMORY_PAGE_SIZE;
@@ -158,6 +207,7 @@ dck_reset( void )
           page->page = data + page->offset;
         }
         break;
+      }
 
       case LIBSPECTRUM_DCK_PAGE_RAM_EMPTY:
       case LIBSPECTRUM_DCK_PAGE_RAM:
@@ -178,12 +228,18 @@ dck_reset( void )
             }
           }
         } else {
-          data = memory_pool_allocate( 0x2000 );
-          if( dck->dck[num_block]->access[i] == LIBSPECTRUM_DCK_PAGE_RAM ) {
-            memcpy( data, dck->dck[num_block]->pages[i], 0x2000 );
-          } else {
-            memset( data, 0, 0x2000 );
+          static const libspectrum_byte empty_page[ 0x2000 ];
+          memory_rom_bank *bank = dck_get_bank( dck_bank, i );
+          const libspectrum_byte *source = empty_page;
+
+          if( dck->dck[num_block]->access[i] == LIBSPECTRUM_DCK_PAGE_RAM )
+            source = dck->dck[num_block]->pages[i];
+
+          if( !bank || memory_rom_bank_set( bank, source, 0x2000, 1 ) ) {
+            libspectrum_dck_free( dck, 0 );
+            return 1;
           }
+          data = bank->data;
           for( j = 0; j < MEMORY_PAGES_IN_8K; j++ ) {
             page = dck_get_memory_page( dck_bank, i * MEMORY_PAGES_IN_8K + j);
             page->offset = j * MEMORY_PAGE_SIZE;

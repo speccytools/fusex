@@ -37,7 +37,7 @@
 #include "settings.h"
 #include "spec48.h"
 
-static int spec16_reset( void );
+static int spec16_reset( int hard_reset );
 
 static memory_page empty_mapping[MEMORY_PAGES_IN_16K];
 static int empty_mapping_allocated = 0;
@@ -88,7 +88,7 @@ ensure_empty_mapping( void )
 }
 
 static int
-spec16_reset( void )
+spec16_reset( int hard_reset )
 {
   int error;
 

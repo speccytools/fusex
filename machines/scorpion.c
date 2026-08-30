@@ -42,7 +42,7 @@
 #include "specplus3.h"
 #include "spectrum.h"
 
-static int scorpion_reset( void );
+static int scorpion_reset( int hard_reset );
 static int scorpion_memory_map( void );
 
 int
@@ -69,7 +69,7 @@ scorpion_init( fuse_machine_info *machine )
 }
 
 int
-scorpion_reset(void)
+scorpion_reset( int hard_reset )
 {
   int error;
 

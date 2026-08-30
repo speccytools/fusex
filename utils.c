@@ -57,20 +57,39 @@
 #include "snapshot.h"
 #include "tape.h"
 #include "utils.h"
+#include "ui/uimedia.h"
 
 static void init_path_context( path_context *ctx, utils_aux_type type );
 
 static int networking_init_count = 0;
 
+static int
+utils_insert_disk( ui_media_controller controller, utils_file *file,
+                   int autoload )
+{
+  ui_media_drive_info_t *drive = ui_media_drive_find( controller, 0 );
+  return drive ? ui_media_drive_insert_file( drive, file, autoload ) : 1;
+}
+
 /* Open `filename' and do something sensible with it; autoload tapes
    if `autoload' is true and return the type of file found in `type' */
 int
 utils_open_file( const char *filename, int autoload,
-		 libspectrum_id_t *type_ptr)
+                 libspectrum_id_t *type_ptr)
 {
   utils_file file;
-  libspectrum_id_t type;
-  libspectrum_class_t class;
+  int error;
+
+  utils_file_init( &file, filename );
+  error = utils_open_loaded_file( &file, autoload, type_ptr );
+  utils_file_free( &file );
+  return error;
+}
+
+int
+utils_open_loaded_file( utils_file *file, int autoload,
+                        libspectrum_id_t *type_ptr)
+{
   int error;
 
   error = 0;
@@ -78,26 +97,22 @@ utils_open_file( const char *filename, int autoload,
   if( rzx_playback  ) error = rzx_stop_playback( 1 );
   if( error ) return error;
 
-  /* Read the file into a buffer */
-  if( utils_read_file( filename, &file ) ) return 1;
+  if( utils_file_identify( file ) ) return 1;
 
-  /* See if we can work out what it is */
-  if( libspectrum_identify_file_with_class( &type, &class, filename,
-					    file.buffer, file.length ) ) {
-    utils_close_file( &file );
-    return 1;
-  }
+  /* Keep the existing dispatch readable while the loaded file owns the data. */
+  {
+    const char *filename = file->filename;
+    libspectrum_id_t type = file->type;
 
-  switch( class ) {
+  switch( file->class ) {
     
   case LIBSPECTRUM_CLASS_UNKNOWN:
     ui_error( UI_ERROR_ERROR, "utils_open_file: couldn't identify `%s'",
-	      filename );
-    utils_close_file( &file );
+	      file->filename );
     return 1;
 
   case LIBSPECTRUM_CLASS_RECORDING:
-    error = rzx_start_playback_from_buffer( file.buffer, file.length );
+    error = rzx_start_playback_from_buffer( file->buffer, file->length );
     break;
 
   case LIBSPECTRUM_CLASS_SCREENSHOT:
@@ -105,14 +120,14 @@ utils_open_file( const char *filename, int autoload,
     break;
 
   case LIBSPECTRUM_CLASS_SNAPSHOT:
-    error = snapshot_read_buffer( file.buffer, file.length, type );
-    pokemem_find_pokfile( filename );
+    error = snapshot_read_buffer( file->buffer, file->length, file->type );
+    pokemem_find_pokfile( file->filename );
     break;
 
   case LIBSPECTRUM_CLASS_TAPE:
-    error = tape_read_buffer( file.buffer, file.length, type, filename,
-			      autoload );
-    pokemem_find_pokfile( filename );
+    error = tape_read_buffer( file->buffer, file->length, file->type,
+                              file->filename, autoload );
+    pokemem_find_pokfile( file->filename );
     break;
 
   case LIBSPECTRUM_CLASS_DISK_PLUS3:
@@ -121,25 +136,25 @@ utils_open_file( const char *filename, int autoload,
       error = machine_select( LIBSPECTRUM_MACHINE_PLUS3 ); if( error ) break;
     }
 
-    error = specplus3_disk_insert( SPECPLUS3_DRIVE_A, filename, autoload );
+    error = utils_insert_disk( UI_MEDIA_CONTROLLER_PLUS3, file, autoload );
     break;
 
   case LIBSPECTRUM_CLASS_DISK_DIDAKTIK:
 
-    error = didaktik80_disk_insert( DIDAKTIK80_DRIVE_A, filename, autoload );
+    error = utils_insert_disk( UI_MEDIA_CONTROLLER_DIDAKTIK, file, autoload );
     break;
 
   case LIBSPECTRUM_CLASS_DISK_PLUSD:
 
     if( periph_is_active( PERIPH_TYPE_DISCIPLE ) )
-      error = disciple_disk_insert( DISCIPLE_DRIVE_1, filename, autoload );
+      error = utils_insert_disk( UI_MEDIA_CONTROLLER_DISCIPLE, file, autoload );
     else
-      error = plusd_disk_insert( PLUSD_DRIVE_1, filename, autoload );
+      error = utils_insert_disk( UI_MEDIA_CONTROLLER_PLUSD, file, autoload );
     break;
 
   case LIBSPECTRUM_CLASS_DISK_OPUS:
 
-    error = opus_disk_insert( OPUS_DRIVE_1, filename, autoload );
+    error = utils_insert_disk( UI_MEDIA_CONTROLLER_OPUS, file, autoload );
     break;
 
   case LIBSPECTRUM_CLASS_DISK_TRDOS:
@@ -154,34 +169,34 @@ utils_open_file( const char *filename, int autoload,
     if( ( machine_current->capabilities & 
           LIBSPECTRUM_MACHINE_CAPABILITY_TRDOS_DISK ) ||
         periph_is_active( PERIPH_TYPE_BETA128 ) ) {
-      error = beta_disk_insert( BETA_DRIVE_A, filename, autoload );
+      error = utils_insert_disk( UI_MEDIA_CONTROLLER_BETA, file, autoload );
     }
     break;
 
   case LIBSPECTRUM_CLASS_DISK_GENERIC:
     if( machine_current->machine == LIBSPECTRUM_MACHINE_PLUS3 ||
         machine_current->machine == LIBSPECTRUM_MACHINE_PLUS2A )
-      error = specplus3_disk_insert( SPECPLUS3_DRIVE_A, filename, autoload );
+      error = utils_insert_disk( UI_MEDIA_CONTROLLER_PLUS3, file, autoload );
     else if( machine_current->machine == LIBSPECTRUM_MACHINE_PENT ||
           machine_current->machine == LIBSPECTRUM_MACHINE_PENT512 ||
           machine_current->machine == LIBSPECTRUM_MACHINE_PENT1024 ||
           machine_current->machine == LIBSPECTRUM_MACHINE_SCORP )
-      error = beta_disk_insert( BETA_DRIVE_A, filename, autoload );
+      error = utils_insert_disk( UI_MEDIA_CONTROLLER_BETA, file, autoload );
     else
       if( periph_is_active( PERIPH_TYPE_BETA128 ) )
-        error = beta_disk_insert( BETA_DRIVE_A, filename, autoload );
+        error = utils_insert_disk( UI_MEDIA_CONTROLLER_BETA, file, autoload );
       else if( periph_is_active( PERIPH_TYPE_DISCIPLE ) )
-        error = disciple_disk_insert( DISCIPLE_DRIVE_1, filename, autoload );
+        error = utils_insert_disk( UI_MEDIA_CONTROLLER_DISCIPLE, file, autoload );
       else if( periph_is_active( PERIPH_TYPE_PLUSD ) )
-        error = plusd_disk_insert( PLUSD_DRIVE_1, filename, autoload );
+        error = utils_insert_disk( UI_MEDIA_CONTROLLER_PLUSD, file, autoload );
     break;
 
   case LIBSPECTRUM_CLASS_CARTRIDGE_IF2:
-    error = if2_insert( filename );
+    error = if2_insert_loaded( file );
     break;
 
   case LIBSPECTRUM_CLASS_MICRODRIVE:
-    error = if1_mdr_insert( -1, filename );
+    error = if1_mdr_insert_loaded( -1, file );
     break;
 
   case LIBSPECTRUM_CLASS_CARTRIDGE_TIMEX:
@@ -192,7 +207,7 @@ utils_open_file( const char *filename, int autoload,
     /* Check that we actually got a Dock capable machine to insert the cart */
     if( machine_current->capabilities &
 	   LIBSPECTRUM_MACHINE_CAPABILITY_TIMEX_DOCK ) {
-      error = dck_insert( filename );
+      error = dck_insert_loaded( file );
     }
     break;
 
@@ -236,13 +251,12 @@ utils_open_file( const char *filename, int autoload,
     break;
   }
 
-  if( error ) { utils_close_file( &file ); return error; }
+  if( error ) return error;
 
-  utils_close_file( &file );
-
-  if( type_ptr ) *type_ptr = type;
+  if( type_ptr ) *type_ptr = file->type;
 
   return 0;
+  }
 }
 
 /* Request a snapshot file from the user and it */
@@ -328,24 +342,59 @@ init_path_context( path_context *ctx, utils_aux_type type )
   ctx->type = type;
 }
 
+void
+utils_file_init( utils_file *file, const char *filename )
+{
+  file->filename = filename;
+  file->buffer = NULL;
+  file->length = 0;
+  file->type = LIBSPECTRUM_ID_UNKNOWN;
+  file->class = LIBSPECTRUM_CLASS_UNKNOWN;
+}
+
+void
+utils_file_move( utils_file *destination, utils_file *source )
+{
+  utils_file_free( destination );
+  *destination = *source;
+  utils_file_init( source, NULL );
+}
+
 int
-utils_read_file( const char *filename, utils_file *file )
+utils_file_read( utils_file *file )
 {
   compat_fd fd;
 
-  int error;
+  if( file->buffer ) return 0;
 
-  fd = compat_file_open( filename, 0 );
+  fd = compat_file_open( file->filename, 0 );
   if( fd == COMPAT_FILE_OPEN_FAILED ) {
-    ui_error( UI_ERROR_ERROR, "couldn't open '%s': %s", filename,
-	      strerror( errno ) );
+    ui_error( UI_ERROR_ERROR, "couldn't open '%s': %s", file->filename,
+              strerror( errno ) );
     return 1;
   }
 
-  error = utils_read_fd( fd, filename, file );
-  if( error ) return error;
+  return utils_read_fd( fd, file->filename, file );
+}
 
-  return 0;
+int
+utils_file_identify( utils_file *file )
+{
+  if( utils_file_read( file ) ) return 1;
+
+  if( file->type != LIBSPECTRUM_ID_UNKNOWN ||
+      file->class != LIBSPECTRUM_CLASS_UNKNOWN ) return 0;
+
+  return libspectrum_identify_file_with_class( &file->type, &file->class,
+                                                file->filename, file->buffer,
+                                                file->length );
+}
+
+int
+utils_read_file( const char *filename, utils_file *file )
+{
+  utils_file_init( file, filename );
+  return utils_file_read( file );
 }
 
 int
@@ -358,6 +407,7 @@ utils_read_fd( compat_fd fd, const char *filename, utils_file *file )
 
   if( compat_file_read( fd, file ) ) {
     libspectrum_free( file->buffer );
+    file->buffer = NULL;
     compat_file_close( fd );
     return 1;
   }
@@ -366,6 +416,7 @@ utils_read_fd( compat_fd fd, const char *filename, utils_file *file )
     ui_error( UI_ERROR_ERROR, "Couldn't close '%s': %s", filename,
 	      strerror( errno ) );
     libspectrum_free( file->buffer );
+    file->buffer = NULL;
     return 1;
   }
 
@@ -373,9 +424,20 @@ utils_read_fd( compat_fd fd, const char *filename, utils_file *file )
 }
 
 void
-utils_close_file( utils_file *file )
+utils_file_free( utils_file *file )
 {
   libspectrum_free( file->buffer );
+  file->filename = NULL;
+  file->buffer = NULL;
+  file->length = 0;
+  file->type = LIBSPECTRUM_ID_UNKNOWN;
+  file->class = LIBSPECTRUM_CLASS_UNKNOWN;
+}
+
+void
+utils_close_file( utils_file *file )
+{
+  utils_file_free( file );
 }
 
 int utils_write_file( const char *filename, const unsigned char *buffer,
@@ -410,6 +472,7 @@ utils_read_auxiliary_file( const char *filename, utils_file *file,
   fd = utils_find_auxiliary_file( filename, type );
   if( fd == COMPAT_FILE_OPEN_FAILED ) return -1;
 
+  utils_file_init( file, filename );
   error = utils_read_fd( fd, filename, file );
   if( error ) return error;
 

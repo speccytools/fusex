@@ -662,7 +662,7 @@ register_scalers( void )
 	( xdisplay_current_size * 4 == f ) ) {
     uidisplay_hotswap_gfx_mode();
   } else {
-    int new_scaler, new_timex_scaler;
+    int new_scaler = SCALER_NORMAL, new_timex_scaler = SCALER_HALF;
     switch( xdisplay_current_size ) {
     case 1:
       if( xdisplay_depth == 4 ) {

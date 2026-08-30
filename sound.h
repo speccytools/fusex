@@ -40,7 +40,23 @@ void sound_covox_write( libspectrum_word port, libspectrum_byte val );
 void sound_sp0256_write( libspectrum_dword at_tstates,
                          libspectrum_signed_word val );
 void sound_frame( void );
-void sound_beeper( libspectrum_dword at_tstates, int on );
+#define SOUND_AMPL_BEEPER ( 50 * 256 )
+#define SOUND_AMPL_TAPE   ( 2 * 256 )
+
+/* Derive the raw ULA output-node and internal-speaker levels. */
+void sound_ula_levels( int mic_on, int beeper_on, int *mic_ampl,
+                       int *beeper_ampl );
+void sound_ula( libspectrum_dword at_tstates, int mic_on, int beeper_on );
+void sound_tape( libspectrum_dword at_tstates );
+
+/* Valid until the next sound_frame(). Only the selected ULA path is rendered:
+ * the accessor for the inactive path returns NULL and its count is zero.
+ */
+const libspectrum_signed_word *sound_ula_mic_output( void );
+const libspectrum_signed_word *sound_ula_beeper_output( void );
+int sound_ula_mic_output_count( void );
+int sound_ula_beeper_output_count( void );
+
 libspectrum_dword sound_get_effective_processor_speed( void );
 
 extern int sound_enabled;

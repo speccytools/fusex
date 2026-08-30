@@ -28,6 +28,7 @@
 
 #include "libspectrum.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "compat.h"
@@ -35,6 +36,7 @@
 #include "didaktik.h"
 #include "infrastructure/startup_manager.h"
 #include "machine.h"
+#include "memory_pages.h"
 #include "module.h"
 #include "peripherals/printer.h"
 #include "settings.h"
@@ -67,12 +69,14 @@ static wd_fdc *didaktik_fdc;
 static fdd_t didaktik_drives[ DIDAKTIK80_NUM_DRIVES ];
 static ui_media_drive_info_t didaktik_ui_drives[ DIDAKTIK80_NUM_DRIVES ];
 
-static libspectrum_byte ram[ RAM_SIZE ];
+static libspectrum_byte *ram;
+static int ram_allocated;
 
 /* AUX byte */
 static libspectrum_byte aux_register;
 
 static void didaktik_reset( int hard_reset );
+static void didaktik_activate( void );
 static void didaktik_memory_map( void );
 static void didaktik_enabled_snapshot( libspectrum_snap *snap );
 static void didaktik_from_snapshot( libspectrum_snap *snap );
@@ -122,7 +126,7 @@ static const periph_t didaktik_periph = {
   /* .option = */ &settings_current.didaktik80,
   /* .ports = */ didaktik_ports,
   /* .hard_reset = */ 1,
-  /* .activate = */ NULL,
+  /* .activate = */ didaktik_activate,
 };
 
 /* Debugger events */
@@ -257,7 +261,7 @@ didaktik_reset( int hard_reset )
   didaktik80_available = 1;
 
   if( hard_reset )
-    memset( ram, 0, sizeof( ram ) );
+    memset( ram, 0, RAM_SIZE );
 
   wd_fdc_master_reset( didaktik_fdc );
 
@@ -271,6 +275,15 @@ didaktik_reset( int hard_reset )
   fdd_select( &didaktik_drives[ 1 ], 0 );
   machine_current->memory_map();
 
+}
+
+static void
+didaktik_activate( void )
+{
+  if( !ram_allocated ) {
+    ram = memory_pool_allocate_persistent( RAM_SIZE, 1 );
+    ram_allocated = 1;
+  }
 }
 
 static void
@@ -397,9 +410,70 @@ didaktik80_get_fdd( didaktik80_drive_number which )
 int
 didaktik80_unittest( void )
 {
+  static const char rom_filename[] = "unittests-didaktik80.rom";
+  libspectrum_byte *test_rom;
+  libspectrum_snap *snap = NULL;
+  char *saved_rom = settings_current.rom_didaktik80;
   int r = 0;
+  int was_active = periph_is_active( PERIPH_TYPE_DIDAKTIK80 );
+
+  test_rom = libspectrum_new0( libspectrum_byte, ROM_SIZE );
+  if( utils_write_file( rom_filename, test_rom, ROM_SIZE ) ) {
+    libspectrum_free( test_rom );
+    return 1;
+  }
+  libspectrum_free( test_rom );
+
+  settings_current.rom_didaktik80 = (char *)rom_filename;
+  if( !was_active )
+    periph_activate_type( PERIPH_TYPE_DIDAKTIK80, 1 );
+
+  didaktik_reset( 1 );
+  if( !didaktik80_available ) {
+    fprintf( stderr, "Didaktik unavailable for unit test\n" );
+    r++;
+    goto cleanup;
+  }
+
+  didaktik_memory_map_romcs_ram[ 0 ].page[ 0 ] = 0x55;
+  didaktik_memory_map_romcs_ram[ MEMORY_PAGES_IN_2K - 1 ].page[
+    MEMORY_PAGE_SIZE - 1 ] = 0xaa;
+
+  didaktik_reset( 1 );
+
+  if( didaktik_memory_map_romcs_ram[ 0 ].page[ 0 ] != 0 ||
+      didaktik_memory_map_romcs_ram[ MEMORY_PAGES_IN_2K - 1 ].page[
+        MEMORY_PAGE_SIZE - 1 ] != 0 ) {
+    fprintf( stderr, "Didaktik RAM not cleared by hard reset\n" );
+    r++;
+  }
 
   didaktik80_page();
+  didaktik_memory_map_romcs_ram[ 0 ].page[ 0 ] = 0x55;
+  didaktik_memory_map_romcs_ram[ MEMORY_PAGES_IN_2K - 1 ].page[
+    MEMORY_PAGE_SIZE - 1 ] = 0xaa;
+
+  snap = libspectrum_snap_alloc();
+  if( !snap ) {
+    fprintf( stderr, "Couldn't allocate Didaktik unit test snapshot\n" );
+    r++;
+    goto cleanup;
+  }
+  didaktik_to_snapshot( snap );
+
+  didaktik_memory_map_romcs_ram[ 0 ].page[ 0 ] = 0;
+  didaktik_memory_map_romcs_ram[ MEMORY_PAGES_IN_2K - 1 ].page[
+    MEMORY_PAGE_SIZE - 1 ] = 0;
+  didaktik80_unpage();
+  libspectrum_snap_didaktik80_rom( snap, 0 )[ 0 ] = 0xa5;
+  didaktik_from_snapshot( snap );
+
+  if( didaktik_memory_map_romcs_ram[ 0 ].page[ 0 ] != 0x55 ||
+      didaktik_memory_map_romcs_ram[ MEMORY_PAGES_IN_2K - 1 ].page[
+        MEMORY_PAGE_SIZE - 1 ] != 0xaa || !didaktik80_active ) {
+    fprintf( stderr, "Didaktik snapshot not restored correctly\n" );
+    r++;
+  }
 
   r += unittests_assert_8k_page( 0x0000, didaktik_rom_memory_source, 0 );
   r += unittests_assert_4k_page( 0x2000, didaktik_rom_memory_source, 0 );
@@ -411,7 +485,20 @@ didaktik80_unittest( void )
 
   didaktik80_unpage();
 
+  if( machine_reset( 0 ) ||
+      didaktik_memory_map_romcs_rom[ 0 ].page[ 0 ] != 0xa5 ) r++;
+
   r += unittests_paging_test_48( 2 );
+
+cleanup:
+  if( snap ) libspectrum_snap_free( snap );
+  if( !was_active )
+    periph_activate_type( PERIPH_TYPE_DIDAKTIK80, 0 );
+  settings_current.rom_didaktik80 = saved_rom;
+  if( remove( rom_filename ) ) {
+    fprintf( stderr, "Couldn't remove Didaktik unit test ROM\n" );
+    r++;
+  }
 
   return r;
 }
@@ -477,7 +564,7 @@ didaktik_from_snapshot( libspectrum_snap *snap )
 
   if( libspectrum_snap_didaktik80_custom_rom( snap ) &&
       libspectrum_snap_didaktik80_rom( snap, 0 ) &&
-      machine_load_rom_bank_from_buffer(
+      machine_load_rom_bank_from_snapshot(
                              didaktik_memory_map_romcs_rom, 0,
                              libspectrum_snap_didaktik80_rom( snap, 0 ),
                              ROM_SIZE, 1 ) )

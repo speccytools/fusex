@@ -208,6 +208,17 @@ scalerexpandtest_ntsctv( void )
     return 1;
   }
 
+  if( scaler_get_expander( SCALER_NTSC4X ) != NULL ) {
+    fprintf( stderr, "NTSC TV 4x scaler unexpectedly has an expander\n" );
+    return 1;
+  }
+
+  if( !( scaler_get_flags( SCALER_NTSC4X ) & SCALER_FLAGS_FULL_REFRESH ) ) {
+    fprintf( stderr,
+             "NTSC TV 4x scaler should have SCALER_FLAGS_FULL_REFRESH\n" );
+    return 1;
+  }
+
   return 0;
 }
 

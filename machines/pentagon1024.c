@@ -38,7 +38,7 @@
 #include "spec128.h"
 #include "spec48.h"
 
-static int pentagon1024_reset( void );
+static int pentagon1024_reset( int hard_reset );
 static int pentagon1024_memory_map( void );
 
 int
@@ -65,7 +65,7 @@ pentagon1024_init( fuse_machine_info *machine )
 }
 
 static int
-pentagon1024_reset(void)
+pentagon1024_reset( int hard_reset )
 {
   int error;
 

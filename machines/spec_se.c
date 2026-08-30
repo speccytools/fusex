@@ -44,8 +44,10 @@
 #include "tc2068.h"
 #include "ui/ui.h"
 
-static void dock_exrom_reset( void );
-static int spec_se_reset( void );
+static void dock_exrom_reset( int hard_reset );
+static int spec_se_reset( int hard_reset );
+static libspectrum_byte *dock_ram[8];
+static libspectrum_byte *exrom_ram[8];
 static int spec_se_memory_map( void );
 
 int
@@ -72,19 +74,19 @@ spec_se_init( fuse_machine_info *machine )
 }
 
 static void
-dock_exrom_reset( void )
+dock_exrom_reset( int hard_reset )
 {
   /* The dock is always active on the SE */
   dck_active = 1;
 }
 
 int
-spec_se_reset( void )
+spec_se_reset( int hard_reset )
 {
   int error;
   size_t i, j;
 
-  dock_exrom_reset();
+  dock_exrom_reset( hard_reset );
 
   error = machine_load_rom( 0, settings_current.rom_se_0,
                             settings_default.rom_se_0, 0x4000 );
@@ -129,14 +131,16 @@ spec_se_reset( void )
 
   for( i = 0; i < 8; i++ ) {
 
-    libspectrum_byte *dock_ram = memory_pool_allocate( 0x2000 );
-    libspectrum_byte *exrom_ram = memory_pool_allocate( 0x2000 );
+    if( !dock_ram[i] )
+      dock_ram[i] = memory_pool_allocate_persistent( 0x2000, 1 );
+    if( !exrom_ram[i] )
+      exrom_ram[i] = memory_pool_allocate_persistent( 0x2000, 1 );
 
     for( j = 0; j < MEMORY_PAGES_IN_8K; j++ ) {
 
       int page_num = i * MEMORY_PAGES_IN_8K + j;
 
-      timex_dock[page_num].page = dock_ram + j * MEMORY_PAGE_SIZE;
+      timex_dock[page_num].page = dock_ram[i] + j * MEMORY_PAGE_SIZE;
       timex_dock[page_num].offset = j * MEMORY_PAGE_SIZE;
       timex_dock[page_num].page_num = i;
       timex_dock[page_num].contended = 0;
@@ -144,7 +148,7 @@ spec_se_reset( void )
       timex_dock[page_num].save_to_snapshot = 1;
       timex_dock[page_num].source = memory_source_dock;
 
-      timex_exrom[page_num].page = exrom_ram + j * MEMORY_PAGE_SIZE;
+      timex_exrom[page_num].page = exrom_ram[i] + j * MEMORY_PAGE_SIZE;
       timex_exrom[page_num].offset = j * MEMORY_PAGE_SIZE;
       timex_exrom[page_num].page_num = i;
       timex_exrom[page_num].contended = 0;
@@ -156,11 +160,13 @@ spec_se_reset( void )
 
   scld_set_exrom_dock_contention();
 
-  /* The dock and exrom aren't cleared by the reset routine, so do
-     so manually (only really necessary to keep snapshot sizes down) */
-  for( i = 0; i < MEMORY_PAGES_IN_64K; i++ ) {
-    memset( timex_dock[i].page,  0, MEMORY_PAGE_SIZE );
-    memset( timex_exrom[i].page, 0, MEMORY_PAGE_SIZE );
+  if( hard_reset ) {
+    /* The dock and exrom aren't cleared by the reset routine, so do
+       so manually (only really necessary to keep snapshot sizes down) */
+    for( i = 0; i < MEMORY_PAGES_IN_64K; i++ ) {
+      memset( timex_dock[i].page,  0, MEMORY_PAGE_SIZE );
+      memset( timex_exrom[i].page, 0, MEMORY_PAGE_SIZE );
+    }
   }
 
   machine_current->ram.locked = 0;

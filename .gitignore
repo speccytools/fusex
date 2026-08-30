@@ -68,8 +68,8 @@ tags
 /ui/gtk3/menu_data.c
 /ui/gtk3/menu_data.ui
 /ui/gtk3/options.c
-/ui/gtk3/options.h
 /ui/gtk3/options_internals.h
+/ui/gtk3/options.stamp
 /ui/gtk3/resources.c
 /ui/gtk3/resources.h
 /ui/null/options.c
@@ -77,7 +77,6 @@ tags
 /ui/widget/fuse.font
 /ui/widget/menu_data.c
 /ui/widget/options.c
-/ui/widget/options.h
 /ui/widget/options_internals.h
 /ui/wii/keysyms.c
 /ui/win32/keysyms.c
@@ -90,6 +89,8 @@ tags
 /ui/xlib/keysyms.c
 /ui/xlib/xpixmaps.c
 /unittests/displaytest
+/unittests/palcompositetest
+/unittests/scalerexpandtest
 /unittests/sdl2displaytest
 /unittests/sdl2scalerstatetest
 /unittests/sdl2joysticktest

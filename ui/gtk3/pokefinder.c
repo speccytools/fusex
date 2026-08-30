@@ -86,6 +86,8 @@ menu_machine_pokefinder( GtkAction *gtk_action GCC_UNUSED,
     error = create_dialog(); if( error ) return;
   }
 
+  if( !pokefinder_is_allocated() ) pokefinder_clear();
+
   gtk_widget_show_all( dialog );
   update_pokefinder();
 }
@@ -326,6 +328,8 @@ possible_click( GtkTreeView *treeview GCC_UNUSED, GtkTreePath *path,
 void
 gtkui_pokefinder_clear( void )
 {
+  if( !pokefinder_is_allocated() ) return;
+
   pokefinder_clear();
   if( dialog_created ) update_pokefinder();
 }

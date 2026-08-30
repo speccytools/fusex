@@ -776,7 +776,8 @@ ui_confirm_joystick( libspectrum_joystick libspectrum_type, int inputs )
 int
 ui_widgets_reset( void )
 {
-  pokefinder_clear();
+  if( pokefinder_is_allocated() ) pokefinder_clear();
+
   return 0;
 }
 

@@ -1,0 +1,52 @@
+Display timing instrumentation
+==============================
+
+The GTK3 and Win32 displays can emit per-frame timing and dirty-region
+statistics without changing their normal behaviour. Enable it by setting
+FUSE_DISPLAY_TIMING to a non-zero value before starting Fuse:
+
+  FUSE_DISPLAY_TIMING=1 ./fuse --auto-load --no-traps \
+    --tape Dynamite%20Dan.tzx
+
+Output is written to standard error. Each `display-timing` frame line has:
+
+* `input_us`: time spent dispatching input/UI events since the preceding
+  emulated frame;
+* `source_regions` and `source_pixels`: the number and total source-pixel
+  coverage of the merged display regions received by the backend;
+* `scaler_us`: time in `scaler_proc32`, excluding RGB conversion and queued
+  presentation;
+* `presentation_count` and `presentation_us`: number of redraw schedules and
+  time scheduling a GTK redraw, or invalidating and synchronously updating
+  the Win32 window;
+* `paint_count` and `paint_us`: time in the actual GTK draw or Win32 paint
+  callback. GTK may report a draw with the following emulated frame because
+  drawing is asynchronous;
+* `frame_us`: time from the first source region until frame completion.
+
+The first line identifies the active backend. Set FUSE_DISPLAY_TIMING=0 (or
+leave it unset) to disable all timer reads and reporting.
+
+Baseline scenarios
+------------------
+
+Always record the backend, host, display scale, selected scaler, command
+line, and the complete stderr trace. Use the same window size and run each
+case for at least five seconds after the display has settled.
+
+1. PAL pilot tone: select `PAL TV 2x` in the Filters menu, then run
+   `FUSE_DISPLAY_TIMING=1 ./fuse --auto-load --no-traps --tape
+   Dynamite%20Dan.tzx`. Let the initial pilot tone run for five seconds.
+   This exercises the PAL full-width dirty-region expansion and provides the
+   steady-state full-screen scaler baseline.
+2. Broad screen changes: with the same scaler and window size, run
+   `FUSE_DISPLAY_TIMING=1 ./fuse --auto-load --no-traps --tape
+   ShadowFields.tap` and allow its loading screen to appear. Then switch
+   between full screen and windowed mode once and wait five seconds in each
+   state. The resulting trace captures a full refresh followed by broad
+   source-region updates and presentation callbacks.
+
+Run both scenarios once with GTK3 and once with Win32. Compare medians and
+maximums separately for `scaler_us`, `presentation_us`, and `paint_us`; do
+not combine them, since the latter two represent different presentation
+models.

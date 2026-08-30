@@ -125,6 +125,8 @@ void display_dirty_flashing_sinclair(void);
 void display_parse_attr( libspectrum_byte attr, libspectrum_byte *ink,
 			 libspectrum_byte *paper );
 
+void display_set_flash_reversed( int reversed );
+
 void display_set_lores_border(int colour);
 void display_set_hires_border(int colour);
 int display_dirty_border(void);

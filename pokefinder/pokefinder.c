@@ -32,18 +32,47 @@
 #include "pokefinder.h"
 #include "spectrum.h"
 
-libspectrum_byte pokefinder_possible[ MEMORY_PAGES_IN_16K * SPECTRUM_RAM_PAGES ][ MEMORY_PAGE_SIZE ] = { { 0 } };
-libspectrum_byte pokefinder_impossible[ MEMORY_PAGES_IN_16K * SPECTRUM_RAM_PAGES ][ MEMORY_PAGE_SIZE / 8 ] = { { 0 } };
+#define POKEFINDER_PAGE_COUNT \
+  ( MEMORY_PAGES_IN_16K * SPECTRUM_RAM_PAGES )
+#define POKEFINDER_POSSIBLE_SIZE \
+  ( POKEFINDER_PAGE_COUNT * MEMORY_PAGE_SIZE )
+#define POKEFINDER_IMPOSSIBLE_SIZE \
+  ( POKEFINDER_PAGE_COUNT * MEMORY_PAGE_SIZE / 8 )
+
+libspectrum_byte (*pokefinder_possible)[ MEMORY_PAGE_SIZE ];
+libspectrum_byte (*pokefinder_impossible)[ MEMORY_PAGE_SIZE / 8 ];
 size_t pokefinder_count;
+
+static int pokefinder_allocated;
+
+static void
+pokefinder_allocate( void )
+{
+  if( pokefinder_allocated ) return;
+
+  pokefinder_possible = (libspectrum_byte (*)[ MEMORY_PAGE_SIZE ])
+    memory_pool_allocate_persistent( POKEFINDER_POSSIBLE_SIZE, 1 );
+  pokefinder_impossible = (libspectrum_byte (*)[ MEMORY_PAGE_SIZE / 8 ])
+    memory_pool_allocate_persistent( POKEFINDER_IMPOSSIBLE_SIZE, 1 );
+  pokefinder_allocated = 1;
+}
+
+int
+pokefinder_is_allocated( void )
+{
+  return pokefinder_allocated;
+}
 
 void
 pokefinder_clear( void )
 {
   size_t page, max_page;
 
+  pokefinder_allocate();
+
   max_page = MEMORY_PAGES_IN_16K * machine_current->ram.valid_pages;
   pokefinder_count = 0;
-  for( page = 0; page < MEMORY_PAGES_IN_16K * SPECTRUM_RAM_PAGES; ++page )
+  for( page = 0; page < POKEFINDER_PAGE_COUNT; ++page )
     if( page < max_page && memory_map_ram[page].writable ) {
       pokefinder_count += MEMORY_PAGE_SIZE;
       memcpy( pokefinder_possible[page], memory_map_ram[page].page, MEMORY_PAGE_SIZE );
@@ -57,7 +86,9 @@ pokefinder_search( libspectrum_byte value )
 {
   size_t page, offset;
 
-  for( page = 0; page < MEMORY_PAGES_IN_16K * SPECTRUM_RAM_PAGES; page++ ) {
+  if( !pokefinder_allocated ) return 0;
+
+  for( page = 0; page < POKEFINDER_PAGE_COUNT; page++ ) {
     memory_page *mapping = &memory_map_ram[ page ];
 
     for( offset = 0; offset < MEMORY_PAGE_SIZE; offset++ ) {
@@ -78,7 +109,9 @@ pokefinder_incremented( void )
 {
   size_t page, offset;
 
-  for( page = 0; page < MEMORY_PAGES_IN_16K * SPECTRUM_RAM_PAGES; page++ ) {
+  if( !pokefinder_allocated ) return 0;
+
+  for( page = 0; page < POKEFINDER_PAGE_COUNT; page++ ) {
     memory_page *mapping = &memory_map_ram[ page ];
 
     for( offset = 0; offset < MEMORY_PAGE_SIZE; offset++ ) {
@@ -102,7 +135,9 @@ pokefinder_decremented( void )
 {
   size_t page, offset;
 
-  for( page = 0; page < MEMORY_PAGES_IN_16K * SPECTRUM_RAM_PAGES; page++ ) {
+  if( !pokefinder_allocated ) return 0;
+
+  for( page = 0; page < POKEFINDER_PAGE_COUNT; page++ ) {
     memory_page *mapping = &memory_map_ram[ page ];
 
     for( offset = 0; offset < MEMORY_PAGE_SIZE; offset++ ) {
@@ -119,4 +154,78 @@ pokefinder_decremented( void )
   }
 
   return 0;
+}
+
+int
+pokefinder_unittest( void )
+{
+  size_t page, max_page;
+  libspectrum_byte original;
+  int r = 0;
+
+  max_page = MEMORY_PAGES_IN_16K * machine_current->ram.valid_pages;
+  for( page = 0; page < max_page; page++ )
+    if( memory_map_ram[ page ].writable ) break;
+
+  if( page == max_page ) return 0;
+
+  original = memory_map_ram[ page ].page[ 0 ];
+
+  /* --- search: a mismatched byte must be flagged impossible --- */
+  memory_map_ram[ page ].page[ 0 ] = original;
+  pokefinder_clear();
+
+  if( !pokefinder_is_allocated() ) {
+    printf( "pokefinder: expected allocated after pokefinder_clear()\n" );
+    r++;
+  }
+
+  memory_map_ram[ page ].page[ 0 ] = original ^ 0xff;
+  pokefinder_search( original );
+
+  if( !( pokefinder_impossible[ page ][ 0 ] & 1 ) ) {
+    printf( "pokefinder: expected impossible bit after search mismatch\n" );
+    r++;
+  }
+
+  /* --- incremented: increasing a value keeps it possible;
+     not increasing marks it impossible --- */
+  memory_map_ram[ page ].page[ 0 ] = 0x40;
+  pokefinder_clear();
+  memory_map_ram[ page ].page[ 0 ] = 0x41;
+  pokefinder_incremented();
+
+  if( pokefinder_impossible[ page ][ 0 ] & 1 ) {
+    printf( "pokefinder: incremented: byte should still be possible after increase\n" );
+    r++;
+  }
+
+  pokefinder_incremented(); /* value unchanged — no longer increasing */
+  if( !( pokefinder_impossible[ page ][ 0 ] & 1 ) ) {
+    printf( "pokefinder: incremented: byte should be impossible when not further increased\n" );
+    r++;
+  }
+
+  /* --- decremented: decreasing a value keeps it possible;
+     not decreasing marks it impossible --- */
+  memory_map_ram[ page ].page[ 0 ] = 0x40;
+  pokefinder_clear();
+  memory_map_ram[ page ].page[ 0 ] = 0x3f;
+  pokefinder_decremented();
+
+  if( pokefinder_impossible[ page ][ 0 ] & 1 ) {
+    printf( "pokefinder: decremented: byte should still be possible after decrease\n" );
+    r++;
+  }
+
+  pokefinder_decremented(); /* value unchanged — no longer decreasing */
+  if( !( pokefinder_impossible[ page ][ 0 ] & 1 ) ) {
+    printf( "pokefinder: decremented: byte should be impossible when not further decreased\n" );
+    r++;
+  }
+
+  memory_map_ram[ page ].page[ 0 ] = original;
+  pokefinder_clear();
+
+  return r;
 }

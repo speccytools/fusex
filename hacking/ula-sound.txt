@@ -1,0 +1,111 @@
+ULA sound paths
+===============
+
+ULA port writes carry two separate audio signals: D3 (MIC, active low in the
+port value) and D4 (EAR/beeper).  They used to be encoded into a two-bit index
+at the ULA write site and passed to sound_beeper().  That function selected a
+single amplitude table and sent it to the same left/right Blip_Buffer objects
+as AY and peripheral audio.  It also suppressed MIC-only output except while
+playing a tape with loading sound enabled.
+
+sound_ula() now retains the raw logical ULA states until sound_ula_update().
+The tape EAR input remains a separate input; it is combined with D3 only at the
+ULA output node, as in the former implementation.  Tape edge events call
+sound_tape() to render that node at their exact emulated tstate.  This keeps
+ROM tape load/save semantics separate from the D3 logical state.  In
+particular, tape saving continues to use the ULA's raw D3 state, while an
+ordinary D3-only port write is not made audible by the speaker path.  This
+preserves the distinction relevant to Fuse bug #501 rather than treating
+MIC-only as general speaker audio.
+
+There is one mono ULA Blip buffer and synth. At each ULA update it renders
+only the selected logical path; changing Speaker type clears its old Blip
+history and starts the newly selected path from the current ULA state. This
+avoids both PCM work and allocation for an inactive ULA path.
+
+The MIC path represents the ULA output node and has the following steady levels
+for the ULA bits (D4:D3):
+
+  00  0
+  01  SOUND_AMPL_TAPE
+  10  SOUND_AMPL_BEEPER
+  11  SOUND_AMPL_BEEPER + SOUND_AMPL_TAPE
+
+Thus the electrical MIC-only state is retained.  The beeper buffer represents
+the drive to the internal speaker and, without tape playback loading sound,
+has these levels:
+
+  00  0
+  01  0
+  10  SOUND_AMPL_BEEPER
+  11  SOUND_AMPL_BEEPER + SOUND_AMPL_TAPE
+
+MIC-only is suppressed here by explicit threshold policy, not by discarding
+D3.  D3 still adds SOUND_AMPL_TAPE when D4 is high, so 10 and 11 remain
+distinct. SOUND_AMPL_BEEPER is 50 * 256 and SOUND_AMPL_TAPE is 2 * 256,
+retaining the 50:2 relationship.  The existing optional tape loading sound
+is retained only while a tape is playing (and is disabled for Timex).  When
+loading sound is disabled, the old policy of suppressing the MIC
+contribution during playback is also retained.
+
+AY, SpecDrum, Covox and SP0256 continue to render into the existing main
+left/right buffers. Only the currently selected ULA path is submitted to a
+Blip synth, rendered, read, and processed each frame; the inactive path does
+no PCM or filter work. The selected ULA signal is mixed identically into both
+final channels after the main buffers are rendered, preserving mono ULA
+routing without duplicate stereo synthesis or new inter-channel timing
+differences. The rendered ULA PCM is available through
+sound_ula_mic_output() and sound_ula_beeper_output(), with their corresponding
+count accessors, until the next sound_frame().
+
+The Speaker type setting selects the final ULA contribution:
+
+  Automatic   Beeper for machines with the libspectrum beeper capability;
+              TV speaker otherwise
+  TV speaker  MIC path -> electrical pole
+  Beeper      internal-speaker path -> electrical pole -> built-in speaker model
+  Unfiltered  MIC path, with neither filter
+
+The three explicit output types are universal overrides. Automatic follows the
+physical output provided by the emulated machine.
+
+The electrical pole is the frozen asymmetric first-order candidate from a
+listening experiment which had respondants comparing recordings of real
+machines to candidate filters. It is an effective ULA electrical/MIC-output
+approximation, not a claim that the physical ULA circuit is one pole and not a
+model of the internal speaker. It operates on the generated post-Blip PCM, so
+Blip ringing deliberately participates in the choice of rise or fall
+coefficient. Its one state belongs to the selected ULA path. A new sound
+generator, explicit reset, or speaker-type selection initializes it from the
+first PCM target; state never resets at a frame boundary. This is the same
+convention used to generate the listening-test material, and avoids an
+artificial transition at the beginning of a stream.
+
+The frozen time constants are 36.53558495933805 us rising and
+68.86073172982108 us falling. At the real output sample rate Fs their
+coefficients are `-expm1( -1 / ( Fs * tau ) )`. For each input target x and
+persistent output y, the rise coefficient is used exactly when `x > y`; the
+fall coefficient is used otherwise, then `y += alpha * ( x - y )`. There is no
+additional gain, offset, clipping, resonator, or frequency-dependent tuning.
+It is applied before final ULA mixing, so AY, SpecDrum, Covox and SP0256 remain
+uncoloured.
+
+The built-in speaker model is a single second-order resonant high-pass.
+Research on original 16/48K speakers is incomplete and production variation is
+likely. The available evidence describes a very small moving-coil transducer
+with a plastic/Mylar-like diaphragm. Issue 1/2 machines used nominally 200-ohm
+units and Issue 3-6 nominally 40-ohm units, but their physical speakers appear
+broadly similar. Comparable miniature Mylar speakers with roughly 10-13 mm
+moving systems have a dominant mechanical resonance in the several-hundred-Hz
+to approximately 1 kHz range. This supports modelling that low-frequency
+transition, rather than a conventional narrow band-pass speaker.
+
+  H(s) = s^2 / (s^2 + (w0 / Q)s + w0^2)
+
+It uses a conventional RBJ/bilinear digital biquad at the runtime host sample
+rate. The nominal experimental parameters, defined in sound/speaker_filter.h,
+are f0 = 750 Hz and Q = 1/sqrt(2). The filter is applied only in the Beeper
+case, immediately before final PCM mixing; it never changes raw ULA PCM. Its
+state is reset on audio/AY reset and when switching between filtered and
+unfiltered routes. This is a deliberately minimal acoustic model: it adds no
+high-frequency low-pass, EQ peaks, enclosure response or distortion.
