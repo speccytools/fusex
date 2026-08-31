@@ -137,6 +137,7 @@ static uint8_t remote_command_spectranet_info( const char *args GCC_UNUSED )
     return 0;
 }
 
+#ifdef BUILD_SPECTRANET
 static uint8_t
 remote_command_spectranet_set_page( const char *args )
 {
@@ -213,7 +214,6 @@ usage:
     return 1;
 }
 
-#ifdef BUILD_SPECTRANET
 static uint8_t remote_command_xfs_debug( const char *args )
 {
     int enable;
@@ -273,9 +273,9 @@ const struct remote_command_entry_t remote_commands[] = {
     { "reset", remote_command_reset },
     { "dump", remote_command_dump },
     { "spectranet-info", remote_command_spectranet_info },
+#ifdef BUILD_SPECTRANET
     { "spectranet-set-page", remote_command_spectranet_set_page },
     { "spectranet-set-pagein", remote_command_spectranet_set_pagein },
-#ifdef BUILD_SPECTRANET
     { "xfs-debug", remote_command_xfs_debug },
 #endif
     { NULL, NULL }
