@@ -76,9 +76,7 @@ enum
   NUM_COLS
 };
 
-void
-menu_machine_pokefinder( GtkAction *gtk_action GCC_UNUSED,
-                         gpointer data GCC_UNUSED )
+MENU_CALLBACK( menu_machine_pokefinder )
 {
   int error;
 

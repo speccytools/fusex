@@ -155,9 +155,7 @@ create_shared_binary_dialog( struct binary_info *info, const char *title,
  * already specified a filename, then pops the dialog requesting start address
  * and length.
  */
-void
-menu_file_loadbinarydata( GtkAction *gtk_action GCC_UNUSED,
-                          gpointer data GCC_UNUSED )
+MENU_CALLBACK( menu_file_loadbinarydata )
 {
   int error;
 
@@ -304,9 +302,7 @@ load_data( GtkEntry *entry GCC_UNUSED, gpointer user_data )
  * the file selector if a selected file isn't already in the static structure,
  * then pops up the filename/start/length dialog.
  */
-void
-menu_file_savebinarydata( GtkAction *gtk_action GCC_UNUSED,
-                          gpointer data GCC_UNUSED )
+MENU_CALLBACK( menu_file_savebinarydata )
 {
   fuse_emulation_pause();
 

@@ -317,9 +317,7 @@ goto_offset( GtkWidget *widget GCC_UNUSED, gpointer user_data GCC_UNUSED )
   gtk_adjustment_set_value( adjustment, offset );
 }
 
-void
-menu_machine_memorybrowser( GtkAction *gtk_action GCC_UNUSED,
-                            gpointer data GCC_UNUSED )
+MENU_CALLBACK( menu_machine_memorybrowser )
 {
   GtkWidget *dialog, *content_area, *scrollbar, *label, *offset;
   GtkWidget *box, *box_address, *box_hex, *box_data, *box_data_horizontal;

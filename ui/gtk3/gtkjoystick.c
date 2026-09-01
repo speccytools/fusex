@@ -183,8 +183,7 @@ create_joystick_options_store( void )
 }
 
 void
-menu_options_joysticks_select( GtkAction *gtk_action GCC_UNUSED,
-                               guint callback_action )
+menu_options_joysticks_select( GSimpleAction *gtk_action GCC_UNUSED, guint callback_action )
 {
   GtkWidget *dialog, *hbox, *vbox, *content_area;
   GtkTreeModel *model;

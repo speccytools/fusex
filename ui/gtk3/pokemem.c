@@ -75,9 +75,7 @@ static gboolean custom_value_edit( GtkTreeView *tree );
 void custom_value_changed( GtkCellRendererText *cell, gchar *path_string,
                            gchar *new_text, gpointer user_data );
 
-void
-menu_machine_pokememory( GtkAction *gtk_action GCC_UNUSED,
-                         gpointer data GCC_UNUSED )
+MENU_CALLBACK( menu_machine_pokememory )
 {
   fuse_emulation_pause();
 
