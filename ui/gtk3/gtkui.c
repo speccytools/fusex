@@ -26,6 +26,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <gdk/gdkkeysyms.h>
 #include <gtk/gtk.h>
@@ -158,6 +159,170 @@ static void gtkui_drag_data_received( GtkWidget *widget GCC_UNUSED,
   gtk_drag_finish( drag_context, success, FALSE, timestamp );
 }
 
+/* GTK 3 applications have to opt in to the dark variant of their theme, so
+   ask the desktop whether it prefers a dark style and keep
+   gtk-application-prefer-dark-theme in sync with the answer. The XDG
+   settings portal is the portable source for this; where it isn't running
+   we read the GNOME setting directly. */
+
+/* Values of the org.freedesktop.appearance color-scheme setting */
+#define COLOR_SCHEME_PREFER_DARK 1
+
+static GDBusProxy *settings_portal = NULL;
+static GSettings *interface_settings = NULL;
+
+static void
+gtkui_set_dark_theme( gboolean prefer_dark )
+{
+  GtkSettings *settings = gtk_settings_get_default();
+
+  if( settings )
+    g_object_set( settings, "gtk-application-prefer-dark-theme", prefer_dark,
+                  NULL );
+}
+
+static int
+gtkui_portal_read_color_scheme( guint32 *color_scheme )
+{
+  GVariant *reply, *value;
+  GError *error = NULL;
+  int error_code = 1;
+
+  reply = g_dbus_proxy_call_sync( settings_portal, "ReadOne",
+                                  g_variant_new( "(ss)",
+                                                 "org.freedesktop.appearance",
+                                                 "color-scheme" ),
+                                  G_DBUS_CALL_FLAGS_NONE, 1000, NULL, &error );
+
+  /* ReadOne is only in version 2 and later of the portal; earlier versions
+     have Read, which returns the value wrapped in a second variant */
+  if( !reply && g_error_matches( error, G_DBUS_ERROR,
+                                 G_DBUS_ERROR_UNKNOWN_METHOD ) ) {
+    g_clear_error( &error );
+    reply = g_dbus_proxy_call_sync( settings_portal, "Read",
+                                    g_variant_new( "(ss)",
+                                                   "org.freedesktop.appearance",
+                                                   "color-scheme" ),
+                                    G_DBUS_CALL_FLAGS_NONE, 1000, NULL,
+                                    &error );
+  }
+
+  if( !reply ) {
+    g_error_free( error );
+    return 1;
+  }
+
+  g_variant_get( reply, "(v)", &value );
+
+  while( g_variant_is_of_type( value, G_VARIANT_TYPE_VARIANT ) ) {
+    GVariant *inner = g_variant_get_variant( value );
+    g_variant_unref( value );
+    value = inner;
+  }
+
+  if( g_variant_is_of_type( value, G_VARIANT_TYPE_UINT32 ) ) {
+    *color_scheme = g_variant_get_uint32( value );
+    error_code = 0;
+  }
+
+  g_variant_unref( value );
+  g_variant_unref( reply );
+
+  return error_code;
+}
+
+static void
+gtkui_portal_signal( GDBusProxy *proxy GCC_UNUSED,
+                     gchar *sender_name GCC_UNUSED, gchar *signal_name,
+                     GVariant *parameters, gpointer data GCC_UNUSED )
+{
+  const char *namespace, *key;
+  GVariant *value;
+
+  if( strcmp( signal_name, "SettingChanged" ) ) return;
+
+  g_variant_get( parameters, "(&s&sv)", &namespace, &key, &value );
+
+  if( !strcmp( namespace, "org.freedesktop.appearance" ) &&
+      !strcmp( key, "color-scheme" ) &&
+      g_variant_is_of_type( value, G_VARIANT_TYPE_UINT32 ) )
+    gtkui_set_dark_theme( g_variant_get_uint32( value ) ==
+                          COLOR_SCHEME_PREFER_DARK );
+
+  g_variant_unref( value );
+}
+
+static void
+gtkui_gsettings_changed( GSettings *settings, gchar *key GCC_UNUSED,
+                         gpointer data GCC_UNUSED )
+{
+  char *color_scheme = g_settings_get_string( settings, "color-scheme" );
+
+  gtkui_set_dark_theme( !strcmp( color_scheme, "prefer-dark" ) );
+
+  g_free( color_scheme );
+}
+
+static int
+gtkui_follow_gsettings_color_scheme( void )
+{
+  GSettingsSchemaSource *source;
+  GSettingsSchema *schema;
+
+  source = g_settings_schema_source_get_default();
+  if( !source ) return 1;
+
+  schema = g_settings_schema_source_lookup( source,
+                                            "org.gnome.desktop.interface",
+                                            TRUE );
+  if( !schema ) return 1;
+
+  if( !g_settings_schema_has_key( schema, "color-scheme" ) ) {
+    g_settings_schema_unref( schema );
+    return 1;
+  }
+
+  interface_settings = g_settings_new_full( schema, NULL, NULL );
+  g_settings_schema_unref( schema );
+
+  g_signal_connect( interface_settings, "changed::color-scheme",
+                    G_CALLBACK( gtkui_gsettings_changed ), NULL );
+  gtkui_gsettings_changed( interface_settings, NULL, NULL );
+
+  return 0;
+}
+
+static void
+gtkui_follow_desktop_color_scheme( void )
+{
+  GError *error = NULL;
+  guint32 color_scheme;
+
+  settings_portal =
+    g_dbus_proxy_new_for_bus_sync( G_BUS_TYPE_SESSION,
+                                   G_DBUS_PROXY_FLAGS_DO_NOT_LOAD_PROPERTIES |
+                                   G_DBUS_PROXY_FLAGS_DO_NOT_AUTO_START,
+                                   NULL,
+                                   "org.freedesktop.portal.Desktop",
+                                   "/org/freedesktop/portal/desktop",
+                                   "org.freedesktop.portal.Settings",
+                                   NULL, &error );
+
+  if( settings_portal ) {
+    if( !gtkui_portal_read_color_scheme( &color_scheme ) ) {
+      g_signal_connect( settings_portal, "g-signal",
+                        G_CALLBACK( gtkui_portal_signal ), NULL );
+      gtkui_set_dark_theme( color_scheme == COLOR_SCHEME_PREFER_DARK );
+      return;
+    }
+    g_clear_object( &settings_portal );
+  } else {
+    g_error_free( error );
+  }
+
+  gtkui_follow_gsettings_color_scheme();
+}
+
 int
 ui_init( int *argc, char ***argv )
 {
@@ -166,6 +331,8 @@ ui_init( int *argc, char ***argv )
   GtkSettings *settings;
 
   gtk_init(argc,argv);
+
+  gtkui_follow_desktop_color_scheme();
 
   g_resources_register( gtkui_get_resource() );
 
@@ -327,6 +494,9 @@ ui_end(void)
   g_object_unref( ui_manager_menu );
 
   g_resources_unregister( gtkui_get_resource() );
+
+  g_clear_object( &settings_portal );
+  g_clear_object( &interface_settings );
 
   return 0;
 }
