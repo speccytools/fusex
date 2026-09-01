@@ -243,10 +243,17 @@ ui_debugger_activate( void )
   fuse_emulation_pause();
 
   /* Create the dialog box if it doesn't already exist */
-  if( !dialog_created ) if( create_dialog() ) return 1;
+  if( !dialog_created ) if( create_dialog() ) {
+    fuse_emulation_unpause();
+    return 1;
+  }
 
   gtk_widget_show_all( dialog );
-  error = hide_hidden_panes(); if( error ) return error;
+  error = hide_hidden_panes();
+  if( error ) {
+    fuse_emulation_unpause();
+    return error;
+  }
 
   gtk_widget_set_sensitive( continue_button, 1 );
   gtk_widget_set_sensitive( break_button, 0 );
