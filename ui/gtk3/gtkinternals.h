@@ -121,7 +121,6 @@ GtkWidget *gtkstock_dialog_new( const gchar *title, GCallback destroy );
 int gtkui_get_monospaced_font( PangoFontDescription **font );
 void gtkui_free_font( PangoFontDescription *font );
 
-int gtkui_menubar_get_height( void );
 
 /* Show/hide the menu bar and status bar */
 void gtkui_set_bars_visible( int visible );

@@ -64,6 +64,7 @@ GtkWidget *gtkui_window;
 GtkWidget *gtkui_drawing_area;
 
 static GtkWidget *menu_bar;
+static GtkWidget *header_bar;
 
 /* Wait until the window has reached its final size before applying
    fullscreen changes. See gtkui_window_configure() for more details */
@@ -95,6 +96,9 @@ static gboolean gtkui_make_menu(GtkAccelGroup **accel_group,
 				GtkWidget **menu_bar,
 				GtkActionEntry *menu_data,
 				guint menu_data_size);
+
+static void gtkui_make_header_bar( GtkWidget *menus,
+                                   GtkAccelGroup *accel_group );
 
 static gboolean gtkui_lose_focus( GtkWidget*, GdkEvent*, gpointer );
 static gboolean gtkui_gain_focus( GtkWidget*, GdkEvent*, gpointer );
@@ -385,7 +389,7 @@ ui_init( int *argc, char ***argv )
   }
 
   gtk_window_add_accel_group( GTK_WINDOW(gtkui_window), accel_group );
-  gtk_box_pack_start( GTK_BOX(box), menu_bar, FALSE, FALSE, 0 );
+  gtkui_make_header_bar( menu_bar, accel_group );
 
   gtkui_drawing_area = gtk_drawing_area_new();
   if(!gtkui_drawing_area) {
@@ -426,6 +430,69 @@ gtkui_menu_deactivate( GtkMenuShell *menu GCC_UNUSED,
 		       gpointer data GCC_UNUSED )
 {
   ui_mouse_resume();
+}
+
+static void
+gtkui_open_clicked( GtkButton *button GCC_UNUSED, gpointer data GCC_UNUSED )
+{
+  menu_file_open( NULL, NULL );
+}
+
+/* Move the top level menus out of the menu bar and into a single popup
+   menu hanging off a button in a header bar. The menu bar widget itself
+   is kept (the UI manager owns it, and the menu item paths used by
+   ui_menu_activate() still resolve) but never shown. */
+static void
+gtkui_make_header_bar( GtkWidget *menus, GtkAccelGroup *accel_group )
+{
+  GtkWidget *menu, *menu_button, *open_button;
+  GList *items, *item;
+
+  header_bar = gtk_header_bar_new();
+  gtk_header_bar_set_show_close_button( GTK_HEADER_BAR( header_bar ), TRUE );
+  gtk_header_bar_set_title( GTK_HEADER_BAR( header_bar ), "Fuse" );
+
+  menu = gtk_menu_new();
+  gtk_menu_set_accel_group( GTK_MENU( menu ), accel_group );
+  g_signal_connect( G_OBJECT( menu ), "deactivate",
+                    G_CALLBACK( gtkui_menu_deactivate ), NULL );
+
+  items = gtk_container_get_children( GTK_CONTAINER( menus ) );
+  for( item = items; item; item = item->next ) {
+    GtkWidget *menu_item = GTK_WIDGET( item->data );
+
+    g_object_ref( menu_item );
+    gtk_container_remove( GTK_CONTAINER( menus ), menu_item );
+    gtk_menu_shell_append( GTK_MENU_SHELL( menu ), menu_item );
+    g_object_unref( menu_item );
+  }
+  g_list_free( items );
+
+  open_button =
+    gtk_button_new_from_icon_name( "document-open-symbolic",
+                                   GTK_ICON_SIZE_BUTTON );
+  gtk_widget_set_tooltip_text( open_button, "Open a file (F3)" );
+  /* Every key belongs to the emulated machine, so nothing in the header
+     bar may take the keyboard focus: a focused button would swallow
+     Space and Enter */
+  gtk_widget_set_can_focus( open_button, FALSE );
+  g_signal_connect( G_OBJECT( open_button ), "clicked",
+                    G_CALLBACK( gtkui_open_clicked ), NULL );
+  gtk_header_bar_pack_start( GTK_HEADER_BAR( header_bar ), open_button );
+
+  menu_button = gtk_menu_button_new();
+  gtk_button_set_image( GTK_BUTTON( menu_button ),
+                        gtk_image_new_from_icon_name( "open-menu-symbolic",
+                                                      GTK_ICON_SIZE_BUTTON ) );
+  gtk_menu_button_set_popup( GTK_MENU_BUTTON( menu_button ), menu );
+  gtk_widget_set_tooltip_text( menu_button, "Main menu (F1)" );
+  gtk_widget_set_can_focus( menu_button, FALSE );
+  gtk_widget_add_accelerator( menu_button, "activate", accel_group,
+                              GDK_KEY_F1, 0, 0 );
+  gtk_header_bar_pack_end( GTK_HEADER_BAR( header_bar ), menu_button );
+
+  gtk_window_set_titlebar( GTK_WINDOW( gtkui_window ), header_bar );
+  gtk_widget_show_all( header_bar );
 }
 
 static gboolean
@@ -1226,20 +1293,10 @@ gtkui_scroll_connect( GtkTreeView *list, GtkAdjustment *adj )
                     G_CALLBACK( wheel_scroll_event ), adj );
 }
 
-int
-gtkui_menubar_get_height( void )
-{
-  GtkAllocation alloc;
-
-  gtk_widget_get_allocation( menu_bar, &alloc );
-
-  return alloc.height;
-}
-
 void
 gtkui_set_bars_visible( int visible )
 {
-  gtk_widget_set_visible( menu_bar, visible );
+  gtk_widget_set_visible( header_bar, visible );
   /* The status bar is only shown if the user has it enabled */
   gtkstatusbar_set_visibility( visible ? settings_current.statusbar : 0 );
 }
