@@ -584,6 +584,7 @@ divmmc_set_automap( int state GCC_UNUSED )
 }
 
 int spectranet_available = 0;
+int spectranet_paged = 0;
 
 void
 spectranet_page( int via_io GCC_UNUSED )
