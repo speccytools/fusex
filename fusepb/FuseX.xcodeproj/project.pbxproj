@@ -169,8 +169,6 @@
 		B64BD1650FF8D284000B82AE /* options.m in Sources */ = {isa = PBXBuildFile; fileRef = B64BD1640FF8D284000B82AE /* options.m */; };
 		B64E2A170A6534A3006863D9 /* Carbon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B64E2A160A6534A3006863D9 /* Carbon.framework */; };
 		B6501DF411AABD6800898AD1 /* blipbuffer.c in Sources */ = {isa = PBXBuildFile; fileRef = B6501DF211AABD6800898AD1 /* blipbuffer.c */; };
-		D19200010000000000000005 /* speaker_filter.c in Sources */ = {isa = PBXBuildFile; fileRef = D19200010000000000000001 /* speaker_filter.c */; };
-		D19200010000000000000006 /* ula_filter.c in Sources */ = {isa = PBXBuildFile; fileRef = D19200010000000000000003 /* ula_filter.c */; };
 		B6501DF711AABD9300898AD1 /* sound.c in Sources */ = {isa = PBXBuildFile; fileRef = B6501DF611AABD9300898AD1 /* sound.c */; };
 		B6501DFC11AABE2300898AD1 /* rectangle.c in Sources */ = {isa = PBXBuildFile; fileRef = B6501DFA11AABE2300898AD1 /* rectangle.c */; };
 		B650986D09366C8F003AF1BF /* hdf.icns in Resources */ = {isa = PBXBuildFile; fileRef = B650986A09366C8F003AF1BF /* hdf.icns */; };
@@ -320,6 +318,8 @@
 		D15E8F93259F5C0C0006FC79 /* gdbserver_utils.c in Sources */ = {isa = PBXBuildFile; fileRef = D15E8F8D259F5C0B0006FC79 /* gdbserver_utils.c */; };
 		D15E8F94259F5C0C0006FC79 /* packets.c in Sources */ = {isa = PBXBuildFile; fileRef = D15E8F8F259F5C0B0006FC79 /* packets.c */; };
 		D15E8F95259F5C0C0006FC79 /* gdbserver.c in Sources */ = {isa = PBXBuildFile; fileRef = D15E8F91259F5C0B0006FC79 /* gdbserver.c */; };
+		D19200010000000000000005 /* speaker_filter.c in Sources */ = {isa = PBXBuildFile; fileRef = D19200010000000000000001 /* speaker_filter.c */; };
+		D19200010000000000000006 /* ula_filter.c in Sources */ = {isa = PBXBuildFile; fileRef = D19200010000000000000003 /* ula_filter.c */; };
 		D1DF6DD826F8077F004A4AB7 /* debug.png in Resources */ = {isa = PBXBuildFile; fileRef = D1DF6DD726F8077F004A4AB7 /* debug.png */; };
 		D1ECC73E2924069800147252 /* ttx2000s.c in Sources */ = {isa = PBXBuildFile; fileRef = D1ECC73D2924069800147252 /* ttx2000s.c */; };
 		DF64645D648D6690E0717A05 /* 128p-0.rom in Resources */ = {isa = PBXBuildFile; fileRef = 149707A6310CA776B49E44BB /* 128p-0.rom */; };
@@ -581,10 +581,6 @@
 		B64E2A160A6534A3006863D9 /* Carbon.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Carbon.framework; path = /System/Library/Frameworks/Carbon.framework; sourceTree = "<absolute>"; };
 		B6501DF211AABD6800898AD1 /* blipbuffer.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = blipbuffer.c; path = sound/blipbuffer.c; sourceTree = "<group>"; };
 		B6501DF311AABD6800898AD1 /* blipbuffer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = blipbuffer.h; path = sound/blipbuffer.h; sourceTree = "<group>"; };
-		D19200010000000000000001 /* speaker_filter.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = speaker_filter.c; path = sound/speaker_filter.c; sourceTree = "<group>"; };
-		D19200010000000000000002 /* speaker_filter.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = speaker_filter.h; path = sound/speaker_filter.h; sourceTree = "<group>"; };
-		D19200010000000000000003 /* ula_filter.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = ula_filter.c; path = sound/ula_filter.c; sourceTree = "<group>"; };
-		D19200010000000000000004 /* ula_filter.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ula_filter.h; path = sound/ula_filter.h; sourceTree = "<group>"; };
 		B6501DF611AABD9300898AD1 /* sound.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = sound.c; sourceTree = "<group>"; };
 		B6501DFA11AABE2300898AD1 /* rectangle.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = rectangle.c; sourceTree = "<group>"; };
 		B6501DFB11AABE2300898AD1 /* rectangle.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = rectangle.h; sourceTree = "<group>"; };
@@ -874,6 +870,10 @@
 		D15E8F90259F5C0B0006FC79 /* packets.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = packets.h; sourceTree = "<group>"; };
 		D15E8F91259F5C0B0006FC79 /* gdbserver.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = gdbserver.c; sourceTree = "<group>"; };
 		D15E8F92259F5C0C0006FC79 /* gdbserver.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = gdbserver.h; sourceTree = "<group>"; };
+		D19200010000000000000001 /* speaker_filter.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = speaker_filter.c; path = sound/speaker_filter.c; sourceTree = "<group>"; };
+		D19200010000000000000002 /* speaker_filter.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = speaker_filter.h; path = sound/speaker_filter.h; sourceTree = "<group>"; };
+		D19200010000000000000003 /* ula_filter.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = ula_filter.c; path = sound/ula_filter.c; sourceTree = "<group>"; };
+		D19200010000000000000004 /* ula_filter.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ula_filter.h; path = sound/ula_filter.h; sourceTree = "<group>"; };
 		D1DA9AD7291EF817001911F7 /* FuseX.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FuseX.entitlements; sourceTree = "<group>"; };
 		D1DF6DD726F8077F004A4AB7 /* debug.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = debug.png; sourceTree = "<group>"; };
 		D1ECC73C2924069800147252 /* ttx2000s.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ttx2000s.h; sourceTree = "<group>"; };
@@ -2487,7 +2487,7 @@
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = 48UV5KV3FB;
@@ -2560,7 +2560,7 @@
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = YES;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = 48UV5KV3FB;
@@ -2631,7 +2631,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = 48UV5KV3FB;
