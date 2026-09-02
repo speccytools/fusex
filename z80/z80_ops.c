@@ -273,8 +273,10 @@ z80_do_opcodes( void )
     if( PC == 0x0008 || ((PC & 0xfff8) == 0x3ff8) )
       spectranet_page( 0 );
 
+    /* Lower 16K addresses refer to Spectranet ROM while it is paged in. */
     if( PC == spectranet_programmable_trap &&
-      spectranet_programmable_trap_active )
+      spectranet_programmable_trap_active &&
+      ( !spectranet_paged || PC >= 0x4000 ) )
       event_add( 0, z80_nmi_event );
 
     END_CHECK
