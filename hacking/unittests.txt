@@ -17,6 +17,17 @@ This builds all test binaries and runs them in sequence:
       Display write/dirty tests covering Sinclair, Timex, and
       Pentagon screen modes.
 
+  unittests/palcompositetest
+      PAL composite scaler tests: pixel-format conversions (16-bit
+      and 32-bit), partial and full-screen redraws, and chroma
+      blending across scan lines.
+
+  unittests/scalerexpandtest
+      Scaler expander tests: verifies that each of the four expander
+      types (Normal, TV, Timex, and OpenGL) correctly inflates a
+      dirty region to cover all pixels that a multi-pixel scaler
+      would touch.
+
   unittests/sdl2displaytest
   unittests/sdl2scalerstatetest
   unittests/sdl2joysticktest
@@ -36,6 +47,8 @@ e.g.:
 
   ./fuse --unittests
   ./unittests/displaytest
+  ./unittests/palcompositetest
+  ./unittests/scalerexpandtest
   ./z80/coretest z80/tests/tests.in
 
 For manual peripheral smoke tests, see `hacking/peripheral_tests.txt'.

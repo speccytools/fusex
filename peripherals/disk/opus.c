@@ -28,12 +28,14 @@
 
 #include "libspectrum.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "compat.h"
 #include "debugger/debugger.h"
 #include "infrastructure/startup_manager.h"
 #include "machine.h"
+#include "memory_pages.h"
 #include "module.h"
 #include "opus.h"
 #include "peripherals/printer.h"
@@ -64,7 +66,8 @@ static wd_fdc *opus_fdc;
 static fdd_t opus_drives[ OPUS_NUM_DRIVES ];
 static ui_media_drive_info_t opus_ui_drives[ OPUS_NUM_DRIVES ];
 
-static libspectrum_byte opus_ram[ OPUS_RAM_SIZE ];
+static libspectrum_byte *opus_ram;
+static int opus_ram_allocated;
 
 /* 6821 PIA internal registers */
 static libspectrum_byte data_reg_a, data_dir_a, control_a;
@@ -75,6 +78,7 @@ static void opus_memory_map( void );
 static void opus_enabled_snapshot( libspectrum_snap *snap );
 static void opus_from_snapshot( libspectrum_snap *snap );
 static void opus_to_snapshot( libspectrum_snap *snap );
+static void opus_activate( void );
 
 static module_info_t opus_module_info = {
 
@@ -90,7 +94,7 @@ static const periph_t opus_periph = {
   /* .option = */ &settings_current.opus,
   /* .ports = */ NULL,
   /* .hard_reset = */ 1,
-  /* .activate = */ NULL,
+  /* .activate = */ opus_activate,
 };
 
 /* Debugger events */
@@ -236,7 +240,7 @@ opus_reset( int hard_reset )
   opus_available = 1;
 
   if( hard_reset )
-    memset( opus_ram, 0, sizeof( opus_ram ) );
+    memset( opus_ram, 0, OPUS_RAM_SIZE );
 
   wd_fdc_master_reset( opus_fdc );
 
@@ -248,6 +252,15 @@ opus_reset( int hard_reset )
   opus_fdc->current_drive = &opus_drives[ 0 ];
   fdd_select( &opus_drives[ 0 ], 1 );
   machine_current->memory_map();
+}
+
+static void
+opus_activate( void )
+{
+  if( !opus_ram_allocated ) {
+    opus_ram = memory_pool_allocate_persistent( OPUS_RAM_SIZE, 1 );
+    opus_ram_allocated = 1;
+  }
 }
 
 /*
@@ -435,7 +448,7 @@ opus_from_snapshot( libspectrum_snap *snap )
 
   if( libspectrum_snap_opus_custom_rom( snap ) &&
       libspectrum_snap_opus_rom( snap, 0 ) &&
-      machine_load_rom_bank_from_buffer(
+      machine_load_rom_bank_from_snapshot(
                              opus_memory_map_romcs_rom, 0,
                              libspectrum_snap_opus_rom( snap, 0 ),
                              OPUS_ROM_SIZE, 1 ) )
@@ -517,7 +530,75 @@ opus_to_snapshot( libspectrum_snap *snap )
 int
 opus_unittest( void )
 {
+  static const char rom_filename[] = "unittests-opus.rom";
+  libspectrum_byte *test_rom;
+  libspectrum_snap *snap = NULL;
+  char *saved_rom = settings_current.rom_opus;
   int r = 0;
+  int was_active = periph_is_active( PERIPH_TYPE_OPUS );
+
+  test_rom = libspectrum_new0( libspectrum_byte, OPUS_ROM_SIZE );
+  if( utils_write_file( rom_filename, test_rom, OPUS_ROM_SIZE ) ) {
+    libspectrum_free( test_rom );
+    return 1;
+  }
+  libspectrum_free( test_rom );
+
+  settings_current.rom_opus = (char *)rom_filename;
+  if( !was_active )
+    periph_activate_type( PERIPH_TYPE_OPUS, 1 );
+
+  opus_reset( 1 );
+  if( !opus_available ) {
+    fprintf( stderr, "Opus unavailable for unit test\n" );
+    r++;
+    goto cleanup;
+  }
+
+  opus_memory_map_romcs_ram[ 0 ].page[ 0 ] = 0x55;
+  opus_memory_map_romcs_ram[ MEMORY_PAGES_IN_2K - 1 ].page[
+    MEMORY_PAGE_SIZE - 1 ] = 0xaa;
+
+  opus_reset( 1 );
+
+  if( opus_memory_map_romcs_ram[ 0 ].page[ 0 ] != 0 ||
+      opus_memory_map_romcs_ram[ MEMORY_PAGES_IN_2K - 1 ].page[
+        MEMORY_PAGE_SIZE - 1 ] != 0 ) {
+    fprintf( stderr, "Opus RAM not cleared by hard reset\n" );
+    r++;
+  }
+
+  opus_page();
+  opus_memory_map_romcs_ram[ 0 ].page[ 0 ] = 0x55;
+  opus_memory_map_romcs_ram[ MEMORY_PAGES_IN_2K - 1 ].page[
+    MEMORY_PAGE_SIZE - 1 ] = 0xaa;
+
+  snap = libspectrum_snap_alloc();
+  if( !snap ) {
+    fprintf( stderr, "Couldn't allocate Opus unit test snapshot\n" );
+    r++;
+    goto cleanup;
+  }
+  opus_to_snapshot( snap );
+
+  opus_memory_map_romcs_ram[ 0 ].page[ 0 ] = 0;
+  opus_memory_map_romcs_ram[ MEMORY_PAGES_IN_2K - 1 ].page[
+    MEMORY_PAGE_SIZE - 1 ] = 0;
+  opus_unpage();
+  libspectrum_snap_opus_rom( snap, 0 )[ 0 ] = 0xa5;
+  opus_from_snapshot( snap );
+
+  if( opus_memory_map_romcs_ram[ 0 ].page[ 0 ] != 0x55 ||
+      opus_memory_map_romcs_ram[ MEMORY_PAGES_IN_2K - 1 ].page[
+        MEMORY_PAGE_SIZE - 1 ] != 0xaa || !opus_active ) {
+    fprintf( stderr, "Opus snapshot not restored correctly\n" );
+    r++;
+  }
+
+  opus_page();
+
+  if( machine_reset( 0 ) || opus_memory_map_romcs_rom[ 0 ].page[ 0 ] != 0xa5 )
+    r++;
 
   opus_page();
 
@@ -532,6 +613,16 @@ opus_unittest( void )
   opus_unpage();
 
   r += unittests_paging_test_48( 2 );
+
+cleanup:
+  if( snap ) libspectrum_snap_free( snap );
+  if( !was_active )
+    periph_activate_type( PERIPH_TYPE_OPUS, 0 );
+  settings_current.rom_opus = saved_rom;
+  if( remove( rom_filename ) ) {
+    fprintf( stderr, "Couldn't remove Opus unit test ROM\n" );
+    r++;
+  }
 
   return r;
 }

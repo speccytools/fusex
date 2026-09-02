@@ -30,8 +30,11 @@
 /* Dock cart inserted? */
 extern int dck_active;
 
+struct utils_file;
+
 int dck_insert( const char *filename );
+int dck_insert_loaded( const struct utils_file *file );
 void dck_eject( void );
-int dck_reset( void );
+int dck_reset( int hard_reset );
 
 #endif

@@ -205,7 +205,7 @@ sound_lowlevel_init( const char *dev, int *freqptr, int *stereoptr )
                                          * deviceFormat.mChannelsPerFrame
                                          * sound_framesiz + 1 ) ) ) {
     ui_error( UI_ERROR_ERROR, "Problem initialising sound fifo: %s",
-              strerror ( error ) );
+              strerror( -error ) );
     return 1;
   }
 
@@ -263,7 +263,7 @@ sound_lowlevel_frame( libspectrum_signed_word *data, int len )
   }
   if( i < 0 ) {
     ui_error( UI_ERROR_ERROR, "Couldn't write sound fifo: %s",
-              strerror( i ) );
+              strerror( -i ) );
   }
 
   if( !audio_output_started ) {

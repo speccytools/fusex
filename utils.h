@@ -30,13 +30,24 @@
 
 typedef struct utils_file {
 
-  unsigned char *buffer;
+  const char *filename;              /* borrowed */
+  unsigned char *buffer;             /* owned when non-NULL */
   size_t length;
+  libspectrum_id_t type;
+  libspectrum_class_t class;
 
 } utils_file;
 
+void utils_file_init( utils_file *file, const char *filename );
+void utils_file_move( utils_file *destination, utils_file *source );
+int utils_file_read( utils_file *file );
+int utils_file_identify( utils_file *file );
+void utils_file_free( utils_file *file );
+
 int utils_open_file( const char *filename, int autoload,
 		     libspectrum_id_t *type );
+int utils_open_loaded_file( utils_file *file, int autoload,
+                            libspectrum_id_t *type );
 int utils_open_snap( void );
 int utils_read_auxiliary_file( const char *filename, utils_file *file,
                                utils_aux_type type );

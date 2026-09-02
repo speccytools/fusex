@@ -61,14 +61,6 @@ display_last_screen[ DISPLAY_SCREEN_WIDTH_COLS * DISPLAY_SCREEN_HEIGHT ];
 libspectrum_word display_line_start[ DISPLAY_HEIGHT ];
 libspectrum_word display_attr_start[ DISPLAY_HEIGHT ];
 
-/* If you write to the byte at display_dirty_?table[n+0x4000], then
-   the eight pixels starting at (8*xtable[n],ytable[n]) must be
-   replotted */
-static libspectrum_word
-  display_dirty_ytable[ DISPLAY_WIDTH_COLS * DISPLAY_HEIGHT ];
-static libspectrum_word
-  display_dirty_xtable[ DISPLAY_WIDTH_COLS * DISPLAY_HEIGHT ];
-
 /* The number of frames mod 32 that have elapsed.
     0<=d_f_c<16 => Flashing characters are normal
    16<=d_f_c<32 => Flashing characters are reversed
@@ -152,7 +144,7 @@ add_border_sentinel( void )
 int
 display_init( int *argc, char ***argv )
 {
-  int i, j, k, x, y;
+  int i, j, k, y;
 
   if(ui_init(argc, argv))
     return 1;
@@ -169,12 +161,6 @@ display_init( int *argc, char ***argv )
   for(y=0;y<DISPLAY_HEIGHT;y++) {
     display_attr_start[y]=DISPLAY_PIXEL_BYTES + (DISPLAY_WIDTH_COLS*(y/8));
   }
-
-  for(y=0;y<DISPLAY_HEIGHT;y++)
-    for(x=0;x<DISPLAY_WIDTH_COLS;x++) {
-      display_dirty_ytable[ display_line_start[y]+x ] = y;
-      display_dirty_xtable[ display_line_start[y]+x ] = x;
-    }
 
   display_frame_count=0; display_flash_reversed=0;
 
@@ -714,8 +700,17 @@ display_dirty8( libspectrum_word offset )
 {
   int x, y;
 
-  x=display_dirty_xtable[ offset ];
-  y=display_dirty_ytable[ offset ];
+  /* The ZX Spectrum pixel area uses a non-linear address encoding:
+       bits  4-0:  column (x, 0-31)
+       bits  7-5:  character row within third (j, 0-7)
+       bits 10-8:  pixel row within character (k, 0-7)
+       bits 12-11: third of screen (i, 0-2)
+     Screen line y = 64*i + 8*j + k
+     GCC reduces the multiplications to shifts. */
+  x = offset & ( DISPLAY_WIDTH_COLS - 1 );
+  y = 64 * ( ( offset >> 11 ) & 3 )
+    +  8 * ( ( offset >>  5 ) & 7 )
+    +      ( ( offset >>  8 ) & 7 );
 
   display_dirty_chunk( x, y );
 }
@@ -724,7 +719,7 @@ static void
 display_dirty64( libspectrum_word offset )
 {
   int i, x, y;
-  int idx = offset - ( DISPLAY_HEIGHT * DISPLAY_WIDTH_COLS );
+  int idx = offset - DISPLAY_PIXEL_BYTES;
 
   /* The attribute area is laid out linearly: column x, row y, so:
      x = idx % DISPLAY_WIDTH_COLS

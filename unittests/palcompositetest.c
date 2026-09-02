@@ -393,7 +393,11 @@ check_partial_redraw_32( void )
   libspectrum_dword partial[ 3 * 2 ][ TEST_WIDTH * 2 ];
   int column;
 
-  build_32_source( BITFORMAT_X8B8G8R8, &old_source[1] );
+  {
+    libspectrum_dword tmp[ TEST_HEIGHT ][ TEST_ROW_PIXELS ];
+    build_32_source( BITFORMAT_X8B8G8R8, tmp );
+    memcpy( old_source[1], tmp[0], sizeof( old_source[0] ) );
+  }
   memcpy( old_source[2], old_source[1], sizeof( old_source[0] ) );
   memcpy( old_source[3], old_source[1], sizeof( old_source[0] ) );
   memcpy( old_source[0], old_source[1], sizeof( old_source[0] ) );

@@ -36,8 +36,33 @@
 
 const compat_fd COMPAT_FILE_OPEN_FAILED = NULL;
 
-compat_fd
-compat_file_open( const char *path, int write )
+static compat_fd default_file_open( const char *path, int write );
+static off_t default_file_get_length( compat_fd fd );
+static int default_file_read( compat_fd fd, utils_file *file );
+static int default_file_write( compat_fd fd, const unsigned char *buffer,
+                               size_t length );
+static int default_file_close( compat_fd fd );
+static int default_file_exists( const char *path );
+
+static compat_file_vtable_t file_vtable = {
+  default_file_open, default_file_get_length, default_file_read,
+  default_file_write, default_file_close, default_file_exists
+};
+
+void
+compat_file_set_vtable( compat_file_vtable_t *vtable )
+{
+  file_vtable = *vtable;
+}
+
+void
+compat_file_get_vtable( compat_file_vtable_t *vtable )
+{
+  *vtable = file_vtable;
+}
+
+static compat_fd
+default_file_open( const char *path, int write )
 {
   struct stat statbuf;
 
@@ -56,8 +81,8 @@ compat_file_open( const char *path, int write )
   return fopen( path, write ? "wb" : "rb" );
 }
 
-off_t
-compat_file_get_length( compat_fd fd )
+static off_t
+default_file_get_length( compat_fd fd )
 {
   struct stat file_info;
 
@@ -69,8 +94,8 @@ compat_file_get_length( compat_fd fd )
   return file_info.st_size;
 }
 
-int
-compat_file_read( compat_fd fd, utils_file *file )
+static int
+default_file_read( compat_fd fd, utils_file *file )
 {
   size_t bytes = fread( file->buffer, 1, file->length, fd );
   if( bytes != file->length ) {
@@ -83,8 +108,8 @@ compat_file_read( compat_fd fd, utils_file *file )
   return 0;
 }
 
-int
-compat_file_write( compat_fd fd, const unsigned char *buffer, size_t length )
+static int
+default_file_write( compat_fd fd, const unsigned char *buffer, size_t length )
 {
   size_t bytes = fwrite( buffer, 1, length, fd );
   if( bytes != length ) {
@@ -97,14 +122,50 @@ compat_file_write( compat_fd fd, const unsigned char *buffer, size_t length )
   return 0;
 }
 
+static int
+default_file_close( compat_fd fd )
+{
+  return fclose( fd );
+}
+
+static int
+default_file_exists( const char *path )
+{
+  return ( access( path, R_OK ) != -1 );
+}
+
+compat_fd
+compat_file_open( const char *path, int write )
+{
+  return file_vtable.open( path, write );
+}
+
+off_t
+compat_file_get_length( compat_fd fd )
+{
+  return file_vtable.get_length( fd );
+}
+
+int
+compat_file_read( compat_fd fd, utils_file *file )
+{
+  return file_vtable.read( fd, file );
+}
+
+int
+compat_file_write( compat_fd fd, const unsigned char *buffer, size_t length )
+{
+  return file_vtable.write( fd, buffer, length );
+}
+
 int
 compat_file_close( compat_fd fd )
 {
-  return fclose( fd );
+  return file_vtable.close( fd );
 }
 
 int
 compat_file_exists( const char *path )
 {
-  return ( access( path, R_OK ) != -1 );
+  return file_vtable.exists( path );
 }

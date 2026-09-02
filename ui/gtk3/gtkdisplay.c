@@ -37,6 +37,7 @@
 #endif
 
 #include "display.h"
+#include "ui/display_timing.h"
 #include "fuse.h"
 #include "gtkinternals.h"
 #include "screenshot.h"
@@ -123,8 +124,17 @@ static guint resize_timeout_id = 0;
 static gint64 resize_last_activity = 0;
 static int pending_width, pending_height;
 
+/* Scaler input areas accumulated for the current emulated frame. */
+struct gtkdisplay_dirty_area {
+  int x, y, width, height;
+};
+static struct gtkdisplay_dirty_area dirty_areas[ DISPLAY_SCREEN_HEIGHT ];
+static size_t dirty_area_count = 0;
+
 static int init_colours( colour_format_t format );
-static void gtkdisplay_area(int x, int y, int width, int height);
+static void gtkdisplay_add_dirty_area( int x, int y, int width, int height );
+static void gtkdisplay_queue_dirty_areas( float scale );
+static void gtkdisplay_scale_dirty_areas( void );
 static void register_scalers( int force_scaler );
 static void gtkdisplay_load_gfx_mode( void );
 static void cancel_pending_resize( void );
@@ -192,6 +202,8 @@ uidisplay_init( int width, int height )
 {
   int x, y, error;
   libspectrum_dword black;
+
+  display_timing_init( "gtk3" );
   const char *machine_name;
   colour_format_t colour_format;
 
@@ -271,6 +283,7 @@ drawing_area_resize( int width, int height, int force_scaler )
   register_scalers( force_scaler );
 
   memset( scaled_image, 0, sizeof( scaled_image ) );
+  dirty_area_count = 0;
 
   ensure_appropriate_surface();
 
@@ -336,23 +349,26 @@ uidisplay_frame_end( void )
     uidisplay_area( 0, 0, image_width, image_height );
   }
 
+  gtkdisplay_scale_dirty_areas();
+
   /* If the user changed the full screen option, apply it now */
   gtkui_fullscreen_apply();
+
+  display_timing_frame_end();
 }
 
 void
 uidisplay_area( int x, int y, int w, int h )
 {
-  float scale = scaler_get_scaling_factor( current_scaler );
-  int scaled_x, scaled_y, i, yy;
+  int i, yy;
   libspectrum_dword *palette;
+
+  display_timing_area( w, h );
 
   /* Extend the dirty region by 1 pixel for scalers
      that "smear" the screen, e.g. 2xSAI */
   if( scaler_flags & SCALER_FLAGS_EXPAND )
     scaler_expander( &x, &y, &w, &h, image_width, image_height );
-
-  scaled_x = scale * x; scaled_y = scale * y;
 
   palette = settings_current.bw_tv ? bw_colours : gtkdisplay_colours;
 
@@ -369,16 +385,7 @@ uidisplay_area( int x, int y, int w, int h )
     for( i = 0; i < w; i++, rgb++, display++ ) *rgb = palette[ *display ];
   }
 
-  /* Create scaled image */
-  scaler_proc32( &rgb_image[ ( y + 2 ) * rgb_pitch + 4 * ( x + 1 ) ],
-                 rgb_pitch,
-                 &scaled_image[ scaled_y * scaled_pitch + 4 * scaled_x ],
-                 scaled_pitch, w, h );
-
-  w *= scale; h *= scale;
-
-  /* Blit to the real screen */
-  gtkdisplay_area( scaled_x, scaled_y, w, h );
+  gtkdisplay_add_dirty_area( x, y, w, h );
 }
 
 /* Map the cairo surface onto the drawing area.
@@ -417,40 +424,130 @@ get_surface_placement( double *scale, int *offset_x, int *offset_y )
   *scale = s;
 }
 
-static void gtkdisplay_area(int x, int y, int width, int height)
+static void
+merge_dirty_areas( struct gtkdisplay_dirty_area *destination,
+                   const struct gtkdisplay_dirty_area *source )
 {
+  int right = destination->x + destination->width;
+  int bottom = destination->y + destination->height;
+  int source_right = source->x + source->width;
+  int source_bottom = source->y + source->height;
+
+  if( source->x < destination->x ) destination->x = source->x;
+  if( source->y < destination->y ) destination->y = source->y;
+  if( source_right > right ) right = source_right;
+  if( source_bottom > bottom ) bottom = source_bottom;
+
+  destination->width = right - destination->x;
+  destination->height = bottom - destination->y;
+}
+
+static void
+gtkdisplay_add_dirty_area( int x, int y, int width, int height )
+{
+  struct gtkdisplay_dirty_area area;
+  size_t i;
+
+  area.x = x; area.y = y; area.width = width; area.height = height;
+
+  /* Merge touching regions too. PAL TV expands every region to the full
+     scanline, so this prevents the same expanded line being scaled twice. */
+  for( i = 0; i < dirty_area_count; ) {
+    struct gtkdisplay_dirty_area *old = &dirty_areas[i];
+
+    if( area.x <= old->x + old->width && old->x <= area.x + area.width &&
+        area.y <= old->y + old->height && old->y <= area.y + area.height ) {
+      merge_dirty_areas( &area, old );
+      dirty_areas[i] = dirty_areas[ --dirty_area_count ];
+    } else {
+      i++;
+    }
+  }
+
+  if( dirty_area_count == DISPLAY_SCREEN_HEIGHT ) {
+    for( i = 0; i < dirty_area_count; i++ )
+      merge_dirty_areas( &area, &dirty_areas[i] );
+    dirty_area_count = 0;
+  }
+
+  dirty_areas[ dirty_area_count++ ] = area;
+}
+
+static void
+gtkdisplay_queue_dirty_areas( float surface_scale )
+{
+  cairo_region_t *region;
   int max_width, max_height;
   int offset_x, offset_y;
-  int wx, wy, ww, wh;
   double scale;
-
-  if( width <= 0 || height <= 0 ) return;
+  size_t i;
 
   if( !surface ) {
-    gtk_widget_queue_draw_area( gtkui_drawing_area, x, y, width, height );
+    gtk_widget_queue_draw( gtkui_drawing_area );
     return;
   }
 
   max_width = cairo_image_surface_get_width( surface );
   max_height = cairo_image_surface_get_height( surface );
-
-  /* Expand the invalidated area slightly to avoid thin seams on scaled GTK
-     redraws where Cairo clips right on a dirty-rect edge. */
-  if( x > 0 ) { x--; width++; }
-  if( y > 0 ) { y--; height++; }
-  if( x + width < max_width ) width++;
-  if( y + height < max_height ) height++;
-
-  /* Map the surface onto the drawing area */
   get_surface_placement( &scale, &offset_x, &offset_y );
+  region = cairo_region_create();
 
-  /* Adjust the values according to the scale factor */
-  wx = (int)( x * scale ) + offset_x;
-  wy = (int)( y * scale ) + offset_y;
-  ww = (int)( ceil( ( x + width  ) * scale ) ) - (int)( x * scale );
-  wh = (int)( ceil( ( y + height ) * scale ) ) - (int)( y * scale );
+  for( i = 0; i < dirty_area_count; i++ ) {
+    const struct gtkdisplay_dirty_area *area = &dirty_areas[i];
+    cairo_rectangle_int_t rectangle;
+    int x = surface_scale * area->x;
+    int y = surface_scale * area->y;
+    int width = surface_scale * area->width;
+    int height = surface_scale * area->height;
 
-  gtk_widget_queue_draw_area( gtkui_drawing_area, wx, wy, ww, wh );
+    /* Expand every component slightly to avoid thin seams where Cairo clips
+       on a dirty-rect edge after GTK scales the surface. */
+    if( x > 0 ) { x--; width++; }
+    if( y > 0 ) { y--; height++; }
+    if( x + width < max_width ) width++;
+    if( y + height < max_height ) height++;
+
+    rectangle.x = (int)( x * scale ) + offset_x;
+    rectangle.y = (int)( y * scale ) + offset_y;
+    rectangle.width = (int)( ceil( ( x + width ) * scale ) ) -
+                      (int)( x * scale );
+    rectangle.height = (int)( ceil( ( y + height ) * scale ) ) -
+                       (int)( y * scale );
+    cairo_region_union_rectangle( region, &rectangle );
+  }
+
+  gtk_widget_queue_draw_region( gtkui_drawing_area, region );
+  cairo_region_destroy( region );
+}
+
+static void
+gtkdisplay_scale_dirty_areas( void )
+{
+  float scale = scaler_get_scaling_factor( current_scaler );
+  size_t i;
+
+  if( !dirty_area_count ) return;
+
+  display_timing_scaler_begin();
+  for( i = 0; i < dirty_area_count; i++ ) {
+    const struct gtkdisplay_dirty_area *area = &dirty_areas[i];
+    int scaled_x = scale * area->x;
+    int scaled_y = scale * area->y;
+    scaler_proc32( &rgb_image[ ( area->y + 2 ) * rgb_pitch +
+                                4 * ( area->x + 1 ) ],
+                   rgb_pitch,
+                   &scaled_image[ scaled_y * scaled_pitch + 4 * scaled_x ],
+                   scaled_pitch, area->width, area->height );
+  }
+  display_timing_scaler_end();
+
+  /* Queue the completed frame once, retaining every disjoint dirty area so
+     conventional scalers do not repaint their bounding box unnecessarily. */
+  display_timing_presentation_begin();
+  gtkdisplay_queue_dirty_areas( scale );
+  display_timing_presentation_end();
+
+  dirty_area_count = 0;
 }
 
 int
@@ -570,6 +667,8 @@ gtkdisplay_draw( GtkWidget *widget GCC_UNUSED, cairo_t *cr,
   int offset_x, offset_y;
   double scale;
 
+  display_timing_paint_begin();
+
   /* Create a new surface for this gfx mode */
   if( !surface ) ensure_appropriate_surface();
 
@@ -593,6 +692,8 @@ gtkdisplay_draw( GtkWidget *widget GCC_UNUSED, cairo_t *cr,
                    cairo_image_surface_get_width( surface ),
                    cairo_image_surface_get_height( surface ) );
   cairo_fill( cr );
+
+  display_timing_paint_end();
 
   return FALSE;
 }

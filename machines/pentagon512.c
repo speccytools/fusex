@@ -42,7 +42,7 @@
 #include "spec128.h"
 #include "spec48.h"
 
-static int pentagon_reset( void );
+static int pentagon_reset( int hard_reset );
 static int pentagon_memory_map( void );
 
 int 
@@ -69,7 +69,7 @@ pentagon512_init( fuse_machine_info *machine )
 }
 
 static int
-pentagon_reset(void)
+pentagon_reset( int hard_reset )
 {
   int error;
 

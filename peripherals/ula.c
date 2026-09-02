@@ -201,8 +201,7 @@ ula_write( libspectrum_word port GCC_UNUSED, libspectrum_byte b )
   last_byte = b;
 
   display_set_lores_border( b & ULA_PORT_BORDER_BITS );
-  sound_beeper( tstates,
-                (!!(b & ULA_PORT_EAR_BIT) << 1) + ( (!(b & ULA_PORT_MIC_BIT)) | tape_microphone ) );
+  sound_ula( tstates, !( b & ULA_PORT_MIC_BIT ), !!( b & ULA_PORT_EAR_BIT ) );
 
   /* FIXME: shouldn't really be using the memory capabilities here */
 

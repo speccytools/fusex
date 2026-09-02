@@ -54,7 +54,7 @@ static module_info_t pentagon_module_info = {
 
 };
 
-static int pentagon_reset( void );
+static int pentagon_reset( int hard_reset );
 
 libspectrum_byte
 pentagon_select_1f_read( libspectrum_word port, libspectrum_byte *attached )
@@ -125,7 +125,7 @@ pentagon_init( fuse_machine_info *machine )
 }
 
 static int
-pentagon_reset(void)
+pentagon_reset( int hard_reset )
 {
   int error;
 

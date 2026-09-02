@@ -143,7 +143,6 @@ jobs:
           --build=i686-pc-cygwin \
           --host=i686-w64-mingw32 \
           --prefix=/usr/local/i686-w64-mingw32 \
-          --disable-static \
           --with-fake-glib \
           ${{ inputs.use_zlib == false && '--without-zlib' || '' }} \
           ${{ inputs.use_bzip2 == false && '--without-bzip2' || '' }} \

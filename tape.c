@@ -431,9 +431,15 @@ tape_load_trap( void )
     return -1;
   }
 
-  /* We don't properly handle the case of partial loading, so don't run
-     the traps in that situation */
-  if( libspectrum_tape_block_data_length( block ) != DE + 2 ) {
+  next_block = libspectrum_tape_peek_next_block( tape );
+
+  /* We don't properly handle loading only part of a block. Also fall
+     back to real tape playback if a short block is followed by a custom
+     block, as the following loader may depend on the tape pulse level. */
+  if( libspectrum_tape_block_data_length( block ) > DE + 2 ||
+      ( libspectrum_tape_block_data_length( block ) < DE + 2 &&
+        libspectrum_tape_block_type( next_block ) !=
+          LIBSPECTRUM_TAPE_BLOCK_ROM ) ) {
     tape_play( 1 );
     return -1;
   }
@@ -534,8 +540,11 @@ trap_load_block( libspectrum_tape_block *block )
 
   AF_ = 0x0145;
 
-  /* If the block ID byte != the flag byte, clear carry and return */
-  if( parity != i )
+  /* The ROM compares the block ID with the requested flag using XOR,
+     leaving the difference in A on a mismatch */
+  A = i;
+  XOR( parity );
+  if( A )
     goto error_ret;
 
   /* Now set L to the *last* byte in the block */
@@ -916,7 +925,7 @@ tape_next_edge( libspectrum_dword last_tstates, int from_acceleration )
     }
   }
 
-  sound_beeper( last_tstates, tape_microphone );
+  sound_tape( last_tstates );
 
   /* If we've been requested to stop the tape, do it on the next tape
      event so that this final edge (e.g. the embedded pause at the end

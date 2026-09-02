@@ -25,21 +25,29 @@
 
 #include "config.h"
 
+#include <fcntl.h>
+#include <math.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "libspectrum.h"
 
 #include "debugger/debugger.h"
+#include "display.h"
 #include "fuse.h"
 #include "keyboard.h"
 #include "machine.h"
+#include "memory_pages.h"
 #include "mempool.h"
 #include "periph.h"
+#include "peripherals/scld.h"
 #include "peripherals/disk/beta.h"
+#include "peripherals/disk/disk.h"
 #include "peripherals/disk/didaktik.h"
 #include "peripherals/disk/disciple.h"
 #include "peripherals/disk/opus.h"
 #include "peripherals/disk/plusd.h"
+#include "peripherals/dck.h"
 #include "peripherals/ide/divide.h"
 #include "peripherals/ide/divmmc.h"
 #include "peripherals/ide/zxatasp.h"
@@ -52,10 +60,16 @@
 #include "peripherals/ttx2000s.h"
 #include "peripherals/ula.h"
 #include "peripherals/usource.h"
+#include "pokefinder/pokefinder.h"
 #include "settings.h"
+#include "sound.h"
+#include "sound/speaker_filter.h"
+#include "sound/ula_filter.h"
 #include "snapshot.h"
+#include "tape.h"
 #include "bitmap.h"
 #include "rectangle.h"
+#include "compat.h"
 #include "ui/scaler/scaler.h"
 #include "unittests.h"
 #include "utils.h"
@@ -238,6 +252,201 @@ floating_bus_test( void )
 
 #define TEST_ASSERT(x) do { if( !(x) ) { printf("Test assertion failed at %s:%d: %s\n", __FILE__, __LINE__, #x ); return 1; } } while( 0 )
 
+static double
+speaker_filter_response( const speaker_filter_t *filter, double frequency,
+                         int sample_rate )
+{
+  double omega = 2.0 * 3.14159265358979323846 * frequency / sample_rate;
+  double cosine = cos( omega );
+  double sine = sin( omega );
+  double numerator_real = filter->b0 + filter->b1 * cosine +
+                          filter->b2 * cos( 2.0 * omega );
+  double numerator_imaginary = -filter->b1 * sine -
+                               filter->b2 * sin( 2.0 * omega );
+  double denominator_real = 1.0 + filter->a1 * cosine +
+                            filter->a2 * cos( 2.0 * omega );
+  double denominator_imaginary = -filter->a1 * sine -
+                                 filter->a2 * sin( 2.0 * omega );
+
+  return hypot( numerator_real, numerator_imaginary ) /
+         hypot( denominator_real, denominator_imaginary );
+}
+
+static int
+speaker_filter_test( void )
+{
+  static const int sample_rates[] = { 44100, 48000, 96000 };
+  speaker_filter_t filter;
+  double output[ 16 ];
+  int i, rate;
+
+  for( rate = 0; rate < ARRAY_SIZE( sample_rates ); rate++ ) {
+    TEST_ASSERT( !speaker_filter_configure( &filter, sample_rates[ rate ],
+                                            SPEAKER_FILTER_DEFAULT_FREQUENCY,
+                                            SPEAKER_FILTER_DEFAULT_Q ) );
+    TEST_ASSERT( isfinite( filter.b0 ) && isfinite( filter.b1 ) &&
+                 isfinite( filter.b2 ) && isfinite( filter.a1 ) &&
+                 isfinite( filter.a2 ) );
+    TEST_ASSERT( fabs( filter.b0 ) < 2.0 && fabs( filter.b1 ) < 2.0 &&
+                 fabs( filter.b2 ) < 2.0 && fabs( filter.a1 ) < 2.0 &&
+                 fabs( filter.a2 ) < 2.0 );
+
+    /* The digital response retains the intended acoustic high-pass shape at
+     * each supported host rate without an artificial HF roll-off. */
+    TEST_ASSERT( speaker_filter_response( &filter, 100.0,
+                                           sample_rates[ rate ] ) < 0.03 );
+    TEST_ASSERT( speaker_filter_response( &filter, 200.0,
+                                           sample_rates[ rate ] ) < 0.1 );
+    TEST_ASSERT( speaker_filter_response( &filter, 750.0,
+                                           sample_rates[ rate ] ) > 0.65 );
+    TEST_ASSERT( speaker_filter_response( &filter, 750.0,
+                                           sample_rates[ rate ] ) < 0.75 );
+    TEST_ASSERT( speaker_filter_response( &filter, 1000.0,
+                                           sample_rates[ rate ] ) > 0.8 );
+    TEST_ASSERT( speaker_filter_response( &filter, 2000.0,
+                                           sample_rates[ rate ] ) > 0.95 );
+    TEST_ASSERT( speaker_filter_response( &filter, 3200.0,
+                                           sample_rates[ rate ] ) > 0.98 );
+    TEST_ASSERT( speaker_filter_response( &filter, 6400.0,
+                                           sample_rates[ rate ] ) > 0.98 );
+  }
+
+  TEST_ASSERT( speaker_filter_configure( &filter, 48000, 0.0,
+                                         SPEAKER_FILTER_DEFAULT_Q ) );
+  TEST_ASSERT( speaker_filter_configure( &filter, 48000,
+                                         SPEAKER_FILTER_DEFAULT_FREQUENCY,
+                                         0.0 ) );
+
+  TEST_ASSERT( !speaker_filter_configure( &filter, 48000,
+                                          SPEAKER_FILTER_DEFAULT_FREQUENCY,
+                                          SPEAKER_FILTER_DEFAULT_Q ) );
+  for( i = 0; i < ARRAY_SIZE( output ); i++ )
+    output[ i ] = speaker_filter_apply( &filter, i == 0 ? 1.0 : 0.0 );
+  speaker_filter_reset( &filter );
+  for( i = 0; i < ARRAY_SIZE( output ); i++ )
+    TEST_ASSERT( output[ i ] == speaker_filter_apply( &filter,
+                                                       i == 0 ? 1.0 : 0.0 ) );
+
+  return 0;
+}
+
+static int
+ula_filter_test( void )
+{
+  static const int sample_rates[] = { 44100, 48000, 96000 };
+  static const double alpha_rise[] = { 0.4624040261175517,
+                                       0.43459915012074307,
+                                       0.24806858698465262 };
+  static const double alpha_fall[] = { 0.2805717781540314,
+                                       0.2610632971504549,
+                                       0.14038572438008856 };
+  static const double input[] = { 0.0, 12800.0, 12800.0, 0.0, 0.0 };
+  static const double expected[] = { 0.0, 3175.2779134035536,
+                                     5562.869121545511, 4781.921710285717,
+                                     4110.608167058385 };
+  ula_filter_t continuous, split, direction;
+  double continuous_output[ ARRAY_SIZE( input ) ];
+  double direction_state, expected_direction;
+  int i, rate;
+
+  TEST_ASSERT( ULA_FILTER_RISE_TAU == 36.53558495933805e-6 );
+  TEST_ASSERT( ULA_FILTER_FALL_TAU == 68.86073172982108e-6 );
+
+  for( rate = 0; rate < ARRAY_SIZE( sample_rates ); rate++ ) {
+    TEST_ASSERT( !ula_filter_configure( &continuous, sample_rates[ rate ] ) );
+    TEST_ASSERT( fabs( continuous.alpha_rise - alpha_rise[ rate ] ) < 1e-15 );
+    TEST_ASSERT( fabs( continuous.alpha_fall - alpha_fall[ rate ] ) < 1e-15 );
+  }
+  TEST_ASSERT( ula_filter_configure( &continuous, 0 ) );
+
+  TEST_ASSERT( !ula_filter_configure( &continuous, 96000 ) );
+  for( i = 0; i < ARRAY_SIZE( input ); i++ ) {
+    continuous_output[ i ] = ula_filter_apply( &continuous, input[ i ] );
+    TEST_ASSERT( fabs( continuous_output[ i ] - expected[ i ] ) < 1e-9 );
+  }
+
+  /* The first input initializes the stream exactly, as in the listening-test
+   * generator; reset must restore that same convention. */
+  ula_filter_reset( &continuous );
+  TEST_ASSERT( ula_filter_apply( &continuous, 1234.0 ) == 1234.0 );
+
+  TEST_ASSERT( !ula_filter_configure( &direction, 96000 ) );
+  ula_filter_apply( &direction, 0.0 );
+  TEST_ASSERT( fabs( ula_filter_apply( &direction, 100.0 ) -
+                     100.0 * direction.alpha_rise ) < 1e-14 );
+  ula_filter_reset( &direction );
+  ula_filter_apply( &direction, 100.0 );
+  TEST_ASSERT( fabs( ula_filter_apply( &direction, 0.0 ) -
+                     100.0 * ( 1.0 - direction.alpha_fall ) ) < 1e-14 );
+
+  /* This target fell from the prior input (100 to 90), but remains above the
+   * current state, so it must use the rise coefficient. */
+  ula_filter_reset( &direction );
+  ula_filter_apply( &direction, 0.0 );
+  direction_state = ula_filter_apply( &direction, 100.0 );
+  expected_direction = direction_state + direction.alpha_rise *
+                       ( 90.0 - direction_state );
+  TEST_ASSERT( fabs( ula_filter_apply( &direction, 90.0 ) -
+                     expected_direction ) < 1e-14 );
+
+  /* Persisting one state across arbitrary buffer boundaries must be identical
+   * to a single uninterrupted stream. */
+  TEST_ASSERT( !ula_filter_configure( &split, 96000 ) );
+  for( i = 0; i < 2; i++ )
+    TEST_ASSERT( ula_filter_apply( &split, input[ i ] ) == continuous_output[ i ] );
+  for( ; i < ARRAY_SIZE( input ); i++ )
+    TEST_ASSERT( ula_filter_apply( &split, input[ i ] ) == continuous_output[ i ] );
+
+  return 0;
+}
+
+static int
+ula_sound_levels_test( void )
+{
+  int mic_ampl, beeper_ampl;
+
+  sound_ula_levels( 0, 0, &mic_ampl, &beeper_ampl );
+  TEST_ASSERT( mic_ampl == 0 );
+  TEST_ASSERT( beeper_ampl == 0 );
+
+  sound_ula_levels( 1, 0, &mic_ampl, &beeper_ampl );
+  TEST_ASSERT( mic_ampl == SOUND_AMPL_TAPE );
+  TEST_ASSERT( beeper_ampl == 0 );
+
+  sound_ula_levels( 0, 1, &mic_ampl, &beeper_ampl );
+  TEST_ASSERT( mic_ampl == SOUND_AMPL_BEEPER );
+  TEST_ASSERT( beeper_ampl == SOUND_AMPL_BEEPER );
+
+  sound_ula_levels( 1, 1, &mic_ampl, &beeper_ampl );
+  TEST_ASSERT( mic_ampl == SOUND_AMPL_BEEPER + SOUND_AMPL_TAPE );
+  TEST_ASSERT( beeper_ampl == SOUND_AMPL_BEEPER + SOUND_AMPL_TAPE );
+  TEST_ASSERT( SOUND_AMPL_BEEPER / SOUND_AMPL_TAPE == 25 );
+
+  /* D3-only transitions alter the MIC path but not speaker drive. */
+  sound_ula_levels( 0, 0, &mic_ampl, &beeper_ampl );
+  TEST_ASSERT( mic_ampl == 0 && beeper_ampl == 0 );
+  sound_ula_levels( 1, 0, &mic_ampl, &beeper_ampl );
+  TEST_ASSERT( mic_ampl == SOUND_AMPL_TAPE && beeper_ampl == 0 );
+
+  /* D4-only and every mixed transition retain their distinct levels. */
+  sound_ula_levels( 0, 1, &mic_ampl, &beeper_ampl ); /* 00 -> 10 */
+  TEST_ASSERT( mic_ampl == SOUND_AMPL_BEEPER );
+  TEST_ASSERT( beeper_ampl == SOUND_AMPL_BEEPER );
+  sound_ula_levels( 1, 1, &mic_ampl, &beeper_ampl ); /* 10 -> 11 */
+  TEST_ASSERT( mic_ampl - SOUND_AMPL_BEEPER == SOUND_AMPL_TAPE );
+  TEST_ASSERT( beeper_ampl - SOUND_AMPL_BEEPER == SOUND_AMPL_TAPE );
+  sound_ula_levels( 1, 0, &mic_ampl, &beeper_ampl ); /* 11 -> 01 */
+  TEST_ASSERT( mic_ampl == SOUND_AMPL_TAPE && beeper_ampl == 0 );
+  sound_ula_levels( 0, 1, &mic_ampl, &beeper_ampl ); /* 01 -> 10 */
+  TEST_ASSERT( mic_ampl == SOUND_AMPL_BEEPER );
+  TEST_ASSERT( beeper_ampl == SOUND_AMPL_BEEPER );
+  sound_ula_levels( 1, 1, &mic_ampl, &beeper_ampl ); /* 10 -> 11 */
+  TEST_ASSERT( mic_ampl == SOUND_AMPL_BEEPER + SOUND_AMPL_TAPE );
+  TEST_ASSERT( beeper_ampl == SOUND_AMPL_BEEPER + SOUND_AMPL_TAPE );
+
+  return 0;
+}
+
 static int
 floating_bus_merge_test( void )
 {
@@ -357,6 +566,132 @@ snapshot_copy_from_releases_keyboard_test( void )
   TEST_ASSERT( libspectrum_snap_free( snap ) == 0 );
 
   return 0;
+}
+
+static int
+snapshot_custom_rom_is_replaced_by_soft_reset_test( void )
+{
+  static const libspectrum_machine machines[] = {
+    LIBSPECTRUM_MACHINE_16, LIBSPECTRUM_MACHINE_48,
+    LIBSPECTRUM_MACHINE_48_NTSC, LIBSPECTRUM_MACHINE_128,
+    LIBSPECTRUM_MACHINE_PLUS2, LIBSPECTRUM_MACHINE_PLUS2A,
+    LIBSPECTRUM_MACHINE_PLUS3, LIBSPECTRUM_MACHINE_PLUS3E,
+    LIBSPECTRUM_MACHINE_TC2048, LIBSPECTRUM_MACHINE_TC2068,
+    LIBSPECTRUM_MACHINE_TS2068, LIBSPECTRUM_MACHINE_SE,
+  };
+  libspectrum_machine old_machine = machine_current->machine;
+  size_t i;
+  int r = 0;
+
+  for( i = 0; i < ARRAY_SIZE( machines ); i++ ) {
+    libspectrum_snap *snap;
+    libspectrum_byte *rom;
+
+    if( machine_select( machines[ i ] ) ) { r++; continue; }
+
+    snap = libspectrum_snap_alloc();
+    if( !snap || snapshot_copy_to( snap ) ) { r++; continue; }
+
+    rom = libspectrum_new( libspectrum_byte, 0x4000 );
+    memset( rom, 0xa5, 0x4000 );
+    libspectrum_snap_set_custom_rom( snap, 1 );
+    libspectrum_snap_set_custom_rom_pages( snap, 1 );
+    libspectrum_snap_set_roms( snap, 0, rom );
+    libspectrum_snap_set_rom_length( snap, 0, 0x4000 );
+
+    if( snapshot_copy_from( snap ) || memory_map_rom[ 0 ].page[ 0 ] != 0xa5 ||
+        machine_reset( 0 ) || memory_map_rom[ 0 ].page[ 0 ] != 0xa5 ||
+        machine_reset( 1 ) || memory_map_rom[ 0 ].page[ 0 ] == 0xa5 ) r++;
+
+    if( libspectrum_snap_free( snap ) ) r++;
+  }
+
+  if( machine_select( old_machine ) ) r++;
+
+  return r;
+}
+
+static int
+slt_is_cleared_by_reset_test( void )
+{
+  libspectrum_snap *snap;
+  libspectrum_snap *result;
+  libspectrum_byte *data;
+  int r = 0;
+
+  snap = libspectrum_snap_alloc();
+  result = libspectrum_snap_alloc();
+  if( !snap || !result ) {
+    if( snap ) libspectrum_snap_free( snap );
+    if( result ) libspectrum_snap_free( result );
+    return 1;
+  }
+
+  if( snapshot_copy_to( snap ) ) r++;
+  data = libspectrum_new( libspectrum_byte, 1 );
+  data[ 0 ] = 0xa5;
+  libspectrum_snap_set_slt_length( snap, 0, 1 );
+  libspectrum_snap_set_slt( snap, 0, data );
+
+  if( snapshot_copy_from( snap ) || machine_reset( 0 ) ||
+      snapshot_copy_to( result ) || libspectrum_snap_slt_length( result, 0 ) )
+    r++;
+
+  if( libspectrum_snap_free( snap ) ) r++;
+  if( libspectrum_snap_free( result ) ) r++;
+
+  return r;
+}
+
+static int
+slt_screen_is_cleared_by_reset_test( void )
+{
+  libspectrum_snap *snap;
+  libspectrum_snap *result;
+  libspectrum_byte *screen;
+  int r = 0;
+
+  snap = libspectrum_snap_alloc();
+  result = libspectrum_snap_alloc();
+  if( !snap || !result ) {
+    if( snap ) libspectrum_snap_free( snap );
+    if( result ) libspectrum_snap_free( result );
+    return 1;
+  }
+
+  if( snapshot_copy_to( snap ) ) r++;
+  screen = libspectrum_new( libspectrum_byte, DISPLAY_FILE_SIZE );
+  memset( screen, 0xa5, DISPLAY_FILE_SIZE );
+  libspectrum_snap_set_slt_screen( snap, screen );
+  libspectrum_snap_set_slt_screen_level( snap, 1 );
+
+  if( snapshot_copy_from( snap ) || machine_reset( 0 ) ||
+      snapshot_copy_to( result ) ||
+      libspectrum_snap_slt_screen( result ) ||
+      libspectrum_snap_slt_screen_level( result ) )
+    r++;
+
+  if( libspectrum_snap_free( snap ) ) r++;
+  if( libspectrum_snap_free( result ) ) r++;
+
+  return r;
+}
+
+static int
+spec_se_dock_ram_reset_test( void )
+{
+  libspectrum_machine old_machine = machine_current->machine;
+  int r = 0;
+
+  if( machine_select( LIBSPECTRUM_MACHINE_SE ) ) return 1;
+
+  timex_dock[ 0 ].page[ 0 ] = 0xa5;
+  if( machine_reset( 0 ) || timex_dock[ 0 ].page[ 0 ] != 0xa5 ||
+      machine_reset( 1 ) || timex_dock[ 0 ].page[ 0 ] != 0 ) r++;
+
+  if( machine_select( old_machine ) ) r++;
+
+  return r;
 }
 
 static int
@@ -1346,6 +1681,424 @@ scaler_for_size_test( void )
     r++;
   }
 
+  /* --- AdvMAME family: ADVMAME2X fills 1x and 2x; ADVMAME3X fills 3x and 4x --- */
+  scaler_register_clear();
+  scaler_register( SCALER_ADVMAME2X );
+  scaler_register( SCALER_ADVMAME3X );
+
+  if( scaler_for_size( SCALER_ADVMAME2X, 1 ) != SCALER_ADVMAME2X ) {
+    printf( "scaler_for_size: advmame2x-at-1x: expected SCALER_ADVMAME2X\n" );
+    r++;
+  }
+  if( scaler_for_size( SCALER_ADVMAME2X, 2 ) != SCALER_ADVMAME2X ) {
+    printf( "scaler_for_size: advmame2x-at-2x: expected SCALER_ADVMAME2X\n" );
+    r++;
+  }
+  if( scaler_for_size( SCALER_ADVMAME2X, 3 ) != SCALER_ADVMAME3X ) {
+    printf( "scaler_for_size: advmame2x-at-3x: expected SCALER_ADVMAME3X\n" );
+    r++;
+  }
+  /* 4x maps to ADVMAME3X — the family has no distinct 4x scaler */
+  if( scaler_for_size( SCALER_ADVMAME2X, 4 ) != SCALER_ADVMAME3X ) {
+    printf( "scaler_for_size: advmame2x-at-4x: expected SCALER_ADVMAME3X\n" );
+    r++;
+  }
+  if( scaler_for_size( SCALER_ADVMAME3X, 2 ) != SCALER_ADVMAME2X ) {
+    printf( "scaler_for_size: advmame3x-at-2x: expected SCALER_ADVMAME2X\n" );
+    r++;
+  }
+
+  /* --- HQ family: HQ2X fills 1x and 2x; HQ3X at 3x; HQ4X at 4x --- */
+  scaler_register_clear();
+  scaler_register( SCALER_HQ2X );
+  scaler_register( SCALER_HQ3X );
+  scaler_register( SCALER_HQ4X );
+
+  if( scaler_for_size( SCALER_HQ2X, 1 ) != SCALER_HQ2X ) {
+    printf( "scaler_for_size: hq2x-at-1x: expected SCALER_HQ2X\n" );
+    r++;
+  }
+  if( scaler_for_size( SCALER_HQ2X, 2 ) != SCALER_HQ2X ) {
+    printf( "scaler_for_size: hq2x-at-2x: expected SCALER_HQ2X\n" );
+    r++;
+  }
+  if( scaler_for_size( SCALER_HQ2X, 3 ) != SCALER_HQ3X ) {
+    printf( "scaler_for_size: hq2x-at-3x: expected SCALER_HQ3X\n" );
+    r++;
+  }
+  if( scaler_for_size( SCALER_HQ2X, 4 ) != SCALER_HQ4X ) {
+    printf( "scaler_for_size: hq2x-at-4x: expected SCALER_HQ4X\n" );
+    r++;
+  }
+  if( scaler_for_size( SCALER_HQ4X, 1 ) != SCALER_HQ2X ) {
+    printf( "scaler_for_size: hq4x-at-1x: expected SCALER_HQ2X\n" );
+    r++;
+  }
+
+  return r;
+}
+
+static compat_file_vtable_t utils_file_previous_vtable;
+static const char *utils_file_test_path;
+static int utils_file_open_count;
+static int utils_file_read_count;
+static int utils_file_total_open_count;
+static int utils_file_total_read_count;
+
+static compat_fd
+utils_file_test_open( const char *path, int write )
+{
+  utils_file_total_open_count++;
+  if( !strcmp( path, utils_file_test_path ) ) utils_file_open_count++;
+  return utils_file_previous_vtable.open( path, write );
+}
+
+static int
+utils_file_test_read( compat_fd fd, utils_file *file )
+{
+  utils_file_total_read_count++;
+  if( file->filename && !strcmp( file->filename, utils_file_test_path ) )
+    utils_file_read_count++;
+  return utils_file_previous_vtable.read( fd, file );
+}
+
+static compat_fd
+utils_file_test_open_failure( const char *path GCC_UNUSED, int write GCC_UNUSED )
+{
+  return COMPAT_FILE_OPEN_FAILED;
+}
+
+static int
+utils_file_read_failure_test( void )
+{
+  compat_file_vtable_t vtable;
+  utils_file file;
+  int r = 0;
+
+  compat_file_get_vtable( &utils_file_previous_vtable );
+  vtable = utils_file_previous_vtable;
+  vtable.open = utils_file_test_open_failure;
+  compat_file_set_vtable( &vtable );
+  utils_file_init( &file, "missing" );
+  if( !utils_file_read( &file ) || file.buffer || file.length ) r++;
+  utils_file_free( &file );
+  compat_file_set_vtable( &utils_file_previous_vtable );
+  if( r ) printf( "utils_file_read_failure_test failed\n" );
+  return r;
+}
+
+static int
+utils_file_lifecycle_test( void )
+{
+  char filename[] = "/tmp/fuse-utils-file-XXXXXX";
+  compat_file_vtable_t vtable;
+  utils_file file;
+  unsigned char data[] = { 0x01, 0x00, 0x00 };
+  int fd, r = 0;
+
+  fd = mkstemp( filename );
+  if( fd < 0 || write( fd, data, sizeof( data ) ) != sizeof( data ) ) {
+    if( fd >= 0 ) close( fd );
+    unlink( filename );
+    printf( "utils_file_lifecycle_test: failed to create fixture\n" );
+    return 1;
+  }
+  close( fd );
+
+  compat_file_get_vtable( &utils_file_previous_vtable );
+  vtable = utils_file_previous_vtable;
+  vtable.open = utils_file_test_open;
+  vtable.read = utils_file_test_read;
+  utils_file_test_path = filename;
+  utils_file_open_count = utils_file_read_count = 0;
+  utils_file_total_open_count = utils_file_total_read_count = 0;
+  compat_file_set_vtable( &vtable );
+
+  utils_file_init( &file, filename );
+  if( utils_file_identify( &file ) || utils_file_identify( &file ) ||
+      utils_file_open_count != 1 || utils_file_read_count != 1 ) r++;
+
+  utils_file_free( &file );
+  if( file.filename || file.buffer || file.length ||
+      file.type != LIBSPECTRUM_ID_UNKNOWN ||
+      file.class != LIBSPECTRUM_CLASS_UNKNOWN ) r++;
+
+  compat_file_set_vtable( &utils_file_previous_vtable );
+  unlink( filename );
+  if( r ) printf( "utils_file_lifecycle_test failed\n" );
+  return r;
+}
+
+static int
+utils_open_loaded_file_test( void )
+{
+  compat_file_vtable_t vtable;
+  utils_file file;
+  static const unsigned char tap[] = { 0x01, 0x00, 0x00 };
+  const char *filename = "already-loaded.tap";
+  int r = 0;
+
+  compat_file_get_vtable( &utils_file_previous_vtable );
+  vtable = utils_file_previous_vtable;
+  vtable.open = utils_file_test_open;
+  vtable.read = utils_file_test_read;
+  utils_file_test_path = filename;
+  utils_file_open_count = utils_file_read_count = 0;
+  compat_file_set_vtable( &vtable );
+
+  utils_file_init( &file, filename );
+  file.buffer = libspectrum_new( unsigned char, sizeof( tap ) );
+  memcpy( file.buffer, tap, sizeof( tap ) );
+  file.length = sizeof( tap );
+  file.type = LIBSPECTRUM_ID_TAPE_TAP;
+  file.class = LIBSPECTRUM_CLASS_TAPE;
+
+  if( utils_open_loaded_file( &file, 0, NULL ) ||
+      utils_file_open_count || utils_file_read_count ) r++;
+
+  utils_file_free( &file );
+  tape_close();
+  compat_file_set_vtable( &utils_file_previous_vtable );
+  if( r ) printf( "utils_open_loaded_file_test failed\n" );
+  return r;
+}
+
+static int
+utils_open_loaded_if2_test( void )
+{
+  compat_file_vtable_t vtable;
+  utils_file file;
+  libspectrum_machine old_machine = machine_current->machine;
+  int old_interface2 = settings_current.interface2;
+  const char *filename = "already-loaded.rom";
+  int r = 0;
+
+  compat_file_get_vtable( &utils_file_previous_vtable );
+  vtable = utils_file_previous_vtable;
+  vtable.open = utils_file_test_open;
+  vtable.read = utils_file_test_read;
+  utils_file_test_path = filename;
+  utils_file_open_count = utils_file_read_count = 0;
+  compat_file_set_vtable( &vtable );
+
+  utils_file_init( &file, filename );
+  file.length = 0x4000;
+  file.buffer = libspectrum_new0( unsigned char, file.length );
+  if( machine_select( LIBSPECTRUM_MACHINE_48 ) ) r++;
+  settings_current.interface2 = 1;
+  periph_update();
+  if( if2_insert_loaded( &file ) || !if2_active ||
+      utils_file_open_count || utils_file_read_count ) r++;
+
+  if2_eject();
+  settings_current.interface2 = old_interface2;
+  if( machine_select( old_machine ) ) r++;
+  periph_update();
+  compat_file_set_vtable( &utils_file_previous_vtable );
+  utils_file_free( &file );
+  if( r ) printf( "utils_open_loaded_if2_test failed\n" );
+  return r;
+}
+
+static int
+utils_open_loaded_dck_test( void )
+{
+  compat_file_vtable_t vtable;
+  utils_file file;
+  libspectrum_machine old_machine = machine_current->machine;
+  const char *filename = "already-loaded.dck";
+  int r = 0;
+
+  compat_file_get_vtable( &utils_file_previous_vtable );
+  vtable = utils_file_previous_vtable;
+  vtable.open = utils_file_test_open;
+  vtable.read = utils_file_test_read;
+  utils_file_test_path = filename;
+  utils_file_open_count = utils_file_read_count = 0;
+  compat_file_set_vtable( &vtable );
+
+  utils_file_init( &file, filename );
+  file.length = 9; /* A valid DCK block: Dock bank with eight empty pages. */
+  file.buffer = libspectrum_new0( unsigned char, file.length );
+  file.buffer[ 0 ] = LIBSPECTRUM_DCK_BANK_DOCK;
+  if( machine_select( LIBSPECTRUM_MACHINE_TC2068 ) ||
+      dck_insert_loaded( &file ) || !dck_active ||
+      utils_file_open_count || utils_file_read_count ) r++;
+
+  dck_eject();
+  if( machine_select( old_machine ) ) r++;
+  compat_file_set_vtable( &utils_file_previous_vtable );
+  utils_file_free( &file );
+  if( r ) printf( "utils_open_loaded_dck_test failed\n" );
+  return r;
+}
+
+static int
+utils_open_loaded_microdrive_test( void )
+{
+  compat_file_vtable_t vtable;
+  utils_file file;
+  const char *filename = "lib/tests/success.mdr";
+  int r = 0;
+
+  if( utils_read_file( filename, &file ) ) {
+    printf( "utils_open_loaded_microdrive_test: failed to read fixture\n" );
+    return 1;
+  }
+
+  compat_file_get_vtable( &utils_file_previous_vtable );
+  vtable = utils_file_previous_vtable;
+  vtable.open = utils_file_test_open;
+  vtable.read = utils_file_test_read;
+  utils_file_test_path = filename;
+  utils_file_open_count = utils_file_read_count = 0;
+  compat_file_set_vtable( &vtable );
+
+  if( if1_mdr_insert_loaded( -1, &file ) ||
+      utils_file_open_count || utils_file_read_count ) r++;
+
+  if1_mdr_eject( 0 );
+  compat_file_set_vtable( &utils_file_previous_vtable );
+  utils_file_free( &file );
+  if( r ) printf( "utils_open_loaded_microdrive_test failed\n" );
+  return r;
+}
+
+static int
+utils_open_loaded_disk_test( void )
+{
+  compat_file_vtable_t vtable;
+  utils_file file;
+  disk_t disk;
+  const char *filename = "already-loaded.img";
+  int r = 0;
+
+  compat_file_get_vtable( &utils_file_previous_vtable );
+  vtable = utils_file_previous_vtable;
+  vtable.open = utils_file_test_open;
+  vtable.read = utils_file_test_read;
+  utils_file_test_path = filename;
+  utils_file_open_count = utils_file_read_count = 0;
+  compat_file_set_vtable( &vtable );
+
+  memset( &disk, 0, sizeof( disk ) );
+  utils_file_init( &file, filename );
+  file.length = 40 * 10 * 512;
+  file.buffer = libspectrum_new0( unsigned char, file.length );
+  if( disk_open_loaded( &disk, &file, 0, 0 ) != DISK_OK ||
+      utils_file_open_count || utils_file_read_count ) r++;
+
+  disk_close( &disk );
+  utils_file_free( &file );
+  compat_file_set_vtable( &utils_file_previous_vtable );
+  if( r ) printf( "utils_open_loaded_disk_test failed\n" );
+  return r;
+}
+
+static int
+utils_open_loaded_disk_merge_test( void )
+{
+  char temporary_path[] = "/tmp/fuse-disk-merge-XXXXXX";
+  char filename_a[ PATH_MAX ], filename_b[ PATH_MAX ];
+  compat_file_vtable_t vtable;
+  utils_file file;
+  disk_t disk;
+  unsigned char *data;
+  int fd, saved_ask_merge, r = 0;
+
+  /* mkdtemp is not provided by MinGW; use mkstemp to obtain a unique
+     filename prefix instead. */
+  fd = mkstemp( temporary_path );
+  if( fd < 0 ) return 1;
+  close( fd );
+  unlink( temporary_path );
+  snprintf( filename_a, sizeof( filename_a ), "%s Side A.img", temporary_path );
+  snprintf( filename_b, sizeof( filename_b ), "%s Side B.img", temporary_path );
+  data = libspectrum_new0( unsigned char, 40 * 10 * 512 );
+  fd = creat( filename_b, 0600 );
+  if( !data || fd < 0 || write( fd, data, 40 * 10 * 512 ) != 40 * 10 * 512 ) {
+    if( fd >= 0 ) close( fd );
+    libspectrum_free( data );
+    unlink( filename_b );
+    return 1;
+  }
+  close( fd );
+
+  compat_file_get_vtable( &utils_file_previous_vtable );
+  vtable = utils_file_previous_vtable;
+  vtable.open = utils_file_test_open;
+  vtable.read = utils_file_test_read;
+  utils_file_test_path = filename_a;
+  utils_file_open_count = utils_file_read_count = 0;
+  utils_file_total_open_count = utils_file_total_read_count = 0;
+  compat_file_set_vtable( &vtable );
+
+  memset( &disk, 0, sizeof( disk ) );
+  utils_file_init( &file, filename_a );
+  file.buffer = data;
+  file.length = 40 * 10 * 512;
+  saved_ask_merge = settings_current.disk_ask_merge;
+  settings_current.disk_ask_merge = 0;
+  if( disk_open_loaded( &disk, &file, 0, 1 ) != DISK_OK ||
+      utils_file_open_count || utils_file_read_count ||
+      utils_file_total_open_count != 1 || utils_file_total_read_count != 1 ) r++;
+  settings_current.disk_ask_merge = saved_ask_merge;
+
+  disk_close( &disk );
+  utils_file_free( &file );
+  compat_file_set_vtable( &utils_file_previous_vtable );
+  unlink( filename_b );
+  if( r ) printf( "utils_open_loaded_disk_merge_test failed\n" );
+  return r;
+}
+
+static FILE compat_file_test_file;
+static int compat_file_test_calls[ 6 ];
+
+static compat_fd compat_file_test_open( const char *path GCC_UNUSED,
+                                        int write GCC_UNUSED )
+{ compat_file_test_calls[ 0 ]++; return &compat_file_test_file; }
+static off_t compat_file_test_get_length( compat_fd fd GCC_UNUSED )
+{ compat_file_test_calls[ 1 ]++; return 42; }
+static int compat_file_test_read( compat_fd fd GCC_UNUSED,
+                                  utils_file *file GCC_UNUSED )
+{ compat_file_test_calls[ 2 ]++; return 0; }
+static int compat_file_test_write( compat_fd fd GCC_UNUSED,
+                                   const unsigned char *buffer GCC_UNUSED,
+                                   size_t length GCC_UNUSED )
+{ compat_file_test_calls[ 3 ]++; return 0; }
+static int compat_file_test_close( compat_fd fd GCC_UNUSED )
+{ compat_file_test_calls[ 4 ]++; return 0; }
+static int compat_file_test_exists( const char *path GCC_UNUSED )
+{ compat_file_test_calls[ 5 ]++; return 1; }
+
+static int
+compat_file_vtable_test( void )
+{
+  compat_file_vtable_t vtable = {
+    compat_file_test_open, compat_file_test_get_length, compat_file_test_read,
+    compat_file_test_write, compat_file_test_close, compat_file_test_exists
+  };
+  compat_file_vtable_t previous_vtable;
+  utils_file file;
+  unsigned char buffer = 0;
+  compat_fd fd;
+  int i, r = 0;
+
+  memset( compat_file_test_calls, 0, sizeof( compat_file_test_calls ) );
+  compat_file_get_vtable( &previous_vtable );
+  compat_file_set_vtable( &vtable );
+  vtable.open = NULL; /* The setter copies operations, like libspectrum's. */
+
+  fd = compat_file_open( "test", 0 );
+  if( fd != &compat_file_test_file || compat_file_get_length( fd ) != 42 ||
+      compat_file_read( fd, &file ) ||
+      compat_file_write( fd, &buffer, 1 ) || compat_file_close( fd ) ||
+      !compat_file_exists( "test" ) ) r++;
+
+  compat_file_set_vtable( &previous_vtable );
+  for( i = 0; i < 6; i++ ) if( compat_file_test_calls[ i ] != 1 ) r++;
+  if( r ) printf( "compat_file_vtable_test failed\n" );
   return r;
 }
 
@@ -1356,19 +2109,36 @@ unittests_run( void )
 
   r += contention_test();
   r += floating_bus_test();
+  r += speaker_filter_test();
+  r += ula_filter_test();
+  r += ula_sound_levels_test();
   r += floating_bus_merge_test();
   r += snapshot_copy_from_releases_keyboard_test();
+  r += snapshot_custom_rom_is_replaced_by_soft_reset_test();
+  r += slt_is_cleared_by_reset_test();
+  r += slt_screen_is_cleared_by_reset_test();
+  r += spec_se_dock_ram_reset_test();
   r += keyboard_read_test();
   r += keyboard_simulate_keypress_test();
   r += utils_safe_strdup_test();
   r += bitmap_ops_test();
   r += mempool_test();
   r += paging_test();
+  r += pokefinder_unittest();
   r += debugger_disassemble_unittest();
   r += debugger_expression_unittest();
   r += rectangle_test();
   r += rectangle_realloc_test();
   r += scaler_for_size_test();
+  r += compat_file_vtable_test();
+  r += utils_file_lifecycle_test();
+  r += utils_file_read_failure_test();
+  r += utils_open_loaded_file_test();
+  r += utils_open_loaded_if2_test();
+  r += utils_open_loaded_dck_test();
+  r += utils_open_loaded_microdrive_test();
+  r += utils_open_loaded_disk_test();
+  r += utils_open_loaded_disk_merge_test();
 
   printf("Final return value: %d (should be 0)\n", r);
 

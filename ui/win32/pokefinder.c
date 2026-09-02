@@ -271,6 +271,8 @@ menu_machine_pokefinder( int action GCC_UNUSED )
   } else {
     SetActiveWindow( fuse_hPFWnd );
   }
+
+  if( !pokefinder_is_allocated() ) pokefinder_clear();
   update_pokefinder();
 }
 
@@ -368,6 +370,8 @@ possible_click( LPNMITEMACTIVATE lpnmitem )
 void
 win32ui_pokefinder_clear( void )
 {
+  if( !pokefinder_is_allocated() ) return;
+
   pokefinder_clear();
   if( fuse_hPFWnd != NULL ) update_pokefinder();
 }

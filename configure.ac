@@ -20,12 +20,12 @@ dnl E-mail: philip-fuse@shadowmagic.org.uk
 
 dnl Package version (user-visible: tarballs, fuse --version, NSIS text).
 dnl Keep README, man/fuse.1 (.TH third field), metainfo.xml, and fusepb MARKETING_VERSION in sync.
-m4_define([fuse_version], [1.9.1-fusex-0.1])
+m4_define([fuse_version], [1.9.2-fusex-0.1])
 
 dnl Win32 FILEVERSION / NSIS VIProductVersion require four integers only; map fusex-0.1 -> fourth field 1.
 m4_define([fuse_major_version], [1])
 m4_define([fuse_minor_version], [9])
-m4_define([fuse_micro_version], [1])
+m4_define([fuse_micro_version], [2])
 m4_define([fuse_nano_version],  [1])
 m4_define([fuse_full_version], [fuse_major_version.fuse_minor_version.fuse_micro_version.fuse_nano_version])
 m4_define([fuse_rc_version], [fuse_major_version,fuse_minor_version,fuse_micro_version,fuse_nano_version])
@@ -130,7 +130,7 @@ if test "$prefix" != "NONE"; then
 fi)
 
 dnl Check that libspectrum is available and that it is new enough
-PKG_CHECK_MODULES([LIBSPECTRUM], [libspectrum >= 1.6.3])
+PKG_CHECK_MODULES([LIBSPECTRUM], [libspectrum >= 1.6.4])
 
 dnl Check if supplied libspectrum has its own internal GLib replacement
 AC_MSG_CHECKING(whether libspectrum has its own internal GLib replacement)

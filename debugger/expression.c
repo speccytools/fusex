@@ -1233,6 +1233,36 @@ debugger_expression_unittest( void )
       MEMPOOL_UNTRACKED ),
     "0x10 >> ( 0x4 >> 0x2 )", "deparse-rshift-non-assoc" );
 
+  /* Mixed associativity at equal precedence: '+' is associative, '-' is
+     non-associative, both have the same precedence.
+
+     a + (b - c): the right operand is '-' (non-associative), so it must be
+     bracketed even though the parent '+' is associative.  This exercises the
+     is_non_associative(bottom_op) branch of brackets_necessary(). */
+  r += deparse_test(
+    debugger_expression_new_binaryop( '+',
+      debugger_expression_new_number( 0xa, MEMPOOL_UNTRACKED ),
+      debugger_expression_new_binaryop( '-',
+        debugger_expression_new_number( 0xb, MEMPOOL_UNTRACKED ),
+        debugger_expression_new_number( 0xc, MEMPOOL_UNTRACKED ),
+        MEMPOOL_UNTRACKED ),
+      MEMPOOL_UNTRACKED ),
+    "0xa + ( 0xb - 0xc )", "deparse-sub-inside-add-right" );
+
+  /* (a + b) - c: the parent '-' is non-associative, so the left operand
+     '+' must be bracketed even though '+' itself is associative.  This
+     exercises the is_non_associative(top_op) branch of
+     brackets_necessary(). */
+  r += deparse_test(
+    debugger_expression_new_binaryop( '-',
+      debugger_expression_new_binaryop( '+',
+        debugger_expression_new_number( 0xa, MEMPOOL_UNTRACKED ),
+        debugger_expression_new_number( 0xb, MEMPOOL_UNTRACKED ),
+        MEMPOOL_UNTRACKED ),
+      debugger_expression_new_number( 0xc, MEMPOOL_UNTRACKED ),
+      MEMPOOL_UNTRACKED ),
+    "( 0xa + 0xb ) - 0xc", "deparse-add-inside-sub-left" );
+
   /* Cross-precedence: lower-precedence child is bracketed inside a
      higher-precedence parent (add inside mul) */
   r += deparse_test(

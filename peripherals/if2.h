@@ -31,8 +31,11 @@
 /* IF2 cart inserted? */
 extern int if2_active;
 
+struct utils_file;
+
 void if2_register_startup( void );
 int if2_insert( const char *filename );
+int if2_insert_loaded( const struct utils_file *file );
 void if2_eject( void );
 
 int if2_unittest( void );

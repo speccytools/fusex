@@ -59,6 +59,7 @@
 /* A 16KB memory chunk accessible by the Z80 when /ROMCS is low */
 memory_page beta_memory_map_romcs[MEMORY_PAGES_IN_16K];
 static int beta_memory_source;
+static memory_rom_bank beta_snapshot_rom;
 
 int beta_available = 0;
 int beta_active = 0;
@@ -211,7 +212,9 @@ beta_reset( int hard_reset GCC_UNUSED )
   wd_fdc_master_reset( beta_fdc );
 
   if( !beta_builtin ) {
-    if( machine_load_rom_bank( beta_memory_map_romcs, 0,
+    if( beta_snapshot_rom.data ) {
+      memory_rom_bank_map( &beta_snapshot_rom, beta_memory_map_romcs, 0 );
+    } else if( machine_load_rom_bank( beta_memory_map_romcs, 0,
 			       settings_current.rom_beta128,
 			       settings_default.rom_beta128, ROM_SIZE ) ) {
       beta_active = 0;
@@ -252,6 +255,7 @@ static void
 beta_end( void )
 {
   beta_available = 0;
+  memory_rom_bank_clear( &beta_snapshot_rom );
   libspectrum_free( beta_fdc );
 }
 
@@ -438,11 +442,13 @@ beta_from_snapshot( libspectrum_snap *snap )
 
   if( libspectrum_snap_beta_custom_rom( snap ) &&
       libspectrum_snap_beta_rom( snap, 0 ) &&
-      machine_load_rom_bank_from_buffer(
-                             beta_memory_map_romcs, 0,
-                             libspectrum_snap_beta_rom( snap, 0 ),
-                             ROM_SIZE, 1 ) )
+      memory_rom_bank_set( &beta_snapshot_rom,
+                           libspectrum_snap_beta_rom( snap, 0 ),
+                           ROM_SIZE, 1 ) )
     return;
+
+  if( beta_snapshot_rom.data )
+    memory_rom_bank_map( &beta_snapshot_rom, beta_memory_map_romcs, 0 );
 
   /* ignore drive count for now, there will be an issue with loading snaps where
      drives have been disabled
@@ -503,8 +509,53 @@ beta_to_snapshot( libspectrum_snap *snap )
 int
 beta_unittest( void )
 {
+  static const char rom_filename[] = "unittests-beta128.rom";
+  libspectrum_byte *test_rom;
+  libspectrum_snap *snap = NULL;
+  char *saved_rom = settings_current.rom_beta128;
   int r = 0;
+  int was_active = periph_is_active( PERIPH_TYPE_BETA128 );
 
+  if( beta_builtin ) goto paging_test;
+
+  test_rom = libspectrum_new0( libspectrum_byte, ROM_SIZE );
+  if( utils_write_file( rom_filename, test_rom, ROM_SIZE ) ) {
+    libspectrum_free( test_rom );
+    return 1;
+  }
+  libspectrum_free( test_rom );
+
+  settings_current.rom_beta128 = (char *)rom_filename;
+  if( !was_active )
+    periph_activate_type( PERIPH_TYPE_BETA128, 1 );
+
+  beta_reset( 1 );
+  if( !beta_available ) {
+    fprintf( stderr, "Beta 128 unavailable for unit test\n" );
+    r++;
+    goto cleanup;
+  }
+
+  snap = libspectrum_snap_alloc();
+  if( !snap ) {
+    fprintf( stderr, "Couldn't allocate Beta 128 unit test snapshot\n" );
+    r++;
+    goto cleanup;
+  }
+
+  test_rom = libspectrum_new( libspectrum_byte, ROM_SIZE );
+  memset( test_rom, 0xa5, ROM_SIZE );
+  libspectrum_snap_set_beta_active( snap, 1 );
+  libspectrum_snap_set_beta_custom_rom( snap, 1 );
+  libspectrum_snap_set_beta_rom( snap, 0, test_rom );
+  beta_from_snapshot( snap );
+
+  if( machine_reset( 0 ) || beta_memory_map_romcs[ 0 ].page[ 0 ] != 0xa5 ) {
+    fprintf( stderr, "Beta 128 snapshot ROM was not preserved by soft reset\n" );
+    r++;
+  }
+
+paging_test:
   beta_page();
 
   r += unittests_assert_16k_page( 0x0000, beta_memory_source, 0 );
@@ -515,6 +566,21 @@ beta_unittest( void )
   beta_unpage();
 
   r += unittests_paging_test_48( 2 );
+
+  if( beta_builtin ) return r;
+
+cleanup:
+  if( snap && libspectrum_snap_free( snap ) ) {
+    fprintf( stderr, "Couldn't free Beta 128 unit test snapshot\n" );
+    r++;
+  }
+  if( !was_active )
+    periph_activate_type( PERIPH_TYPE_BETA128, 0 );
+  settings_current.rom_beta128 = saved_rom;
+  if( remove( rom_filename ) ) {
+    fprintf( stderr, "Couldn't remove Beta 128 unit test ROM\n" );
+    r++;
+  }
 
   return r;
 }

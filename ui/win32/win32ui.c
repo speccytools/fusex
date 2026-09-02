@@ -42,6 +42,7 @@
 #include "tape.h"
 #include "timer/timer.h"
 #include "ui/ui.h"
+#include "ui/display_timing.h"
 #include "ui/win32/menu_data.h"
 #include "utils.h"
 #include "win32internals.h"
@@ -427,7 +428,9 @@ win32ui_make_menu( void )
 int
 ui_event( void )
 {
+  display_timing_input_begin();
   win32ui_process_messages( 1 );
+  display_timing_input_end();
 
   return 0;
 }

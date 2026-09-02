@@ -1,5 +1,5 @@
-/* spec48.h: Spectrum 48K specific routines
-   Copyright (c) 1999-2011 Philip Kendall
+/* ula_filter.h: ULA electrical/MIC output approximation
+   Copyright (c) 2026 Fredrick Meunier
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,24 +15,23 @@
    with this program; if not, write to the Free Software Foundation, Inc.,
    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-   Author contact information:
-
-   E-mail: philip-fuse@shadowmagic.org.uk
-
 */
 
-#ifndef FUSE_SPEC48_H
-#define FUSE_SPEC48_H
+#ifndef FUSE_ULA_FILTER_H
+#define FUSE_ULA_FILTER_H
 
-#include "libspectrum.h"
+/* Frozen listening-test candidate parameters; do not retune. */
+#define ULA_FILTER_RISE_TAU 36.53558495933805e-6
+#define ULA_FILTER_FALL_TAU 68.86073172982108e-6
 
-#include "machine.h"
+typedef struct ula_filter_tag {
+  double alpha_rise, alpha_fall;
+  double state;
+  int initialised;
+} ula_filter_t;
 
-int spec48_port_from_ula( libspectrum_word port );
+int ula_filter_configure( ula_filter_t *filter, int sample_rate );
+void ula_filter_reset( ula_filter_t *filter );
+double ula_filter_apply( ula_filter_t *filter, double input );
 
-int spec48_init( fuse_machine_info *machine );
-void spec48_common_display_setup( void );
-int spec48_common_reset( int hard_reset );
-int spec48_memory_map( void );
-
-#endif			/* #ifndef FUSE_SPEC48_H */
+#endif                  /* #ifndef FUSE_ULA_FILTER_H */

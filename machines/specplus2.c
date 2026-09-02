@@ -38,7 +38,7 @@
 
 /* The +2 emulation just uses the 128K routines */
 
-static int specplus2_reset( void );
+static int specplus2_reset( int hard_reset );
 
 int specplus2_init( fuse_machine_info *machine )
 {
@@ -63,7 +63,7 @@ int specplus2_init( fuse_machine_info *machine )
 }
 
 static int
-specplus2_reset( void )
+specplus2_reset( int hard_reset )
 {
   int error;
 
