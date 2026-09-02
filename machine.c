@@ -30,6 +30,7 @@
 #include "fuse.h"
 #include "infrastructure/startup_manager.h"
 #include "machine.h"
+#include "peripherals/sound/general_sound.h"
 #include "machines/machines.h"
 #include "machines/scorpion.h"
 #include "machines/spec128.h"
@@ -259,6 +260,7 @@ machine_select_machine( fuse_machine_info *machine )
   settings_set_string( &settings_current.start_machine, machine->id );
   
   tstates = 0;
+  general_sound_reanchor();
 
   /* Reset the event stack */
   event_reset();

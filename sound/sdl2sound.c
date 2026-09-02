@@ -160,7 +160,7 @@ sdl2write( void *userdata GCC_UNUSED, Uint8 *stream, int len )
   int f;
 
   len = MIN( len, sfifo_used( &sound_fifo ) );
-  len &= sound_stereo_ay ? 0xfffc : 0xfffe;
+  len &= sound_channels == 2 ? 0xfffc : 0xfffe;
 
   while( ( f = sfifo_read( &sound_fifo, stream, len ) ) > 0 ) {
     stream += f;

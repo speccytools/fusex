@@ -59,6 +59,14 @@ enum sound_speaker_type {
   SOUND_SPEAKER_TYPE_UNFILTERED
 };
 
+/* Whether the output has a right channel, as distinct from sound_stereo_ay,
+   which is the AY panning choice. */
+static int sound_stereo = 0;
+
+/* The layout sound_init asked the device for, which is not always the one
+   it got. */
+static int sound_stereo_wanted = 0;
+
 /* assume all three tone channels together match the beeper volume (ish).
  * Must be <=127 for all channels; 50+2+(24*3) = 124.
  * (Now scaled up for 16-bit.)
@@ -77,7 +85,7 @@ enum sound_speaker_type {
 
 int sound_framesiz;
 
-static int sound_channels;
+int sound_channels;
 
 static unsigned int ay_tone_levels[AY_ENV_STEPS];
 
@@ -122,6 +130,8 @@ static int ula_beeper_on;
 
 Blip_Synth *ay_a_synth = NULL, *ay_b_synth = NULL, *ay_c_synth = NULL;
 Blip_Synth *ay_a_synth_r = NULL, *ay_b_synth_r = NULL, *ay_c_synth_r = NULL;
+static Blip_Synth *left_generalsound_synth = NULL;
+static Blip_Synth *right_generalsound_synth = NULL;
 
 Blip_Synth *left_specdrum_synth = NULL, *right_specdrum_synth = NULL;
 
@@ -222,6 +232,25 @@ is_in_sound_enabled_range( void )
     settings_current.emulation_speed <= MAX_SPEED_PERCENTAGE;
 }
 
+/* Separating the AY channels needs a right channel, and so does General
+   Sound, whose four channels are split two per side. */
+static int
+stereo_needed( void )
+{
+  return option_enumerate_sound_stereo_ay() != SOUND_STEREO_AY_NONE ||
+         settings_current.general_sound;
+}
+
+/* Whether the running output layout still matches the settings. */
+int
+sound_layout_stale( void )
+{
+  if( !sound_enabled ) return 0;
+
+  return sound_stereo_wanted != stereo_needed() ||
+         sound_stereo_ay != option_enumerate_sound_stereo_ay();
+}
+
 void
 sound_init( const char *device )
 {
@@ -241,15 +270,19 @@ sound_init( const char *device )
 
   /* only try for stereo if we need it */
   sound_stereo_ay = option_enumerate_sound_stereo_ay();
+  sound_stereo = sound_stereo_wanted = stereo_needed();
 
   if( settings_current.sound &&
       sound_lowlevel_init( device, &settings_current.sound_freq,
-                           &sound_stereo_ay ) )
+                           &sound_stereo ) )
     return;
 
+  /* The device may not have given us a right channel, in which case the
+     AY channels cannot be separated either. */
+  if( !sound_stereo ) sound_stereo_ay = SOUND_STEREO_AY_NONE;
+
   if( !sound_init_buffer( &left_buf ) ) return;
-  if( sound_stereo_ay != SOUND_STEREO_AY_NONE &&
-      !sound_init_buffer( &right_buf ) )
+  if( sound_stereo && !sound_init_buffer( &right_buf ) )
     return;
   if( !sound_init_buffer( &ula_buf ) ) return;
 
@@ -275,6 +308,11 @@ sound_init( const char *device )
                          sound_get_volume( settings_current.volume_specdrum ) );
   blip_synth_set_output( left_specdrum_synth, left_buf );
   blip_synth_set_treble_eq( left_specdrum_synth, 0.0 );
+
+  left_generalsound_synth = new_Blip_Synth();
+  blip_synth_set_volume( left_generalsound_synth, sound_get_volume( 100 ) );
+  blip_synth_set_output( left_generalsound_synth, left_buf );
+  blip_synth_set_treble_eq( left_generalsound_synth, 0.0 );
 
   left_covox_synth = new_Blip_Synth();
   blip_synth_set_volume( left_covox_synth,
@@ -325,12 +363,45 @@ sound_init( const char *device )
                            sound_get_volume( settings_current.volume_ay ) );
     blip_synth_set_output( *ay_mid_synth_r, right_buf );
     blip_synth_set_treble_eq( *ay_mid_synth_r, 0.0 );
+  } else {
+    /* No separation: the AY sits in the middle, which needs a second set
+       of synths on the right when there is one. */
+    blip_synth_set_output( ay_a_synth, left_buf );
+    blip_synth_set_output( ay_b_synth, left_buf );
+    blip_synth_set_output( ay_c_synth, left_buf );
 
+    if( sound_stereo ) {
+      ay_a_synth_r = new_Blip_Synth();
+      blip_synth_set_volume( ay_a_synth_r,
+                             sound_get_volume( settings_current.volume_ay ) );
+      blip_synth_set_output( ay_a_synth_r, right_buf );
+      blip_synth_set_treble_eq( ay_a_synth_r, 0.0 );
+
+      ay_b_synth_r = new_Blip_Synth();
+      blip_synth_set_volume( ay_b_synth_r,
+                             sound_get_volume( settings_current.volume_ay ) );
+      blip_synth_set_output( ay_b_synth_r, right_buf );
+      blip_synth_set_treble_eq( ay_b_synth_r, 0.0 );
+
+      ay_c_synth_r = new_Blip_Synth();
+      blip_synth_set_volume( ay_c_synth_r,
+                             sound_get_volume( settings_current.volume_ay ) );
+      blip_synth_set_output( ay_c_synth_r, right_buf );
+      blip_synth_set_treble_eq( ay_c_synth_r, 0.0 );
+    }
+  }
+
+  if( sound_stereo ) {
     right_specdrum_synth = new_Blip_Synth();
     blip_synth_set_volume( right_specdrum_synth,
                            sound_get_volume( settings_current.volume_specdrum ) );
     blip_synth_set_output( right_specdrum_synth, right_buf );
     blip_synth_set_treble_eq( right_specdrum_synth, 0.0 );
+
+    right_generalsound_synth = new_Blip_Synth();
+    blip_synth_set_volume( right_generalsound_synth, sound_get_volume( 100 ) );
+    blip_synth_set_output( right_generalsound_synth, right_buf );
+    blip_synth_set_treble_eq( right_generalsound_synth, 0.0 );
 
     right_covox_synth = new_Blip_Synth();
     blip_synth_set_volume( right_covox_synth,
@@ -343,10 +414,6 @@ sound_init( const char *device )
                            sound_get_volume( settings_current.volume_uspeech ) );
     blip_synth_set_output( right_sp0256_synth, right_buf );
     blip_synth_set_treble_eq( right_sp0256_synth, 0.0 );
-  } else {
-    blip_synth_set_output( ay_a_synth, left_buf );
-    blip_synth_set_output( ay_b_synth, left_buf );
-    blip_synth_set_output( ay_c_synth, left_buf );
   }
 
   sound_enabled = sound_enabled_ever = 1;
@@ -363,7 +430,7 @@ sound_init( const char *device )
   ula_filter_speaker_type = -1;
   ula_synth_speaker_type = -1;
 
-  sound_channels = ( sound_stereo_ay != SOUND_STEREO_AY_NONE ? 2 : 1 );
+  sound_channels = sound_stereo ? 2 : 1;
 
   /* Adjust relative processor speed to deal with adjusting sound generation
      frequency against emulation speed (more flexible than adjusting generated
@@ -378,7 +445,7 @@ sound_init( const char *device )
   samples = libspectrum_new0( blip_sample_t, sound_framesiz * sound_channels );
   ula_samples = libspectrum_new0( blip_sample_t, sound_framesiz );
   /* initialize movie settings... */
-  movie_init_sound( settings_current.sound_freq, sound_stereo_ay );
+  movie_init_sound( settings_current.sound_freq, sound_stereo );
 
 }
 
@@ -414,6 +481,9 @@ sound_end( void )
 
     delete_Blip_Synth( &left_specdrum_synth );
     delete_Blip_Synth( &right_specdrum_synth );
+
+    delete_Blip_Synth( &left_generalsound_synth );
+    delete_Blip_Synth( &right_generalsound_synth );
 
     delete_Blip_Synth( &left_covox_synth );
     delete_Blip_Synth( &right_covox_synth );
@@ -723,6 +793,27 @@ sound_specdrum_write( libspectrum_word port GCC_UNUSED, libspectrum_byte val )
 }
 
 /*
+ * sound_generalsound_write - the card mixes its own channels, so this
+ * takes a stereo pair already summed and placed in time
+ */
+void
+sound_generalsound_write( libspectrum_dword at_tstates, int left, int right )
+{
+  if( !sound_enabled ) return;
+
+  if( !right_generalsound_synth ) {
+    /* Each side already carries the other's channels at half level, so
+       their average holds every channel at equal weight. */
+    blip_synth_update( left_generalsound_synth, at_tstates,
+		       ( left + right ) / 2 );
+    return;
+  }
+
+  blip_synth_update( left_generalsound_synth, at_tstates, left );
+  blip_synth_update( right_generalsound_synth, at_tstates, right );
+}
+
+/*
  * sound_covox_write - very simple routine
  * as the output is already a digitized waveform
  */
@@ -841,7 +932,7 @@ sound_frame( void )
   blip_buffer_end_frame( left_buf, machine_current->timings.tstates_per_frame );
   blip_buffer_end_frame( ula_buf, machine_current->timings.tstates_per_frame );
 
-  if( sound_stereo_ay != SOUND_STEREO_AY_NONE ) {
+  if( sound_stereo ) {
     blip_buffer_end_frame( right_buf, machine_current->timings.tstates_per_frame );
 
     /* Read left channel into even samples, right channel into odd samples:

@@ -31,6 +31,7 @@
 #include "machine.h"
 #include "memory_pages.h"
 #include "module.h"
+#include "peripherals/sound/general_sound.h"
 #include "settings.h"
 #include "snapshot.h"
 #include "ui/ui.h"
@@ -107,6 +108,11 @@ snapshot_copy_from( libspectrum_snap *snap )
   keyboard_release_all();
 
   module_snapshot_from( snap );
+
+  /* The snapshot carries the host's T-state count, which a module has just
+     restored. The General Sound card runs on an origin measured against
+     that count, so it needs the new one. */
+  general_sound_reanchor();
 
   /* Need to reset memory_map_[read|write] after all modules have had a turn
      initialising from the snapshot */

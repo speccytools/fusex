@@ -91,6 +91,7 @@ static Emulator *instance = nil;
     settings_current.rom_beta128,
     settings_current.rom_didaktik80,
     settings_current.rom_disciple,
+    settings_current.rom_general_sound,
     settings_current.rom_interface1,
     settings_current.rom_multiface1,
     settings_current.rom_multiface128,
@@ -272,7 +273,7 @@ static Emulator *instance = nil;
     /* emulate until fifo is full or it takes more than a frames-worth of
        time to do a frame because we will never catch up */
     while( ( sfifo_space( &sound_fifo ) >=
-             ((sound_stereo_ay != SOUND_STEREO_AY_NONE)+1) * 2 * sound_framesiz ) && !too_long ) {
+             sound_channels * 2 * sound_framesiz ) && !too_long ) {
       CFTimeInterval startTime = CFAbsoluteTimeGetCurrent();
       spectrum_do_frame();
       CFTimeInterval endTime = CFAbsoluteTimeGetCurrent();

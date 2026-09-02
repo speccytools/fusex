@@ -18,6 +18,7 @@
 		58ED2BB163960C572FE0F3E3 /* pzx.icns in Resources */ = {isa = PBXBuildFile; fileRef = 23103D2BCD71D4B9DEC65FCF /* pzx.icns */; };
 		652334C79C3C45C66BE3C10B /* 256s-1.rom in Resources */ = {isa = PBXBuildFile; fileRef = BE0CE3A70B709644584824ED /* 256s-1.rom */; };
 		6616B2D62512C764FFAC046E /* trdos.rom in Resources */ = {isa = PBXBuildFile; fileRef = 34AD35B155C536CA1C00E688 /* trdos.rom */; };
+		B6E1F1AD14F653FB00600EC3 /* gs.rom in Resources */ = {isa = PBXBuildFile; fileRef = B6E1F1A914F653FB00600EC3 /* gs.rom */; };
 		6823C0379589DBCFCE58368B /* 128p-1.rom in Resources */ = {isa = PBXBuildFile; fileRef = 182AC5F263F0617717FE0914 /* 128p-1.rom */; };
 		70561DA4F03E4F3DA5B85553 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EAA54F20E902456BACB24998 /* MetalKit.framework */; };
 		70C4AAF3348BCAAF406ABD72 /* fdi.icns in Resources */ = {isa = PBXBuildFile; fileRef = 0434807795A36A2ADBE801FD /* fdi.icns */; };
@@ -294,6 +295,8 @@
 		B6E1F1A514F653CE00600EB0 /* machines_periph.c in Sources */ = {isa = PBXBuildFile; fileRef = B6E1F1A314F653CE00600EB0 /* machines_periph.c */; };
 		B6E1F1AB14F653FB00600EB0 /* speccyboot.c in Sources */ = {isa = PBXBuildFile; fileRef = B6E1F1A714F653FB00600EB0 /* speccyboot.c */; };
 		B6E1F1AD14F653FB00600EB0 /* specdrum.c in Sources */ = {isa = PBXBuildFile; fileRef = B6E1F1A914F653FB00600EB0 /* specdrum.c */; };
+		B6E1F1AD14F653FB00600EC1 /* general_sound.c in Sources */ = {isa = PBXBuildFile; fileRef = B6E1F1A914F653FB00600EC1 /* general_sound.c */; };
+		B6E1F1AD14F653FB00600EC2 /* gs_z80.c in Sources */ = {isa = PBXBuildFile; fileRef = B6E1F1A914F653FB00600EC2 /* gs_z80.c */; };
 		B6E1F1B114F6555400600EB0 /* disciple.c in Sources */ = {isa = PBXBuildFile; fileRef = B6E1F1AF14F6555400600EB0 /* disciple.c */; };
 		B6E1F26E14F85BD500600EB0 /* speccyboot-1.4.rom in Resources */ = {isa = PBXBuildFile; fileRef = B6E1F26D14F85BD500600EB0 /* speccyboot-1.4.rom */; };
 		B6F0480F0952B597006D8005 /* dck.icns in Resources */ = {isa = PBXBuildFile; fileRef = B6F0480E0952B597006D8005 /* dck.icns */; };
@@ -498,6 +501,7 @@
 		29B97325FDCFA39411CA2CEA /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = /System/Library/Frameworks/Foundation.framework; sourceTree = "<absolute>"; };
 		2BDC12F02C4E48F98494D156 /* DisplayShaders.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = DisplayShaders.metal; sourceTree = "<group>"; };
 		34AD35B155C536CA1C00E688 /* trdos.rom */ = {isa = PBXFileReference; lastKnownFileType = file; name = trdos.rom; path = ../roms/trdos.rom; sourceTree = SOURCE_ROOT; };
+		B6E1F1A914F653FB00600EC3 /* gs.rom */ = {isa = PBXFileReference; lastKnownFileType = file; name = gs.rom; path = ../roms/gs.rom; sourceTree = SOURCE_ROOT; };
 		384001994B177FFEB8AE6C99 /* udi.icns */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.icns; name = udi.icns; path = resources/udi.icns; sourceTree = SOURCE_ROOT; };
 		3B061F2A9CBA3011FBE7A640 /* d80.icns */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.icns; name = d80.icns; path = resources/d80.icns; sourceTree = SOURCE_ROOT; };
 		6B9DA7F77DF8F6DD5023E33A /* spc.icns */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.icns; name = spc.icns; path = resources/spc.icns; sourceTree = SOURCE_ROOT; };
@@ -821,6 +825,10 @@
 		B6E1F1A814F653FB00600EB0 /* speccyboot.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = speccyboot.h; sourceTree = "<group>"; };
 		B6E1F1A914F653FB00600EB0 /* specdrum.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = specdrum.c; path = sound/specdrum.c; sourceTree = "<group>"; };
 		B6E1F1AA14F653FB00600EB0 /* specdrum.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = specdrum.h; path = sound/specdrum.h; sourceTree = "<group>"; };
+		B6E1F1A914F653FB00600EC1 /* general_sound.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = general_sound.c; path = sound/general_sound.c; sourceTree = "<group>"; };
+		B6E1F1AA14F653FB00600EC1 /* general_sound.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = general_sound.h; path = sound/general_sound.h; sourceTree = "<group>"; };
+		B6E1F1A914F653FB00600EC2 /* gs_z80.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = gs_z80.c; path = sound/gs_z80.c; sourceTree = "<group>"; };
+		B6E1F1AA14F653FB00600EC2 /* gs_z80.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = gs_z80.h; path = sound/gs_z80.h; sourceTree = "<group>"; };
 		B6E1F1AF14F6555400600EB0 /* disciple.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = disciple.c; sourceTree = "<group>"; };
 		B6E1F1B014F6555400600EB0 /* disciple.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = disciple.h; sourceTree = "<group>"; };
 		B6E1F26D14F85BD500600EB0 /* speccyboot-1.4.rom */ = {isa = PBXFileReference; lastKnownFileType = file; name = "speccyboot-1.4.rom"; path = "../roms/speccyboot-1.4.rom"; sourceTree = "<group>"; };
@@ -1701,6 +1709,10 @@
 				B6E1F1A814F653FB00600EB0 /* speccyboot.h */,
 				B6E1F1A914F653FB00600EB0 /* specdrum.c */,
 				B6E1F1AA14F653FB00600EB0 /* specdrum.h */,
+				B6E1F1A914F653FB00600EC1 /* general_sound.c */,
+				B6E1F1AA14F653FB00600EC1 /* general_sound.h */,
+				B6E1F1A914F653FB00600EC2 /* gs_z80.c */,
+				B6E1F1AA14F653FB00600EC2 /* gs_z80.h */,
 				FE9900020000000000000002 /* sp0256.c */,
 				FE9900030000000000000003 /* sp0256.h */,
 				FE9900050000000000000005 /* uspeech.c */,
@@ -1768,6 +1780,7 @@
 			children = (
 				FE3FF184294F1220009F571F /* spectranet.rom */,
 				F559854D0389212301A804BA /* 128-0.rom */,
+				B6E1F1A914F653FB00600EC3 /* gs.rom */,
 				F559854E0389212301A804BA /* 128-1.rom */,
 				F559854C0389212301A804BA /* 48.rom */,
 				B69A00411723B8F300FF201C /* disciple.rom */,
@@ -2083,6 +2096,7 @@
 				BAE50FF21E9FEF6A73AC6175 /* 256s-3.rom in Resources */,
 				9E7F68EF45D46C79F66004E9 /* gluck.rom in Resources */,
 				6616B2D62512C764FFAC046E /* trdos.rom in Resources */,
+				B6E1F1AD14F653FB00600EC3 /* gs.rom in Resources */,
 				B61F461709121DF100C8096C /* plus2-0.rom in Resources */,
 				D1DF6DD826F8077F004A4AB7 /* debug.png in Resources */,
 				B61F461809121DF100C8096C /* plus2-1.rom in Resources */,
@@ -2425,6 +2439,8 @@
 				B6E1F1AB14F653FB00600EB0 /* speccyboot.c in Sources */,
 				FE981C372FA55F84005FE59F /* gdbserver_remote_commands.c in Sources */,
 				B6E1F1AD14F653FB00600EB0 /* specdrum.c in Sources */,
+				B6E1F1AD14F653FB00600EC1 /* general_sound.c in Sources */,
+				B6E1F1AD14F653FB00600EC2 /* gs_z80.c in Sources */,
 				FE9900010000000000000001 /* sp0256.c in Sources */,
 				FE9900040000000000000004 /* uspeech.c in Sources */,
 				B6E1F1B114F6555400600EB0 /* disciple.c in Sources */,

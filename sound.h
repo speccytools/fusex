@@ -37,9 +37,12 @@ void sound_ay_write( int reg, int val, libspectrum_dword now );
 void sound_ay_reset( void );
 void sound_specdrum_write( libspectrum_word port, libspectrum_byte val );
 void sound_covox_write( libspectrum_word port, libspectrum_byte val );
+void sound_generalsound_write( libspectrum_dword at_tstates, int left,
+                               int right );
 void sound_sp0256_write( libspectrum_dword at_tstates,
                          libspectrum_signed_word val );
 void sound_frame( void );
+int sound_layout_stale( void );
 #define SOUND_AMPL_BEEPER ( 50 * 256 )
 #define SOUND_AMPL_TAPE   ( 2 * 256 )
 
@@ -75,6 +78,10 @@ extern int sound_framesiz;
 #define SOUND_STEREO_AY_ABC	2
 
 extern int sound_stereo_ay;
+
+/* Channels in the output stream: General Sound needs two whether or not
+   the AY channels are being separated. */
+extern int sound_channels;
 
 /* The low-level sound interface */
 

@@ -41,6 +41,7 @@
 #include "movie.h"
 #include "peripherals/ula.h"
 #include "rzx.h"
+#include "peripherals/sound/general_sound.h"
 #include "settings.h"
 #include "snapshot.h"
 #include "timer/timer.h"
@@ -367,6 +368,7 @@ start_playback( libspectrum_rzx *from_rzx )
 
   sentinel_warning = 0;
   tstates = libspectrum_rzx_tstates( from_rzx );
+  general_sound_reanchor();
   rzx_instruction_count = libspectrum_rzx_instructions( from_rzx );
   rzx_playback = 1;
   counter_reset();
@@ -412,6 +414,8 @@ int rzx_stop_playback( int add_interrupt )
     tstates = machine_current->timings.tstates_per_frame;
 
   }
+
+  general_sound_reanchor();
 
   libspec_error = libspectrum_rzx_free( rzx );
   if( libspec_error != LIBSPECTRUM_ERROR_NONE ) return libspec_error;
@@ -881,6 +885,8 @@ rzx_sentinel( libspectrum_dword ts GCC_UNUSED, int type GCC_UNUSED,
               RZX_SENTINEL_TIME );
     sentinel_warning = 1;
   }
+
+  general_sound_frame( RZX_SENTINEL_TIME_REDUCE );
 
   tstates -= RZX_SENTINEL_TIME_REDUCE;
   z80.interrupts_enabled_at -= RZX_SENTINEL_TIME_REDUCE;

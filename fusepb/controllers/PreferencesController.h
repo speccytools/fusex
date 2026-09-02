@@ -58,6 +58,7 @@
   NSArray *diskTryMerge;
   NSArray *movieCompression;
   NSArray *phantomTypistMode;
+  NSArray *generalSoundRam;
 }
 + (void)initialize;
 
@@ -75,6 +76,7 @@
 - (IBAction)resetUserDefaults:(id)sender;
 - (IBAction)massStorageTypeClicked:(id)sender;
 - (IBAction)externalSoundTypeClicked:(id)sender;
+- (IBAction)chooseGeneralSoundROM:(id)sender;
 - (IBAction)multifaceTypeClicked:(id)sender;
 - (IBAction)selectPrefPanel:(id)item;
 - (NSArray *)toolbarSelectableItemIdentifiers:(NSToolbar *)bar;

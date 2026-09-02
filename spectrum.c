@@ -37,6 +37,7 @@
 #include "memory_pages.h"
 #include "module.h"
 #include "peripherals/printer.h"
+#include "peripherals/sound/general_sound.h"
 #include "peripherals/ula.h"
 #include "phantom_typist.h"
 #include "psg.h"
@@ -154,6 +155,8 @@ spectrum_frame( void )
      occurring */
   frame_length = rzx_playback ? tstates
 			      : machine_current->timings.tstates_per_frame;
+
+  general_sound_frame( frame_length );
 
   event_frame( frame_length );
   debugger_breakpoint_reduce_tstates( frame_length );
