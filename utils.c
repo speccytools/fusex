@@ -538,8 +538,12 @@ utils_save_binary( libspectrum_word start, size_t length,
 void
 utils_networking_init( void )
 {
+#ifdef HAVE_SOCKETS
+
   if( !networking_init_count )
     compat_socket_networking_init();
+
+#endif
 
   networking_init_count++;
 }
@@ -549,7 +553,10 @@ utils_networking_end( void )
 {
   networking_init_count--;
 
+#ifdef HAVE_SOCKETS
+
   if( !networking_init_count )
     compat_socket_networking_end();
-}
 
+#endif
+}

@@ -790,6 +790,25 @@ case "$host_os" in
 esac
 fi
 AM_CONDITIONAL(HAVE_SOCKETS, test "$sockets" = yes)
+
+dnl See if the GDB server is requested
+AC_MSG_CHECKING([whether GDB server support requested])
+AC_ARG_ENABLE(gdbserver,
+AS_HELP_STRING([--disable-gdbserver], [do not build the GDB server]),
+if test "$enableval" = yes; then gdbserver=yes; else gdbserver=no; fi,
+gdbserver=yes)
+if test "$sockets" != yes; then
+  if test "$gdbserver" = yes; then
+    AC_MSG_WARN([GDB server support disabled because sockets are unavailable])
+  fi
+  gdbserver=no
+fi
+AC_MSG_RESULT($gdbserver)
+AM_CONDITIONAL(BUILD_GDBSERVER, test "$gdbserver" = yes)
+if test "$gdbserver" = yes; then
+  AC_DEFINE([BUILD_GDBSERVER], 1, [Defined if we support the GDB server])
+fi
+
 if test "$sockets" = yes; then
   build_ttx2000s=yes
   AC_DEFINE([BUILD_TTX2000S], 1, [Defined if we support ttx2000s])
@@ -1069,6 +1088,7 @@ echo "libxml2 support: ${libxml2}"
 echo "libpng support: ${libpng}"
 echo "Available audio drivers: ${audio_driver_list}"
 echo "Selected audio driver: ${audio_driver}"
+echo "GDB server support: ${gdbserver}"
 echo "Spectranet support: ${build_spectranet}"
 echo "SpeccyBoot support: ${linux_tap:-no}"
 echo "TTX2000 S support: ${build_ttx2000s}"
