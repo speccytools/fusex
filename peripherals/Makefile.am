@@ -95,6 +95,7 @@ fuse_SOURCES += \
                 peripherals/fs/ramfs.c \
                 peripherals/fs/xfs_https.c \
                 peripherals/fs/xfs_https_compat.c \
+                peripherals/fs/xfs_sftp.c \
                 peripherals/http/httpc.c \
                 peripherals/http/http_sck.c \
                 peripherals/security/tls.c \

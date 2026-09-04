@@ -153,7 +153,8 @@ int vfile_ext_ensure_mounted(struct xfs_engine_mount_t* mount)
     if (mount->mount_data == NULL)
     {
         // Mount the RAM engine with hostname "ram" and path "/"
-        const int16_t mount_result = xfs_ram_engine.mount(&xfs_ram_engine, "ram", "/", mount);
+        const int16_t mount_result = xfs_ram_engine.mount(&xfs_ram_engine, "ram", "/",
+            NULL, NULL, mount);
         if (mount_result != XFS_ERR_OK)
         {
             return -1;

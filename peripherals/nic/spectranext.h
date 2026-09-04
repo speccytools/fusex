@@ -42,6 +42,13 @@ enum spectranext_cmd_t
 #define GETHOSTBYNAME_STATUS_SYSTEM_FAILURE (-3)
 
 #define SPECTRANEXT_CONTROLLER_PAGE 0x48
+#define SPECTRANEXT_CONTROLLER_PAGE_SIZE 0x1000u
+#define SPECTRANEXT_CONTROLLER_WORKSPACE_OFFSET 0x800u
+#define SPECTRANEXT_CONTROLLER_COMMAND_OFFSET 0xFFEu
+#define SPECTRANEXT_CONTROLLER_STATUS_OFFSET 0xFFFu
+#define SPECTRANEXT_CONTROLLER_CODE_SIZE SPECTRANEXT_CONTROLLER_WORKSPACE_OFFSET
+#define SPECTRANEXT_CONTROLLER_WORKSPACE_SIZE \
+    (SPECTRANEXT_CONTROLLER_COMMAND_OFFSET - SPECTRANEXT_CONTROLLER_WORKSPACE_OFFSET)
 
 #define SPECTRANEXT_SCAN_AP_MAX 64
 
@@ -66,7 +73,7 @@ _Static_assert(offsetof(spectranext_get_status_out_t, controller_status) == 0u, 
 _Static_assert(offsetof(spectranext_get_status_out_t, wifi_connection) == 1u, "");
 _Static_assert(offsetof(spectranext_get_status_out_t, ipv4) == 2u, "");
 
-typedef union spectranext_workspace
+typedef union __attribute__((packed)) spectranext_workspace
 {
     struct
     {
@@ -133,6 +140,7 @@ typedef union spectranext_workspace
             char input_file[128];
             char output_file[128];
             char operation[256];
+            int8_t result;
         } io;
     } enginecall;
 
@@ -162,7 +170,7 @@ typedef union spectranext_workspace
         } out;
     } xfs_read;
 
-    char page[4096 - 2];
+    char page[SPECTRANEXT_CONTROLLER_WORKSPACE_SIZE];
 } spectranext_workspace_t;
 
 _Static_assert(offsetof(spectranext_workspace_t, xfs_read.in.source_filename) == 0u, "");
@@ -172,14 +180,25 @@ _Static_assert(offsetof(spectranext_workspace_t, xfs_read.in.target_first_page_o
 _Static_assert(offsetof(spectranext_workspace_t, xfs_read.in.maximum_data) == 135u, "");
 _Static_assert(offsetof(spectranext_workspace_t, xfs_read.out.bytes_read) == 139u, "");
 
-struct spectranext_controller_t
+struct __attribute__((packed)) spectranext_controller_t
 {
+    uint8_t code[SPECTRANEXT_CONTROLLER_CODE_SIZE];
+    spectranext_workspace_t workspace;
     uint8_t command;
     uint8_t status;
-    spectranext_workspace_t workspace;
 };
 
-_Static_assert(sizeof(struct spectranext_controller_t) == 4096, "Controller is not of correct size");
+_Static_assert(sizeof(struct spectranext_controller_t) == SPECTRANEXT_CONTROLLER_PAGE_SIZE,
+               "Controller is not of correct size");
+_Static_assert(offsetof(struct spectranext_controller_t, workspace) ==
+                   SPECTRANEXT_CONTROLLER_WORKSPACE_OFFSET,
+               "Workspace offset");
+_Static_assert(offsetof(struct spectranext_controller_t, command) ==
+                   SPECTRANEXT_CONTROLLER_COMMAND_OFFSET,
+               "Command offset");
+_Static_assert(offsetof(struct spectranext_controller_t, status) ==
+                   SPECTRANEXT_CONTROLLER_STATUS_OFFSET,
+               "Status offset");
 
 #pragma pack(pop)
 

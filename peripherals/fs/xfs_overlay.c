@@ -61,10 +61,13 @@ static int16_t overlay_join_path(char* out, size_t out_size, const char* dir, co
 }
 
 static int16_t overlay_mount(const struct xfs_engine_t* engine, const char* hostname,
-    const char* path, struct xfs_engine_mount_t* out_mount)
+    const char* path, const char* username, const char* password,
+    struct xfs_engine_mount_t* out_mount)
 {
     (void)hostname;
     (void)path;
+    (void)username;
+    (void)password;
     const xfs_overlay_config_t* config = (const xfs_overlay_config_t*)engine->user;
     if (!config)
         return XFS_ERR_INVAL;
@@ -81,7 +84,7 @@ static int16_t overlay_mount(const struct xfs_engine_t* engine, const char* host
         layer->config = layer_config;
 
         int16_t err = layer_config->engine->mount(layer_config->engine,
-            layer_config->hostname, layer_config->path, &layer->mount);
+            layer_config->hostname, layer_config->path, NULL, NULL, &layer->mount);
         if (err == XFS_ERR_OK)
         {
             layer->mount.engine = layer_config->engine;

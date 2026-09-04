@@ -105,8 +105,11 @@ static inline struct xfs_fs_dir_handle_t* get_dir_handle(const struct xfs_handle
 }
 
 // Mount function
-static int16_t fs_mount(const struct xfs_engine_t* engine, const char* hostname, const char* path, struct xfs_engine_mount_t* out_mount)
+static int16_t fs_mount(const struct xfs_engine_t* engine, const char* hostname, const char* path,
+    const char* username, const char* password, struct xfs_engine_mount_t* out_mount)
 {
+    (void)username;
+    (void)password;
     XFS_DEBUG("fs: mount hostname='%s' path='%s'\n", hostname ? hostname : "(null)", path ? path : "(null)");
     
     struct xfs_fs_mount_data_t* mount_data = libspectrum_malloc(sizeof(struct xfs_fs_mount_data_t));

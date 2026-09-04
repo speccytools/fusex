@@ -116,7 +116,8 @@ struct xfs_engine_t
     void* user; // Engine-specific user data
 
     // Mount/unmount operations
-    int16_t (*mount)(const struct xfs_engine_t* engine, const char* hostname, const char* path, struct xfs_engine_mount_t* out_mount);
+    int16_t (*mount)(const struct xfs_engine_t* engine, const char* hostname, const char* path,
+        const char* username, const char* password, struct xfs_engine_mount_t* out_mount);
     uint8_t (*is_mounted)(const struct xfs_engine_t* engine, struct xfs_engine_mount_t* mount);
     void (*unmount)(const struct xfs_engine_t* engine, struct xfs_engine_mount_t* mount);
     void (*mount_info)(const struct xfs_engine_mount_t* mount, char* buffer, size_t size);
@@ -210,7 +211,9 @@ struct xfs_args_mount_t
 {
     char protocol[32]; // e.g., "xfs"
     char hostname[64]; // e.g., "ram"
-    char path[160]; // e.g., "/folder/"
+    char path[288]; // e.g., "/folder/"
+    char username[64];
+    char password[64];
 };
 
 struct xfs_args_open_t
@@ -317,7 +320,7 @@ struct xfs_stat_t
 // Union of all argument types
 union xfs_arguments_t
 {
-    uint8_t raw[256];
+    uint8_t raw[512];
     struct xfs_args_mount_t mount;
     struct xfs_args_open_t open;
     struct xfs_args_read_t read;
@@ -351,9 +354,9 @@ struct xfs_registers_t
     uint8_t mount_point;
     // Reserved for alignment
     uint8_t reserved[1];
-    // Arguments section (256 bytes) - use union to access typed structs
+    // Arguments section (512 bytes) - use union to access typed structs
     union xfs_arguments_t arguments;
-    // 0x1108: temporary space - used for process variables
+    // 0x1208: temporary space - used for process variables
     union
     {
         uint8_t tmp[248];
@@ -364,17 +367,23 @@ struct xfs_registers_t
             uint16_t total;
         } fops;
     };
-    // 0x1200: Workspace section (1024+ bytes for data transfer) - shifted by 8 bytes
+    // 0x1300: Workspace section (1024 bytes for data transfer)
     uint8_t workspace[1024];
 
-    // 0x1600
-    uint8_t module_space[2560];
+    // 0x1700
+    uint8_t module_space[2304];
 };
 
 #pragma pack(pop)
 
 _Static_assert(4096 == sizeof(struct xfs_registers_t), "xfs_registers_t is not 4096");
-_Static_assert(0x200 == offsetof(struct xfs_registers_t, workspace), "workspace is not at 0x200");
+_Static_assert(512 == sizeof(union xfs_arguments_t), "xfs_arguments_t is not 512 bytes");
+_Static_assert(512 == sizeof(struct xfs_args_mount_t), "xfs_args_mount_t is not 512 bytes");
+_Static_assert(384 == offsetof(struct xfs_args_mount_t, username), "mount username offset is not 384");
+_Static_assert(448 == offsetof(struct xfs_args_mount_t, password), "mount password offset is not 448");
+_Static_assert(0x208 == offsetof(struct xfs_registers_t, tmp), "temporary space is not at 0x208");
+_Static_assert(0x300 == offsetof(struct xfs_registers_t, workspace), "workspace is not at 0x300");
+_Static_assert(0x700 == offsetof(struct xfs_registers_t, module_space), "module space is not at 0x700");
 _Static_assert(0x008 == offsetof(struct xfs_registers_t, arguments), "arguments is not at 0x008");
 
 extern void xfs_init();

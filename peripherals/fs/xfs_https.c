@@ -567,8 +567,11 @@ static int16_t https_fetch_and_parse_index(const struct xfs_engine_mount_t* engi
 }
 
 // Mount HTTPS filesystem
-static int16_t https_mount(const struct xfs_engine_t* engine, const char* hostname, const char* path, struct xfs_engine_mount_t* out_mount)
+static int16_t https_mount(const struct xfs_engine_t* engine, const char* hostname, const char* path,
+    const char* username, const char* password, struct xfs_engine_mount_t* out_mount)
 {
+    (void)username;
+    (void)password;
     XFS_DEBUG("https: mount hostname='%s' path='%s'\n", hostname ? hostname : "(null)", path ? path : "(null)");
     
     if (!hostname || !engine || !path)

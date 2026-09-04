@@ -79,7 +79,8 @@ int engine_fs_ram_mount(struct xfs_engine_mount_t *ram)
     {
         memset(&ram_singleton, 0, sizeof(ram_singleton));
         ram_singleton.engine = &xfs_ram_engine;
-        if (xfs_ram_engine.mount(&xfs_ram_engine, "ram", "/", &ram_singleton) != XFS_ERR_OK)
+        if (xfs_ram_engine.mount(&xfs_ram_engine, "ram", "/", NULL, NULL,
+                &ram_singleton) != XFS_ERR_OK)
             return -1;
         ram_ready = 1;
     }

@@ -19,6 +19,8 @@
 
 #include "compat.h"
 
+#include <libssh2.h>
+
 typedef struct ssh_socket_t ssh_socket_t;
 
 typedef int (*ssh_zx_send_cb_t)( void *ctx, const uint8_t *data, size_t len );
@@ -39,5 +41,9 @@ bool ssh_socket_has_pending_control( const ssh_socket_t *ssh );
 ssize_t ssh_socket_feed_control( ssh_socket_t *ssh, const uint8_t *buf,
                                  size_t len );
 const char *ssh_socket_last_error( const ssh_socket_t *ssh );
+
+/* Shared trust-on-first-use host-key check for other SSH-based services. */
+int ssh_session_verify_or_trust_host( LIBSSH2_SESSION *session,
+                                      const char *host, uint16_t port );
 
 #endif /* FUSE_SSH_H */

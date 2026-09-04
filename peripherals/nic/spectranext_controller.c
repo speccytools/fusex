@@ -21,6 +21,8 @@
 #include "peripherals/fs/xfs.h"
 #include "peripherals/fs/xfs_engines.h"
 #include "peripherals/spectranet.h"
+#include "ui/ui.h"
+#include "utils.h"
 
 #define SPECTRANEXT_RAM_PAGE_FIRST 0xC0u
 #define SPECTRANEXT_RAM_PAGE_LAST 0xDFu
@@ -72,7 +74,7 @@ static int16_t spectranext_xfs_read(const char *path,
     *bytes_read_out = 0;
 
     struct xfs_engine_mount_t mount = { .engine = &xfs_overlay_engine };
-    int16_t err = mount.engine->mount(mount.engine, "ram", "/", &mount);
+    int16_t err = mount.engine->mount(mount.engine, "ram", "/", NULL, NULL, &mount);
     if (err != XFS_ERR_OK)
         return err;
 
@@ -317,7 +319,11 @@ static void spectranext_controller_process_command(void)
                 spectranext_enginecall_args.output_file,
                 spectranext_enginecall_args.operation);
 
-            spectranext_set_status((uint8_t)(int8_t)spectranext_enginecall_args.result);
+            spectranext_controller.workspace.enginecall.io.result =
+                (int8_t)spectranext_enginecall_args.result;
+            spectranext_set_status(spectranext_enginecall_args.result == 0
+                                       ? SPECTRANEXT_STATUS_SUCCESS
+                                       : SPECTRANEXT_STATUS_ERROR);
             break;
 
         case SPECTRANEXT_CMD_GET_MESSAGE:
@@ -357,6 +363,27 @@ static void spectranext_controller_process_command(void)
 
 void spectranext_controller_init(void)
 {
+    utils_file controller_binary = { 0 };
+
+    memset((void *)&spectranext_controller, 0, sizeof(spectranext_controller));
+    if (utils_read_auxiliary_file("spxcontroller.bin", &controller_binary,
+                                  UTILS_AUXILIARY_ROM) != 0)
+    {
+        ui_error(UI_ERROR_ERROR, "couldn't find Spectranext controller binary ('spxcontroller.bin')");
+    }
+    else if (controller_binary.length > sizeof(spectranext_controller.code))
+    {
+        ui_error(UI_ERROR_ERROR, "Spectranext controller binary is too large (%lu bytes)",
+                 (unsigned long)controller_binary.length);
+        utils_close_file(&controller_binary);
+    }
+    else
+    {
+        memcpy((void *)spectranext_controller.code, controller_binary.buffer,
+               controller_binary.length);
+        utils_close_file(&controller_binary);
+    }
+
     spectranext_controller.command = SPECTRANEXT_CMD_REG_IDLE;
     spectranext_controller.status = SPECTRANEXT_STATUS_SUCCESS;
     spectranext_state.controller_status = WIFI_CONTROLLER_STATUS_OPERATIONAL;
@@ -378,14 +405,18 @@ libspectrum_byte spectranext_controller_read(memory_page *page, libspectrum_word
 void spectranext_controller_write(memory_page *page, libspectrum_word address, libspectrum_byte b)
 {
     libspectrum_word offset = address & 0xfff;
-    if (offset >= sizeof(spectranext_controller))
+
+    /* The RP2350 exposes the lower 2 KiB as immutable controller code. */
+    if (offset < SPECTRANEXT_CONTROLLER_CODE_SIZE ||
+        offset >= sizeof(spectranext_controller))
         return;
 
     uint8_t *registers = (uint8_t *)&spectranext_controller;
-    const uint8_t old_command = registers[0];
+    const uint8_t old_command = registers[SPECTRANEXT_CONTROLLER_COMMAND_OFFSET];
     registers[offset] = b;
 
-    if (offset == 0 && old_command == SPECTRANEXT_CMD_REG_IDLE && b != SPECTRANEXT_CMD_REG_IDLE)
+    if (offset == SPECTRANEXT_CONTROLLER_COMMAND_OFFSET &&
+        old_command == SPECTRANEXT_CMD_REG_IDLE && b != SPECTRANEXT_CMD_REG_IDLE)
     {
         spectranext_controller_process_command();
     }

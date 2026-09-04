@@ -331,11 +331,13 @@
 		FE0A0102301F000000000001 /* xfs_overlay.c in Sources */ = {isa = PBXBuildFile; fileRef = FE0A0203301F000000000001 /* xfs_overlay.c */; };
 		FE0A0103301F000000000001 /* xfs_romfs.c in Sources */ = {isa = PBXBuildFile; fileRef = FE0A0204301F000000000001 /* xfs_romfs.c */; };
 		FE0A0104301F000000000001 /* ../roms/spxromfs.bin in Resources */ = {isa = PBXBuildFile; fileRef = FE0A0205301F000000000001 /* ../roms/spxromfs.bin */; };
+		FE0A0106301F000000000001 /* ../roms/spxcontroller.bin in Resources */ = {isa = PBXBuildFile; fileRef = FE0A0206301F000000000001 /* ../roms/spxcontroller.bin */; };
 		FE2DAC5A2F328D96009AC45A /* xfs.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC592F328D96009AC45A /* xfs.c */; };
 		FE2DAC6C2F329E6D009AC45A /* xfs_fs.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC6A2F329E6D009AC45A /* xfs_fs.c */; };
 		FE2DAC6D2F329E6D009AC45A /* xfs_worker.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC6B2F329E6D009AC45A /* xfs_worker.c */; };
 		FE2DAC752F32A23C009AC45A /* http_sck.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC722F32A23C009AC45A /* http_sck.c */; };
 		FE2DAC772F32A480009AC45A /* xfs_https.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC762F32A480009AC45A /* xfs_https.c */; };
+		FE2DAC782F32A480009AC45A /* xfs_sftp.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC792F32A480009AC45A /* xfs_sftp.c */; };
 		FE2DAC7B2F32A500009AC45A /* httpc.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC7A2F32A500009AC45A /* httpc.c */; };
 		FE2DAC802F32AB6C009AC45A /* vfile_ext.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC7F2F32AB6C009AC45A /* vfile_ext.c */; };
 		FE2DAC812F32AB6C009AC45A /* vfile.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC7D2F32AB6C009AC45A /* vfile.c */; };
@@ -948,6 +950,7 @@
 		FE0A0203301F000000000001 /* xfs_overlay.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = xfs_overlay.c; sourceTree = "<group>"; };
 		FE0A0204301F000000000001 /* xfs_romfs.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = xfs_romfs.c; sourceTree = "<group>"; };
 		FE0A0205301F000000000001 /* ../roms/spxromfs.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = ../roms/spxromfs.bin; sourceTree = SOURCE_ROOT; };
+		FE0A0206301F000000000001 /* ../roms/spxcontroller.bin */ = {isa = PBXFileReference; lastKnownFileType = file; path = ../roms/spxcontroller.bin; sourceTree = SOURCE_ROOT; };
 		FE2DAC582F328D96009AC45A /* xfs.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = xfs.h; sourceTree = "<group>"; };
 		FE2DAC592F328D96009AC45A /* xfs.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = xfs.c; sourceTree = "<group>"; };
 		FE2DAC5C2F328DD5009AC45A /* xfs_engines.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = xfs_engines.h; sourceTree = "<group>"; };
@@ -958,6 +961,7 @@
 		FE2DAC722F32A23C009AC45A /* http_sck.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = http_sck.c; sourceTree = "<group>"; };
 		FE2DAC732F32A23C009AC45A /* httpc.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = httpc.h; sourceTree = "<group>"; };
 		FE2DAC762F32A480009AC45A /* xfs_https.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = xfs_https.c; sourceTree = "<group>"; };
+		FE2DAC792F32A480009AC45A /* xfs_sftp.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = xfs_sftp.c; sourceTree = "<group>"; };
 		FE2DAC792F32A4F3009AC45A /* localely.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = localely.h; sourceTree = "<group>"; };
 		FE2DAC7A2F32A500009AC45A /* httpc.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = httpc.c; sourceTree = "<group>"; };
 		FE2DAC7C2F32AB6C009AC45A /* vfile.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = vfile.h; sourceTree = "<group>"; };
@@ -1306,6 +1310,7 @@
 				06FA366DDA50516B0E710919 /* mlt.icns */,
 				384001994B177FFEB8AE6C99 /* udi.icns */,
 				FE0A0205301F000000000001 /* ../roms/spxromfs.bin */,
+				FE0A0206301F000000000001 /* ../roms/spxcontroller.bin */,
 			);
 			path = resources;
 			sourceTree = "<group>";
@@ -1908,6 +1913,7 @@
 				FE2DAC6B2F329E6D009AC45A /* xfs_worker.c */,
 				FE2DAC6E2F329EE2009AC45A /* xfs_worker.h */,
 				FE2DAC762F32A480009AC45A /* xfs_https.c */,
+				FE2DAC792F32A480009AC45A /* xfs_sftp.c */,
 				FEFB7C1E301EB52200F1CFEC /* xfs_https_compat.h */,
 				FEFB7C1F301EB52200F1CFEC /* xfs_https_compat.c */,
 			);
@@ -2170,6 +2176,7 @@
 				03A9A1325AFA09F88C578556 /* mlt.icns in Resources */,
 				7C22B962B64B1942413DF26A /* udi.icns in Resources */,
 				FE0A0104301F000000000001 /* ../roms/spxromfs.bin in Resources */,
+				FE0A0106301F000000000001 /* ../roms/spxcontroller.bin in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2400,6 +2407,7 @@
 				FE8E3FD62FD70BD9009FDB81 /* ssh.c in Sources */,
 				FE2DAC7B2F32A500009AC45A /* httpc.c in Sources */,
 				FE2DAC772F32A480009AC45A /* xfs_https.c in Sources */,
+				FE2DAC782F32A480009AC45A /* xfs_sftp.c in Sources */,
 				B6DCBBD2114FA0E700DC9A11 /* ide.c in Sources */,
 				FEFB7C20301EB52200F1CFEC /* xfs_https_compat.c in Sources */,
 				B6DCBBD4114FA0E700DC9A11 /* libspectrum.c in Sources */,

@@ -164,6 +164,8 @@ void xfs_handle_mount(volatile struct xfs_registers_t* registers)
     const char* protocol = (const char*)registers->arguments.mount.protocol;
     const char* hostname = (const char*)registers->arguments.mount.hostname;
     const char* path = (const char*)registers->arguments.mount.path;
+    const char* username = (const char*)registers->arguments.mount.username;
+    const char* password = (const char*)registers->arguments.mount.password;
     const int mount_point = registers->mount_point;
 
     if (mount_point < 0 || mount_point >= 4)
@@ -218,6 +220,11 @@ void xfs_handle_mount(volatile struct xfs_registers_t* registers)
         XFS_DEBUG("xfs: mount http hostname='%s' path='%s' mount_point=%d\n", hostname, path, mount_point);
         engine = &http_engine;
     }
+    else if (strcmp(protocol, "sftp") == 0)
+    {
+        XFS_DEBUG("xfs: mount sftp path='%s' mount_point=%d\n", path, mount_point);
+        engine = &sftp_engine;
+    }
     else
     {
         XFS_DEBUG("xfs: mount failed: unknown protocol '%s' mount_point=%d\n", protocol, mount_point);
@@ -226,7 +233,8 @@ void xfs_handle_mount(volatile struct xfs_registers_t* registers)
         return;
     }
 
-    const int16_t mount_result = engine->mount(engine, hostname, path, &xfs_mounted_engines[mount_point]);
+    const int16_t mount_result = engine->mount(engine, hostname, path, username, password,
+        &xfs_mounted_engines[mount_point]);
     if (mount_result != XFS_ERR_OK)
     {
         XFS_DEBUG("xfs: mount failed: result=%d mount_point=%d\n", mount_result, mount_point);

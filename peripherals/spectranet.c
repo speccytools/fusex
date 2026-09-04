@@ -458,6 +458,21 @@ spectranet_activate( void )
     /* Pages 0x40 to 0x47 are the W5100 registers - handled in readbyte()
        and writebyte() */
 
+    /* Page 0x48 contains executable controller code in its lower 2 KiB.
+       readbyte() dispatches controller data accesses through the peripheral
+       callback, but Z80 opcode fetches use memory_page.page directly, so both
+       2 KiB mappings must point at the controller object as well. */
+    {
+      int base = SPECTRANEXT_CONTROLLER_PAGE * MEMORY_PAGES_IN_4K;
+      libspectrum_byte *controller_page =
+        (libspectrum_byte *)(void *)&spectranext_controller;
+
+      for( j = 0; j < MEMORY_PAGES_IN_4K; j++ ) {
+        memory_page *page = &spectranet_full_map[base + j];
+        page->page = controller_page + j * MEMORY_PAGE_SIZE;
+      }
+    }
+
     /* Pages 0xc0 to 0xff are the RAM */
     ram = memory_pool_allocate_persistent( SPECTRANET_RAM_LENGTH, 1 );
 

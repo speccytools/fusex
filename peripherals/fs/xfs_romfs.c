@@ -27,10 +27,13 @@ static xfs_romfs_mount_t* romfs_mount_data(const struct xfs_engine_mount_t* moun
 }
 
 static int16_t romfs_mount(const struct xfs_engine_t* engine, const char* hostname,
-    const char* path, struct xfs_engine_mount_t* out_mount)
+    const char* path, const char* username, const char* password,
+    struct xfs_engine_mount_t* out_mount)
 {
     (void)hostname;
     (void)path;
+    (void)username;
+    (void)password;
     const xfs_romfs_config_t* config = (const xfs_romfs_config_t*)engine->user;
     if (!config || !config->start || !config->end)
         return XFS_ERR_INVAL;

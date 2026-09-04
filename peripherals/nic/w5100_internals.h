@@ -56,6 +56,12 @@ typedef enum w5100_socket_state {
   W5100_SOCKET_STATE_UDP = 0x22,
 } w5100_socket_state;
 
+typedef enum w5100_socket_protocol {
+  W5100_SOCKET_PROTOCOL_TCP = 0x00,
+  W5100_SOCKET_PROTOCOL_TLS = 0xf0,
+  W5100_SOCKET_PROTOCOL_SSH = 0xf1,
+} w5100_socket_protocol;
+
 enum w5100_socket_registers {
   W5100_SOCKET_MR = 0x00,
   W5100_SOCKET_CR,
@@ -72,6 +78,10 @@ enum w5100_socket_registers {
 
   W5100_SOCKET_DPORT0,
   W5100_SOCKET_DPORT1,
+
+  W5100_SOCKET_MSSR0 = 0x12,
+  W5100_SOCKET_MSSR1,
+  W5100_SOCKET_PROTO,
 
   W5100_SOCKET_TX_FSR0 = 0x20,
   W5100_SOCKET_TX_FSR1,
@@ -103,6 +113,8 @@ typedef struct nic_w5100_socket_t {
 
   libspectrum_byte dip[4];  /* Destination IP address */
   libspectrum_byte dport[2];/* Destination port */
+  libspectrum_byte mss[2];  /* Maximum segment size */
+  libspectrum_byte protocol;/* Sn_PROTO (IP raw / Spectranext backend) */
 
   libspectrum_word tx_rr;   /* Transmit read pointer */
   libspectrum_word tx_wr;   /* Transmit write pointer */
@@ -121,6 +133,7 @@ typedef struct nic_w5100_socket_t {
   tls_socket_t *tls_socket; /* TLS socket wrapper (NULL if not using TLS) */
   ssh_socket_t *ssh_socket; /* SSH offload wrapper (NULL if not using SSH) */
   compat_socket_selfpipe_t *io_selfpipe; /* Wake I/O thread for SSH control lines */
+  libspectrum_byte backend_protocol; /* Backend selected when OPEN is processed */
   int bind_count;           /* Number of writes to the Sn_PORTx registers we've received */
   int socket_bound;         /* True once we've bound the socket to a port */
   int write_pending;        /* True if we're waiting to write data on this socket */
