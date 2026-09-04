@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "debugger/gdbserver.h"
 #include "utils.h"
@@ -82,6 +83,21 @@ char* xfs_compat_get_cwd_buffer(uint8_t mount_point)
     }
 
     return xfs_cwd_buffers[mount_point];
+}
+
+void* xfs_extra_ram_alloc(size_t size)
+{
+    return malloc(size);
+}
+
+void* xfs_extra_ram_realloc(void* ptr, size_t size)
+{
+    return realloc(ptr, size);
+}
+
+void xfs_extra_ram_free(void* ptr)
+{
+    free(ptr);
 }
 
 void xfs_debug_log(const char *format, ...)

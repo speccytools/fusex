@@ -180,6 +180,11 @@ typedef struct
 extern const xfs_overlay_config_t xfs_default_overlay;
 extern xfs_romfs_config_t xfs_default_romfs;
 
+/* Platform-specific backing for large, temporary XFS allocations. */
+void* xfs_extra_ram_alloc(size_t size);
+void* xfs_extra_ram_realloc(void* ptr, size_t size);
+void xfs_extra_ram_free(void* ptr);
+
 enum xfs_handle_type_t
 {
     XFS_HANDLE_TYPE_NONE = 0,

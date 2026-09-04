@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define XFS_OVERLAY_MAX_READDIR_ENTRIES 256
+#define XFS_OVERLAY_INITIAL_READDIR_CAPACITY 8u
 
 typedef struct
 {
@@ -28,9 +28,10 @@ typedef struct
 typedef struct
 {
     xfs_overlay_mount_t* overlay;
-    struct xfs_stat_info* entries;
-    uint16_t entry_count;
-    uint16_t position;
+    struct xfs_stat_info** entries;
+    size_t size;
+    size_t capacity;
+    size_t position;
     bool parent_emitted;
 } xfs_overlay_dir_handle_t;
 
@@ -361,10 +362,10 @@ static bool overlay_entry_shadowed(xfs_overlay_mount_t* overlay, const char* pat
 
 static bool overlay_cached_dir_seen(const xfs_overlay_dir_handle_t* dir_handle, const char* name)
 {
-    for (uint16_t i = 0; i < dir_handle->entry_count; ++i)
+    for (size_t i = 0; i < dir_handle->size; ++i)
     {
-        if (dir_handle->entries[i].type == XFS_TYPE_DIR &&
-            strcmp(dir_handle->entries[i].name, name) == 0)
+        if (dir_handle->entries[i]->type == XFS_TYPE_DIR &&
+            strcmp(dir_handle->entries[i]->name, name) == 0)
             return true;
     }
     return false;
@@ -379,9 +380,6 @@ static int16_t overlay_cache_readdir_entry(xfs_overlay_dir_handle_t* dir_handle,
         return XFS_ERR_OK;
     if (overlay_entry_shadowed(dir_handle->overlay, path, layer_index, info->name))
         return XFS_ERR_OK;
-    if (dir_handle->entry_count >= XFS_OVERLAY_MAX_READDIR_ENTRIES)
-        return XFS_ERR_INVAL;
-
     if (info->type == XFS_TYPE_DIR)
     {
         char child[XFS_PATH_MAX];
@@ -392,8 +390,39 @@ static int16_t overlay_cache_readdir_entry(xfs_overlay_dir_handle_t* dir_handle,
             info->storage = FS_STORAGE_SYSTEM;
     }
 
-    dir_handle->entries[dir_handle->entry_count++] = *info;
+    if (dir_handle->size == dir_handle->capacity)
+    {
+        const size_t new_capacity = dir_handle->capacity
+            ? dir_handle->capacity * 2u
+            : XFS_OVERLAY_INITIAL_READDIR_CAPACITY;
+        if (new_capacity < dir_handle->capacity
+            || new_capacity > SIZE_MAX / sizeof(*dir_handle->entries))
+            return XFS_ERR_NOMEM;
+
+        struct xfs_stat_info** entries = xfs_extra_ram_realloc(dir_handle->entries,
+            new_capacity * sizeof(*dir_handle->entries));
+        if (!entries)
+            return XFS_ERR_NOMEM;
+        dir_handle->entries = entries;
+        dir_handle->capacity = new_capacity;
+    }
+
+    struct xfs_stat_info* entry = xfs_extra_ram_alloc(sizeof(*entry));
+    if (!entry)
+        return XFS_ERR_NOMEM;
+    *entry = *info;
+    dir_handle->entries[dir_handle->size++] = entry;
     return XFS_ERR_OK;
+}
+
+static void overlay_free_dir_entries(xfs_overlay_dir_handle_t* dir_handle)
+{
+    for (size_t i = 0; i < dir_handle->size; ++i)
+        xfs_extra_ram_free(dir_handle->entries[i]);
+    xfs_extra_ram_free(dir_handle->entries);
+    dir_handle->entries = NULL;
+    dir_handle->size = 0;
+    dir_handle->capacity = 0;
 }
 
 static int16_t overlay_emit_parent(struct xfs_stat_info* info)
@@ -446,22 +475,17 @@ static int16_t overlay_opendir(const struct xfs_engine_mount_t* mount, struct xf
     if (!overlay)
         return XFS_ERR_IO;
 
-    xfs_overlay_dir_handle_t* dir_handle = calloc(1, sizeof(*dir_handle));
+    xfs_overlay_dir_handle_t* dir_handle = xfs_extra_ram_alloc(sizeof(*dir_handle));
     if (!dir_handle)
         return XFS_ERR_NOMEM;
-    dir_handle->entries = calloc(XFS_OVERLAY_MAX_READDIR_ENTRIES, sizeof(*dir_handle->entries));
-    if (!dir_handle->entries)
-    {
-        free(dir_handle);
-        return XFS_ERR_NOMEM;
-    }
+    memset(dir_handle, 0, sizeof(*dir_handle));
     dir_handle->overlay = overlay;
 
     const int16_t err = overlay_scan_dir(dir_handle, path);
     if (err != XFS_ERR_OK)
     {
-        free(dir_handle->entries);
-        free(dir_handle);
+        overlay_free_dir_entries(dir_handle);
+        xfs_extra_ram_free(dir_handle);
         return err;
     }
     handle->data = dir_handle;
@@ -474,7 +498,7 @@ static int16_t overlay_readdir(const struct xfs_engine_mount_t* mount, struct xf
 {
     (void)mount;
     xfs_overlay_dir_handle_t* dir_handle = (xfs_overlay_dir_handle_t*)handle->data;
-    if (!dir_handle || !dir_handle->entries)
+    if (!dir_handle)
         return XFS_ERR_BADF;
     if (!dir_handle->parent_emitted)
     {
@@ -482,10 +506,10 @@ static int16_t overlay_readdir(const struct xfs_engine_mount_t* mount, struct xf
         handle->dir_position = 0;
         return overlay_emit_parent(info);
     }
-    if (dir_handle->position >= dir_handle->entry_count)
+    if (dir_handle->position >= dir_handle->size)
         return 0;
 
-    *info = dir_handle->entries[dir_handle->position++];
+    *info = *dir_handle->entries[dir_handle->position++];
     handle->dir_position = dir_handle->position;
     return 1;
 }
@@ -496,9 +520,7 @@ static int16_t overlay_closedir(const struct xfs_engine_mount_t* mount, struct x
     xfs_overlay_dir_handle_t* dir_handle = (xfs_overlay_dir_handle_t*)handle->data;
     if (!dir_handle)
         return XFS_ERR_OK;
-    free(dir_handle->entries);
-    dir_handle->entries = NULL;
-    dir_handle->entry_count = 0;
+    overlay_free_dir_entries(dir_handle);
     dir_handle->position = 0;
     dir_handle->parent_emitted = false;
     handle->dir_position = 0;
@@ -519,9 +541,9 @@ static int16_t overlay_seekdir(const struct xfs_engine_mount_t* mount, struct xf
 {
     (void)mount;
     xfs_overlay_dir_handle_t* dir_handle = (xfs_overlay_dir_handle_t*)handle->data;
-    if (!dir_handle || !dir_handle->entries || position > dir_handle->entry_count)
+    if (!dir_handle || position > dir_handle->size)
         return XFS_ERR_INVAL;
-    dir_handle->position = (uint16_t)position;
+    dir_handle->position = position;
     dir_handle->parent_emitted = true;
     handle->dir_position = position;
     return XFS_ERR_OK;
@@ -678,7 +700,7 @@ static void overlay_free_handle(const struct xfs_engine_mount_t* mount, struct x
     {
         xfs_overlay_dir_handle_t* dir_handle = (xfs_overlay_dir_handle_t*)handle->data;
         (void)overlay_closedir(mount, handle);
-        free(dir_handle);
+        xfs_extra_ram_free(dir_handle);
     }
     handle->data = NULL;
 }
