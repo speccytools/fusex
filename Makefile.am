@@ -83,7 +83,10 @@ fuse_DEPENDENCIES =
 EXTRA_fuse_SOURCES =
 
 BUILT_SOURCES = options.h settings.c settings.h \
-		debugger/commandy.c debugger/commandy.h debugger/commandl.c
+		debugger/commandy.c \
+		debugger/commandy.h \
+		debugger/commandy.tab.h \
+		debugger/commandl.c
 
 if COMPAT_WIN32
 settings.c: settings-win32.pl settings.dat
@@ -95,6 +98,11 @@ endif
 
 settings.h: settings-header.pl settings.dat
 	$(AM_V_GEN)$(PERL) -I$(srcdir)/perl $(srcdir)/settings-header.pl $(srcdir)/settings.dat > $@.tmp && mv $@.tmp $@
+
+# commandl.l #includes "commandy.tab.h" (the bison default name the Xcode build
+# produces); automake's yacc rule emits commandy.h, so alias it.
+debugger/commandy.tab.h: debugger/commandy.h
+	$(AM_V_GEN)cp $< $@
 
 options.h: $(srcdir)/perl/cpp-perl.pl config.h $(srcdir)/ui/@OPTIONS_DIR@/options-header.pl $(srcdir)/ui/options.dat $(srcdir)/perl/Fuse.pm $(srcdir)/perl/Fuse/Dialog.pm
 	$(AM_V_GEN)$(PERL) $(srcdir)/perl/cpp-perl.pl config.h $(srcdir)/ui/options.dat | $(PERL) -I$(srcdir)/perl $(srcdir)/ui/@OPTIONS_DIR@/options-header.pl - public > $@.tmp && mv $@.tmp $@

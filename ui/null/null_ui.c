@@ -29,7 +29,7 @@
 #include "../uijoystick.c"
 
 keysyms_map_t keysyms_map[] = {
-  { 0, 0 } /* End marker */
+  { 0xff, 0 } /* End marker */
 };
 
 scaler_type
@@ -256,4 +256,28 @@ void
 uidisplay_putpixel( int x, int y, int colour )
 {
   /* Do nothing */
+}
+
+int
+ui_menu_activate( ui_menu_item item, int active )
+{
+  return 0;
+}
+
+int
+ui_tape_write( void )
+{
+  return 0;
+}
+
+int
+ui_disk_write( int which, int saveas )
+{
+  return 0;
+}
+
+int
+ui_mdr_write( int which, int saveas )
+{
+  return 0;
 }
