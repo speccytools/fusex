@@ -31,19 +31,7 @@
 #include <sys/types.h>
 #include <time.h>
 
-#ifdef WIN32
-#include <windows.h>
-#endif				/* #ifdef WIN32 */
-
 #include <unistd.h>
-
-/* We need to include SDL.h on Mac O X and Windows to do some magic
-   bootstrapping by redefining main. As we now allow SDL joystick code to be
-   used in the GTK and Xlib UIs we need to also do the magic when that code is
-   in use, feel free to look away for the next line */
-#if defined UI_SDL || defined UI_SDL2 || (defined USE_JOYSTICK && (defined UI_X || defined UI_GTK) )
-#include <SDL.h>		/* Needed on MacOS X and Windows */
-#endif /* #if defined UI_SDL || defined UI_SDL2 || (defined USE_JOYSTICK && (defined UI_X || defined UI_GTK) ) */
 
 #ifdef GEKKO
 /* #include <fat.h>
@@ -171,50 +159,6 @@ static int parse_nonoption_args( int argc, char **argv, int first_arg,
 				 start_files_t *start_files );
 static int do_start_files( start_files_t *start_files );
 static void free_start_files( start_files_t *start_files );
-
-#ifdef UI_WIN32
-/* The Win32 UI supplies WinMain(), which calls this */
-int fuse_main(int argc, char **argv)
-#elif defined UI_COCOA
-/* fusepb/main.m supplies main() and Emulator.m calls fuse_init() itself, so
-   this entry point goes unused; it is renamed only to avoid colliding with
-   the one in main.m */
-int old_main(int argc, char **argv)
-#else
-int main(int argc, char **argv)
-#endif
-{
-  int r = 0;
-
-#ifdef WIN32
-  SetErrorMode( SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX );
-#endif
-
-#ifdef GEKKO
-  fatInitDefault();
-#endif				/* #ifdef GEKKO */
-  
-  if(fuse_init(argc,argv)) {
-    fprintf(stderr,"%s: error initialising -- giving up!\n", fuse_progname);
-    return 1;
-  }
-
-  if( settings_current.show_help ||
-      settings_current.show_version ) return 0;
-
-  if( settings_current.unittests ) {
-    r = unittests_run();
-  } else {
-    while( !fuse_exiting ) {
-      spectrum_do_frame();
-    }
-    r = debugger_get_exit_code();
-  }
-
-  fuse_end();
-  
-  return r;
-}
 
 static int
 fuse_libspectrum_init( void *context )

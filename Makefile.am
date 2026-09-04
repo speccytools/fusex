@@ -28,6 +28,7 @@ noinst_PROGRAMS =
 
 fuse_SOURCES = display.c \
 	event.c \
+	main.c \
 	fuse.c \
 	input.c \
 	keyboard.c \
