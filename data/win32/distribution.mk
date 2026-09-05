@@ -110,6 +110,9 @@ dist-win32-dir: 3rdparty-dist
 	elif test -z "$$MINGW_BIN" && test -d "/mingw32/bin"; then \
 	  MINGW_BIN="/mingw32/bin"; \
 	fi; \
+	if test "$$MACOS_MINGW_CROSS" = "1" && test -n "$$MINGW_RUNTIME_DIR"; then \
+	  MINGW_BIN="$$MINGW_RUNTIME_DIR"; \
+	fi; \
 	if test -n "$$MINGW_BIN"; then \
 	  echo "Copying MinGW runtime DLLs from $$MINGW_BIN ..."; \
 	  for dll in libwinpthread-1.dll libstdc++-6.dll libgcc_s_seh-1.dll libgcc_s_dw2-1.dll; do \
