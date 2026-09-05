@@ -697,7 +697,7 @@ static const struct menu_item_entries menu_item_lookup[] = {
 
 };
 
-#ifndef __APPLE__
+#if !defined __APPLE__ && !defined UI_NULL
 int
 ui_menu_activate( ui_menu_item item, int active )
 {
@@ -733,7 +733,7 @@ ui_menu_activate( ui_menu_item item, int active )
   ui_error( UI_ERROR_ERROR, "ui_menu_activate: unknown item %d", item );
   return 1;
 }
-#endif			/* #ifndef __APPLE__ */
+#endif			/* !__APPLE__ && !UI_NULL */
 
 void
 ui_menu_disk_update( void )
@@ -756,7 +756,7 @@ ui_menu_disk_update( void )
   ui_media_drive_update_parent_menus();
 }
 
-#ifndef __APPLE__
+#if !defined __APPLE__ && !defined UI_NULL
 int
 ui_tape_write( void )
 {
@@ -799,7 +799,7 @@ ui_mdr_write( int which, int saveas )
 
   return err;
 }
-#endif			/* #ifndef __APPLE__ */
+#endif			/* !__APPLE__ && !UI_NULL */
 
 #ifdef USE_WIDGET
 int
