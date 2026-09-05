@@ -29,17 +29,23 @@ fuse_SOURCES += \
                 debugger/disassemble.c \
                 debugger/event.c \
                 debugger/expression.c \
+                debugger/system_variable.c \
+                debugger/variable.c
+
+if BUILD_GDBSERVER
+fuse_SOURCES += \
                 debugger/gdbserver.c \
                 debugger/gdbserver_remote_commands.c \
                 debugger/gdbserver_utils.c \
-                debugger/system_variable.c \
-                debugger/packets.c \
-                debugger/variable.c
+                debugger/packets.c
 
 if BUILD_SPECTRANET
 fuse_SOURCES += \
                 debugger/vfile.c \
                 debugger/vfile_ext.c
+endif
+else
+fuse_SOURCES += debugger/gdbserver_stub.c
 endif
 
 debugger/commandl.c: debugger/commandy.c
@@ -52,6 +58,8 @@ noinst_HEADERS += \
                   debugger/debugger_internals.h \
                   debugger/gdbserver.h \
                   debugger/gdbserver_remote_commands.h \
+                  debugger/gdbserver_utils.h \
+                  debugger/packets.h \
                   debugger/vfile.h \
                   debugger/vfile_ext.h
 
