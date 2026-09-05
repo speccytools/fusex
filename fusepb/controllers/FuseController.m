@@ -2164,7 +2164,7 @@ save_as_exit:
 - (void)openFile:(const char *)filename
 {
   char *snapshot;
-  utils_file file = {}; libspectrum_id_t type;
+  __block utils_file file = {}; libspectrum_id_t type;
   libspectrum_class_t lsclass;
   libspectrum_error libspec_error;
   libspectrum_snap* snap;
