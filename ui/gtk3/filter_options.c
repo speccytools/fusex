@@ -26,9 +26,7 @@ static GtkWidget
 
 static int dialog_created;  /* Have we created the dialog box yet? */
 
-void
-menu_options_filteroptions( GtkAction *gtk_action GCC_UNUSED,
-                        gpointer data GCC_UNUSED )
+MENU_CALLBACK( menu_options_filteroptions )
 {
   /* Firstly, stop emulation */
   fuse_emulation_pause();

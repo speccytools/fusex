@@ -31,6 +31,8 @@ sub dump_widget ($);
 sub _dump_widget ($$);
 sub dump_gtk ($$);
 sub _dump_gtk ($$$$$);
+sub action_name ($);
+sub xml_escape ($);
 sub dump_win32 ($$);
 sub _dump_win32 ($$$$);
 
@@ -98,7 +100,7 @@ while(<>) {
     } elsif( $type eq 'Item' ) {
 
 	$entry->{function} = $function if $function;
-	$entry->{action} = $action if $action;
+	$entry->{action} = $action if defined $action && $action ne '';
 
     }
 
@@ -223,13 +225,15 @@ sub dump_gtk ($$) {
     print << "HEADERS";
 #include <gtk/gtk.h>
 
+#include "ui/gtk3/gtkinternals.h"
+
 HEADERS
 
     print "/* Bindings to callbacks with action */\n";
 
     _dump_gtk( 'callbacks', $menu, '', 'menu', '  ' );
 
-    print "GtkActionEntry gtkui_menu_data[] = {\n\n";
+    print "GActionEntry gtkui_menu_data[] = {\n\n";
 
     _dump_gtk( 'actions', $menu, '', 'menu', '  ' );
 
@@ -238,21 +242,33 @@ HEADERS
 };
 
 guint gtkui_menu_data_size = ARRAY_SIZE( gtkui_menu_data );
+
+/* The accelerator for each menu item which has one */
+gtkui_menu_accel gtkui_menu_accels[] = {
+
+CODE
+
+    _dump_gtk( 'accels', $menu, '', 'menu', '  ' );
+
+    print << "CODE";
+  { NULL, NULL }
+
+};
 CODE
 
  } elsif( $mode eq 'ui' ) {
 
     print << "XML";
 <?xml version="1.0" encoding="utf-8"?>
-<ui>
-  <menubar name='MainMenu'>
+<interface>
+  <menu id='MainMenu'>
 XML
 
     _dump_gtk( 'ui', $menu, '', 'menu', '    ' );
 
     print << "XML";
-  </menubar>
-</ui>
+  </menu>
+</interface>
 XML
 
   }
@@ -262,9 +278,19 @@ sub _dump_gtk ($$$$$) {
 
   my( $mode, $menu, $gtk_path, $cpath, $spaces ) = @_;
 
+  # GMenu has no separators: a run of items between two separators is a
+  # section instead
+  my $in_section = 0;
+
   foreach my $item ( @{ $menu->{submenu} } ) {
 
-    next if $item->{type} eq 'Separator' && $mode ne 'ui';
+    if( $item->{type} eq 'Separator' ) {
+      if( $mode eq 'ui' && $in_section ) {
+        print "$spaces</section>\n";
+        $in_section = 0;
+      }
+      next;
+    }
 
     #Remove toplevel accelerators
     my $name = $item->{name};
@@ -274,63 +300,88 @@ sub _dump_gtk ($$$$$) {
     my $action_name = $name;
     $action_name =~ s/_//;
     $action_name = $gtk_path . "/" . $action_name;
-    $action_name =~ s|/|_|g;
-    $action_name =~ s/_//;
-    $action_name = uc( cname( $action_name ) );
+    $action_name = action_name( $action_name );
 
     $name =~ s/_// if $gtk_path;
     my $new_cpath = "${cpath}_" . cname( $name );
     my $function;
     my $binded_function = $item->{function} || $new_cpath;
 
-    if( $item->{type} eq 'Item' && $item->{action} ) {
-      $function = $new_cpath;
+    if( $item->{type} eq 'Item' && defined $item->{action} ) {
+      # The binding needs a name of its own when the item has no callback
+      # of its own to name it after
+      $function = $binded_function eq $new_cpath ? "${new_cpath}_action"
+                                                 : $new_cpath;
     } else {
       $function = $binded_function;
     }
 
     if( $mode eq 'callbacks' ) {
-      if( $item->{type} eq 'Item' && $item->{action} ) {
+      if( $item->{type} eq 'Item' && defined $item->{action} ) {
         print "static MENU_CALLBACK( ", $function, " )\n{\n";
         print "  $binded_function( gtk_action, $item->{action} );\n}\n\n";
       }
     } elsif( $mode eq 'ui' ) {
+      if( !$in_section ) {
+        print "$spaces<section>\n";
+        $in_section = 1;
+      }
+      my $xml_label = xml_escape( $label );
       if( $item->{type} eq 'Item' ) {
-        print "$spaces<menuitem name='$name' action='$action_name'/>\n";
-      } elsif( $item->{type} eq 'Separator' ) {
-        print "$spaces<separator/>\n";
+        print "$spaces  <item>\n";
+        print "$spaces    <attribute name='label'>$xml_label</attribute>\n";
+        print "$spaces    <attribute name='action'>win.$action_name</attribute>\n";
+        print "$spaces  </item>\n";
       } else {
-        print "$spaces<menu name='", $name, "' action='", $action_name, "'>\n";
+        print "$spaces  <submenu>\n";
+        print "$spaces    <attribute name='label'>$xml_label</attribute>\n";
+      }
+    } elsif( $mode eq 'accels' ) {
+      if( $item->{type} eq 'Item' && $item->{hotkey} ) {
+        print "  { \"win.$action_name\", \"$item->{hotkey}\" },\n";
       }
     } else {
-      #action_name, stock_id, label
-      print "  { \"$action_name\", NULL, \"$label\", ";
-
-      #hotkey
-      if( $item->{hotkey} ) {
-        print "\"$item->{hotkey}\"";
-      } else {
-        print 'NULL';
-      }
-
-      #tooltip
-      print ", NULL, ";
-
-      #callback
+      # Branches are labels in the menu model and have no action of their own
       if( $item->{type} eq 'Item' ) {
-        print "G_CALLBACK( ", $function, " )";
-      } else {
-        print "NULL";
+        print "  { \"$action_name\", $function, NULL, NULL, NULL },\n";
       }
-
-      print " },\n";
     }
 
-    _dump_gtk( $mode, $item, "$gtk_path/$name", $new_cpath, $spaces . "  " )
+    _dump_gtk( $mode, $item, "$gtk_path/$name", $new_cpath,
+               $mode eq 'ui' ? $spaces . "    " : $spaces . "  " )
                if $item->{submenu};
 
-    print "$spaces</menu>\n" if $mode eq 'ui' && $item->{type} eq 'Branch';
+    if( $mode eq 'ui' && $item->{type} eq 'Branch' ) {
+      print "$spaces  </submenu>\n";
+    }
   }
+
+  print "$spaces</section>\n" if $mode eq 'ui' && $in_section;
+}
+
+# The name of the GAction for a menu item, derived from its path so that
+# ui_menu_item_set_active() can find it from the UI independent path
+sub action_name ($) {
+
+  my( $path ) = @_;
+
+  $path = lc $path;
+  $path =~ tr|/|-|;
+  $path =~ tr/a-z0-9-//cd;
+  $path =~ s/^-//;
+
+  return $path;
+}
+
+sub xml_escape ($) {
+
+  my( $text ) = @_;
+
+  $text =~ s/&/&amp;/g;
+  $text =~ s/</&lt;/g;
+  $text =~ s/>/&gt;/g;
+
+  return $text;
 }
 
 sub dump_win32 ($$) {

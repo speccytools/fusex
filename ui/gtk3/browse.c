@@ -67,9 +67,7 @@ enum
   NUM_COLS
 };
 
-void
-menu_media_tape_browse( GtkAction *gtk_action GCC_UNUSED,
-                        gpointer data GCC_UNUSED )
+MENU_CALLBACK( menu_media_tape_browse )
 {
   /* Firstly, stop emulation */
   fuse_emulation_pause();

@@ -121,7 +121,6 @@ GtkWidget *gtkstock_dialog_new( const gchar *title, GCallback destroy );
 int gtkui_get_monospaced_font( PangoFontDescription **font );
 void gtkui_free_font( PangoFontDescription *font );
 
-int gtkui_menubar_get_height( void );
 
 /* Show/hide the menu bar and status bar */
 void gtkui_set_bars_visible( int visible );
@@ -130,8 +129,15 @@ void gtkui_set_bars_visible( int visible );
  * The menu data (menu_data.c)
  */
 
-extern GtkActionEntry gtkui_menu_data[];
+/* The accelerator for one menu item, as generated from menu_data.dat */
+typedef struct gtkui_menu_accel {
+  const char *action;		/* eg "win.file-open" */
+  const char *accel;		/* eg "F3" */
+} gtkui_menu_accel;
+
+extern GActionEntry gtkui_menu_data[];
 extern guint gtkui_menu_data_size;
+extern gtkui_menu_accel gtkui_menu_accels[];
 
 /*
  * Resources for the GTK UI (ui/gtk3/resources.xml)

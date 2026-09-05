@@ -26,6 +26,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <gdk/gdkkeysyms.h>
 #include <gtk/gtk.h>
@@ -62,14 +63,20 @@ GtkWidget *gtkui_window;
 /* The area into which the screen will be drawn */
 GtkWidget *gtkui_drawing_area;
 
-static GtkWidget *menu_bar;
+static GtkWidget *header_bar;
+
+/* The button in the header bar which shows the menu */
+static GtkWidget *menu_button;
 
 /* Wait until the window has reached its final size before applying
    fullscreen changes. See gtkui_window_configure() for more details */
 static int fullscreen_ready = 0;
 
-/* The UIManager used to create the menu bar */
-GtkUIManager *ui_manager_menu = NULL;
+/* The application, which owns the menu accelerators */
+static GtkApplication *gtkui_app = NULL;
+
+/* The builder holding the menu model created from menu_data.ui */
+static GtkBuilder *menu_builder = NULL;
 
 /* True if we were paused via the Machine/Pause menu item */
 static int paused = 0;
@@ -90,10 +97,9 @@ typedef struct gtkui_select_info {
 
 } gtkui_select_info;
 
-static gboolean gtkui_make_menu(GtkAccelGroup **accel_group,
-				GtkWidget **menu_bar,
-				GtkActionEntry *menu_data,
-				guint menu_data_size);
+static GtkWidget *gtkui_make_menu( void );
+
+static void gtkui_make_header_bar( GtkWidget *menu );
 
 static gboolean gtkui_lose_focus( GtkWidget*, GdkEvent*, gpointer );
 static gboolean gtkui_gain_focus( GtkWidget*, GdkEvent*, gpointer );
@@ -158,18 +164,195 @@ static void gtkui_drag_data_received( GtkWidget *widget GCC_UNUSED,
   gtk_drag_finish( drag_context, success, FALSE, timestamp );
 }
 
+/* GTK 3 applications have to opt in to the dark variant of their theme, so
+   ask the desktop whether it prefers a dark style and keep
+   gtk-application-prefer-dark-theme in sync with the answer. The XDG
+   settings portal is the portable source for this; where it isn't running
+   we read the GNOME setting directly. */
+
+/* Values of the org.freedesktop.appearance color-scheme setting */
+#define COLOR_SCHEME_PREFER_DARK 1
+
+static GDBusProxy *settings_portal = NULL;
+static GSettings *interface_settings = NULL;
+
+static void
+gtkui_set_dark_theme( gboolean prefer_dark )
+{
+  GtkSettings *settings = gtk_settings_get_default();
+
+  if( settings )
+    g_object_set( settings, "gtk-application-prefer-dark-theme", prefer_dark,
+                  NULL );
+}
+
+static int
+gtkui_portal_read_color_scheme( guint32 *color_scheme )
+{
+  GVariant *reply, *value;
+  GError *error = NULL;
+  int error_code = 1;
+
+  reply = g_dbus_proxy_call_sync( settings_portal, "ReadOne",
+                                  g_variant_new( "(ss)",
+                                                 "org.freedesktop.appearance",
+                                                 "color-scheme" ),
+                                  G_DBUS_CALL_FLAGS_NONE, 1000, NULL, &error );
+
+  /* ReadOne is only in version 2 and later of the portal; earlier versions
+     have Read, which returns the value wrapped in a second variant */
+  if( !reply && g_error_matches( error, G_DBUS_ERROR,
+                                 G_DBUS_ERROR_UNKNOWN_METHOD ) ) {
+    g_clear_error( &error );
+    reply = g_dbus_proxy_call_sync( settings_portal, "Read",
+                                    g_variant_new( "(ss)",
+                                                   "org.freedesktop.appearance",
+                                                   "color-scheme" ),
+                                    G_DBUS_CALL_FLAGS_NONE, 1000, NULL,
+                                    &error );
+  }
+
+  if( !reply ) {
+    g_error_free( error );
+    return 1;
+  }
+
+  g_variant_get( reply, "(v)", &value );
+
+  while( g_variant_is_of_type( value, G_VARIANT_TYPE_VARIANT ) ) {
+    GVariant *inner = g_variant_get_variant( value );
+    g_variant_unref( value );
+    value = inner;
+  }
+
+  if( g_variant_is_of_type( value, G_VARIANT_TYPE_UINT32 ) ) {
+    *color_scheme = g_variant_get_uint32( value );
+    error_code = 0;
+  }
+
+  g_variant_unref( value );
+  g_variant_unref( reply );
+
+  return error_code;
+}
+
+static void
+gtkui_portal_signal( GDBusProxy *proxy GCC_UNUSED,
+                     gchar *sender_name GCC_UNUSED, gchar *signal_name,
+                     GVariant *parameters, gpointer data GCC_UNUSED )
+{
+  const char *namespace, *key;
+  GVariant *value;
+
+  if( strcmp( signal_name, "SettingChanged" ) ) return;
+
+  g_variant_get( parameters, "(&s&sv)", &namespace, &key, &value );
+
+  if( !strcmp( namespace, "org.freedesktop.appearance" ) &&
+      !strcmp( key, "color-scheme" ) &&
+      g_variant_is_of_type( value, G_VARIANT_TYPE_UINT32 ) )
+    gtkui_set_dark_theme( g_variant_get_uint32( value ) ==
+                          COLOR_SCHEME_PREFER_DARK );
+
+  g_variant_unref( value );
+}
+
+static void
+gtkui_gsettings_changed( GSettings *settings, gchar *key GCC_UNUSED,
+                         gpointer data GCC_UNUSED )
+{
+  char *color_scheme = g_settings_get_string( settings, "color-scheme" );
+
+  gtkui_set_dark_theme( !strcmp( color_scheme, "prefer-dark" ) );
+
+  g_free( color_scheme );
+}
+
+static int
+gtkui_follow_gsettings_color_scheme( void )
+{
+  GSettingsSchemaSource *source;
+  GSettingsSchema *schema;
+
+  source = g_settings_schema_source_get_default();
+  if( !source ) return 1;
+
+  schema = g_settings_schema_source_lookup( source,
+                                            "org.gnome.desktop.interface",
+                                            TRUE );
+  if( !schema ) return 1;
+
+  if( !g_settings_schema_has_key( schema, "color-scheme" ) ) {
+    g_settings_schema_unref( schema );
+    return 1;
+  }
+
+  interface_settings = g_settings_new_full( schema, NULL, NULL );
+  g_settings_schema_unref( schema );
+
+  g_signal_connect( interface_settings, "changed::color-scheme",
+                    G_CALLBACK( gtkui_gsettings_changed ), NULL );
+  gtkui_gsettings_changed( interface_settings, NULL, NULL );
+
+  return 0;
+}
+
+static void
+gtkui_follow_desktop_color_scheme( void )
+{
+  GError *error = NULL;
+  guint32 color_scheme;
+
+  settings_portal =
+    g_dbus_proxy_new_for_bus_sync( G_BUS_TYPE_SESSION,
+                                   G_DBUS_PROXY_FLAGS_DO_NOT_LOAD_PROPERTIES |
+                                   G_DBUS_PROXY_FLAGS_DO_NOT_AUTO_START,
+                                   NULL,
+                                   "org.freedesktop.portal.Desktop",
+                                   "/org/freedesktop/portal/desktop",
+                                   "org.freedesktop.portal.Settings",
+                                   NULL, &error );
+
+  if( settings_portal ) {
+    if( !gtkui_portal_read_color_scheme( &color_scheme ) ) {
+      g_signal_connect( settings_portal, "g-signal",
+                        G_CALLBACK( gtkui_portal_signal ), NULL );
+      gtkui_set_dark_theme( color_scheme == COLOR_SCHEME_PREFER_DARK );
+      return;
+    }
+    g_clear_object( &settings_portal );
+  } else {
+    g_error_free( error );
+  }
+
+  gtkui_follow_gsettings_color_scheme();
+}
+
 int
 ui_init( int *argc, char ***argv )
 {
-  GtkWidget *box;
-  GtkAccelGroup *accel_group;
+  GtkWidget *box, *menu;
   GtkSettings *settings;
 
   gtk_init(argc,argv);
 
+  gtkui_follow_desktop_color_scheme();
+
   g_resources_register( gtkui_get_resource() );
 
-  gtkui_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+  /* The application is what holds the menu accelerators; Fuse runs its own
+     main loop, so it is registered but never run */
+  gtkui_app = gtk_application_new( "net.sourceforge.fuse_emulator.Fuse",
+                                   G_APPLICATION_NON_UNIQUE );
+  if( !g_application_register( G_APPLICATION( gtkui_app ), NULL, NULL ) ) {
+    fprintf(stderr,"%s: couldn't register the application at %s:%d\n",
+	    fuse_progname,__FILE__,__LINE__);
+    return 1;
+  }
+
+  gtkui_window = gtk_application_window_new( gtkui_app );
+  gtk_application_window_set_show_menubar( GTK_APPLICATION_WINDOW( gtkui_window ),
+                                           FALSE );
 
 #ifdef FUSE_ICON_AVAILABLE
   gtk_window_set_icon_name( GTK_WINDOW( gtkui_window ),
@@ -210,15 +393,14 @@ ui_init( int *argc, char ***argv )
   box = gtk_box_new( GTK_ORIENTATION_VERTICAL, 0 );
   gtk_container_add(GTK_CONTAINER(gtkui_window), box);
 
-  if( gtkui_make_menu( &accel_group, &menu_bar, gtkui_menu_data,
-                       gtkui_menu_data_size ) ) {
+  menu = gtkui_make_menu();
+  if( !menu ) {
     fprintf(stderr,"%s: couldn't make menus %s:%d\n",
 	    fuse_progname,__FILE__,__LINE__);
     return 1;
   }
 
-  gtk_window_add_accel_group( GTK_WINDOW(gtkui_window), accel_group );
-  gtk_box_pack_start( GTK_BOX(box), menu_bar, FALSE, FALSE, 0 );
+  gtkui_make_header_bar( menu );
 
   gtkui_drawing_area = gtk_drawing_area_new();
   if(!gtkui_drawing_area) {
@@ -261,38 +443,127 @@ gtkui_menu_deactivate( GtkMenuShell *menu GCC_UNUSED,
   ui_mouse_resume();
 }
 
-static gboolean
-gtkui_make_menu(GtkAccelGroup **accel_group,
-                GtkWidget **menu_bar,
-                GtkActionEntry *menu_data,
-                guint menu_data_size)
+static void
+gtkui_open_clicked( GtkButton *button GCC_UNUSED, gpointer data GCC_UNUSED )
 {
-  *accel_group = NULL;
-  *menu_bar = NULL;
+  menu_file_open( NULL, NULL, NULL );
+}
+
+/* Hang the menu off a button in a header bar, and make that header bar the
+   window's titlebar */
+static void
+gtkui_make_header_bar( GtkWidget *menu )
+{
+  GtkWidget *open_button;
+
+  header_bar = gtk_header_bar_new();
+  gtk_header_bar_set_show_close_button( GTK_HEADER_BAR( header_bar ), TRUE );
+  gtk_header_bar_set_title( GTK_HEADER_BAR( header_bar ), "Fuse" );
+
+  open_button =
+    gtk_button_new_from_icon_name( "document-open-symbolic",
+                                   GTK_ICON_SIZE_BUTTON );
+  gtk_widget_set_tooltip_text( open_button, "Open a file (F3)" );
+  /* Every key belongs to the emulated machine, so nothing in the header
+     bar may take the keyboard focus: a focused button would swallow
+     Space and Enter */
+  gtk_widget_set_can_focus( open_button, FALSE );
+  g_signal_connect( G_OBJECT( open_button ), "clicked",
+                    G_CALLBACK( gtkui_open_clicked ), NULL );
+  gtk_header_bar_pack_start( GTK_HEADER_BAR( header_bar ), open_button );
+
+  menu_button = gtk_menu_button_new();
+  gtk_button_set_image( GTK_BUTTON( menu_button ),
+                        gtk_image_new_from_icon_name( "open-menu-symbolic",
+                                                      GTK_ICON_SIZE_BUTTON ) );
+  gtk_menu_button_set_popup( GTK_MENU_BUTTON( menu_button ), menu );
+  gtk_widget_set_tooltip_text( menu_button, "Main menu (F1)" );
+  gtk_widget_set_can_focus( menu_button, FALSE );
+  gtk_header_bar_pack_end( GTK_HEADER_BAR( header_bar ), menu_button );
+
+  gtk_window_set_titlebar( GTK_WINDOW( gtkui_window ), header_bar );
+  gtk_widget_show_all( header_bar );
+}
+
+/* The state each menu item and submenu has been set to, before the
+   submenus above it are taken into account */
+static GHashTable *menu_item_states = NULL;
+
+/* The name of the GAction for the menu item with this UI independent
+   path: lower case, path separators turned into dashes and everything
+   which isn't a letter or a digit dropped, as in menu_data.pl */
+static char *
+gtkui_action_name( const char *path )
+{
+  GString *name;
+  const char *p;
+
+  name = g_string_new( NULL );
+
+  for( p = path; *p; p++ ) {
+    char c = g_ascii_tolower( *p );
+
+    if( c == '/' ) c = '-';
+
+    if( g_ascii_isalnum( c ) || c == '-' ) g_string_append_c( name, c );
+  }
+
+  if( name->len && name->str[0] == '-' ) g_string_erase( name, 0, 1 );
+
+  return g_string_free( name, FALSE );
+}
+
+/* Show the menu when its accelerator is pressed */
+static void
+gtkui_primary_menu( GSimpleAction *action GCC_UNUSED,
+                    GVariant *parameter GCC_UNUSED, gpointer data GCC_UNUSED )
+{
+  gtk_toggle_button_set_active( GTK_TOGGLE_BUTTON( menu_button ), TRUE );
+}
+
+static GActionEntry gtkui_window_actions[] = {
+  { "primary-menu", gtkui_primary_menu, NULL, NULL, NULL }
+};
+
+static GtkWidget *
+gtkui_make_menu( void )
+{
+  GtkWidget *menu;
+  GMenuModel *model;
+  gtkui_menu_accel *entry;
   GError *error = NULL;
 
-  ui_manager_menu = gtk_ui_manager_new();
+  /* The menu items act on the window: the application turns the
+     accelerators into activations of the same actions */
+  g_action_map_add_action_entries( G_ACTION_MAP( gtkui_window ),
+                                   gtkui_menu_data, gtkui_menu_data_size,
+                                   NULL );
+  g_action_map_add_action_entries( G_ACTION_MAP( gtkui_window ),
+                                   gtkui_window_actions,
+                                   ARRAY_SIZE( gtkui_window_actions ), NULL );
 
-  /* Load actions */
-  GtkActionGroup *menu_action_group = gtk_action_group_new( "MenuActionGroup" );
-  gtk_action_group_add_actions( menu_action_group, menu_data, menu_data_size,
-                                NULL );
-  gtk_ui_manager_insert_action_group( ui_manager_menu, menu_action_group, 0 );
-  g_object_unref( menu_action_group );
-
-  /* Load the UI */
-  guint ui_menu_id =
-      gtk_ui_manager_add_ui_from_resource( ui_manager_menu, GTK_MENU_DATA, &error );
-  if( error ) {
-    g_error_free( error );
-    return TRUE;
+  for( entry = gtkui_menu_accels; entry->action; entry++ ) {
+    const char *accels[] = { entry->accel, NULL };
+    gtk_application_set_accels_for_action( gtkui_app, entry->action, accels );
   }
-  else if( !ui_menu_id ) return TRUE;
 
-  *accel_group = gtk_ui_manager_get_accel_group( ui_manager_menu );
+  {
+    const char *accels[] = { "F1", NULL };
+    gtk_application_set_accels_for_action( gtkui_app, "win.primary-menu",
+                                           accels );
+  }
 
-  *menu_bar = gtk_ui_manager_get_widget( ui_manager_menu, "/MainMenu" );
-  g_signal_connect( G_OBJECT( *menu_bar ), "deactivate",
+  menu_builder = gtk_builder_new();
+  if( !gtk_builder_add_from_resource( menu_builder, GTK_MENU_DATA, &error ) ) {
+    g_error_free( error );
+    return NULL;
+  }
+
+  model = G_MENU_MODEL( gtk_builder_get_object( menu_builder, "MainMenu" ) );
+  if( !model ) return NULL;
+
+  menu = gtk_menu_new_from_model( model );
+  g_signal_connect( G_OBJECT( menu ), "deactivate",
 		    G_CALLBACK( gtkui_menu_deactivate ), NULL );
 
   /* Start various menus in the 'off' state */
@@ -305,7 +576,7 @@ gtkui_make_menu(GtkAccelGroup **accel_group,
 #ifdef HAVE_LIB_XML2
   ui_menu_activate( UI_MENU_ITEM_FILE_SVG_CAPTURE, 0 );
 #endif
-  return FALSE;
+  return menu;
 }
 
 int
@@ -324,9 +595,18 @@ ui_end(void)
   /* Don't display the window whilst doing all this! */
   gtk_widget_hide( gtkui_window );
 
-  g_object_unref( ui_manager_menu );
+  g_clear_object( &menu_builder );
+  g_clear_object( &gtkui_app );
+
+  if( menu_item_states ) {
+    g_hash_table_destroy( menu_item_states );
+    menu_item_states = NULL;
+  }
 
   g_resources_unregister( gtkui_get_resource() );
+
+  g_clear_object( &settings_portal );
+  g_clear_object( &interface_settings );
 
   return 0;
 }
@@ -457,13 +737,12 @@ static gboolean
 gtkui_delete( GtkWidget *widget GCC_UNUSED, GdkEvent *event GCC_UNUSED,
               gpointer data GCC_UNUSED )
 {
-  menu_file_exit( NULL, NULL );
+  menu_file_exit( NULL, NULL, NULL );
   return TRUE;
 }
 
 /* Called by the menu when File/Exit selected */
-void
-menu_file_exit( GtkAction *gtk_action GCC_UNUSED, gpointer data GCC_UNUSED )
+MENU_CALLBACK( menu_file_exit )
 {
   if( gtkui_confirm( "Exit Fuse?" ) ) {
 
@@ -473,7 +752,7 @@ menu_file_exit( GtkAction *gtk_action GCC_UNUSED, gpointer data GCC_UNUSED )
 
     /* Stop the paused state to allow us to exit (occurs from main
        emulation loop) */
-    if( paused ) menu_machine_pause( NULL, NULL );
+    if( paused ) menu_machine_pause( NULL, NULL, NULL );
 
     /* Ensure we break out of the main Z80 loop, there could be active
        breakpoints before the next event */
@@ -582,8 +861,7 @@ gtkui_run_main_loop( gpointer user_data GCC_UNUSED )
 }
 
 /* Machine/Pause */
-void
-menu_machine_pause( GtkAction *gtk_action GCC_UNUSED, gpointer data GCC_UNUSED )
+MENU_CALLBACK( menu_machine_pause )
 {
   int error;
 
@@ -611,8 +889,7 @@ menu_machine_pause( GtkAction *gtk_action GCC_UNUSED, gpointer data GCC_UNUSED )
 }
 
 /* Called by the menu when Machine/Reset selected */
-void
-menu_machine_reset( GtkAction *gtk_action GCC_UNUSED, guint action )
+MENU_CALLBACK_WITH_ACTION( menu_machine_reset )
 {
   int hard_reset = action;
   const char *message = "Reset?";
@@ -636,9 +913,7 @@ menu_machine_reset( GtkAction *gtk_action GCC_UNUSED, guint action )
 }
 
 /* Called by the menu when Machine/Select selected */
-void
-menu_machine_select( GtkAction *gtk_action GCC_UNUSED,
-                     gpointer data GCC_UNUSED )
+MENU_CALLBACK( menu_machine_select )
 {
   GtkWidget *content_area;
   gtkui_select_info dialog;
@@ -716,9 +991,7 @@ menu_machine_select_done( GtkWidget *widget GCC_UNUSED, gpointer user_data )
   gtk_main_quit();
 }
 
-void
-menu_machine_debugger( GtkAction *gtk_action GCC_UNUSED,
-                       gpointer data GCC_UNUSED )
+MENU_CALLBACK( menu_machine_debugger )
 {
   debugger_mode = DEBUGGER_MODE_HALTED;
   if( paused ) ui_debugger_activate();
@@ -732,14 +1005,12 @@ ui_widgets_reset( void )
   return 0;
 }
 
-void
-menu_help_keyboard( GtkAction *gtk_action GCC_UNUSED, gpointer data GCC_UNUSED )
+MENU_CALLBACK( menu_help_keyboard )
 {
   gtkui_picture( "keyboard.png", 0 );
 }
 
-void
-menu_help_about( GtkAction *gtk_action GCC_UNUSED, gpointer data GCC_UNUSED )
+MENU_CALLBACK( menu_help_about )
 {
   gtk_show_about_dialog( GTK_WINDOW( gtkui_window ),
                          "program-name", "Fuse",
@@ -765,23 +1036,94 @@ gtkui_destroy_widget_and_quit( GtkWidget *widget, gpointer data GCC_UNUSED )
 
 /* Functions to activate and deactivate certain menu items */
 
+/* The state a menu item has been given, defaulting to active */
+static int
+menu_item_state( const char *name )
+{
+  gpointer state;
+
+  if( !menu_item_states ) return 1;
+
+  state = g_hash_table_lookup( menu_item_states, name );
+
+  return state ? GPOINTER_TO_INT( state ) - 1 : 1;
+}
+
+/* A menu item can be used only if it is active itself and so is every
+   submenu holding it. Submenus have no action of their own to disable
+   in a menu model, so their state is applied to their contents. */
+static int
+menu_item_effective_state( const char *name )
+{
+  const char *dash;
+  int state;
+
+  state = menu_item_state( name );
+
+  for( dash = strchr( name, '-' ); dash && state;
+       dash = strchr( dash + 1, '-' ) ) {
+    char *submenu = g_strndup( name, dash - name );
+    state = menu_item_state( submenu );
+    g_free( submenu );
+  }
+
+  return state;
+}
+
+/* Apply the state of this item, or of everything in this submenu, to the
+   actions the menu is built from. Returns the number of items updated. */
+static int
+menu_update_actions( const char *name )
+{
+  gchar **actions, **action;
+  size_t length = strlen( name );
+  int updated = 0;
+
+  actions = g_action_group_list_actions( G_ACTION_GROUP( gtkui_window ) );
+
+  for( action = actions; *action; action++ ) {
+    GAction *item;
+
+    if( strncmp( *action, name, length ) ) continue;
+    if( (*action)[length] && (*action)[length] != '-' ) continue;
+
+    item = g_action_map_lookup_action( G_ACTION_MAP( gtkui_window ), *action );
+    g_simple_action_set_enabled( G_SIMPLE_ACTION( item ),
+                                 menu_item_effective_state( *action ) );
+    updated++;
+  }
+
+  g_strfreev( actions );
+
+  return updated;
+}
+
 int
 ui_menu_item_set_active( const char *path, int active )
 {
-  GtkWidget *menu_item;
+  char *name;
+  int updated;
 
-  /* Translate UI-indepentment path to GTK UI path */
-  gchar *full_path = g_strdup_printf ("/MainMenu%s", path );
+  /* Translate the UI independent path to the name of the item's action,
+     the same way menu_data.pl does when it generates them */
+  name = gtkui_action_name( path );
 
-  menu_item = gtk_ui_manager_get_widget( ui_manager_menu, full_path );
-  g_free( full_path );
+  if( !menu_item_states )
+    menu_item_states = g_hash_table_new_full( g_str_hash, g_str_equal, g_free,
+                                              NULL );
 
-  if( !menu_item ) {
+  /* Zero means unset, so the states are stored one greater */
+  g_hash_table_insert( menu_item_states, g_strdup( name ),
+                       GINT_TO_POINTER( active ? 2 : 1 ) );
+
+  updated = menu_update_actions( name );
+  g_free( name );
+
+  if( !updated ) {
     ui_error( UI_ERROR_ERROR, "couldn't get menu item '%s' from menu_factory",
 	      path );
     return 1;
   }
-  gtk_widget_set_sensitive( menu_item, active );
 
   return 0;
 }
@@ -1056,20 +1398,10 @@ gtkui_scroll_connect( GtkTreeView *list, GtkAdjustment *adj )
                     G_CALLBACK( wheel_scroll_event ), adj );
 }
 
-int
-gtkui_menubar_get_height( void )
-{
-  GtkAllocation alloc;
-
-  gtk_widget_get_allocation( menu_bar, &alloc );
-
-  return alloc.height;
-}
-
 void
 gtkui_set_bars_visible( int visible )
 {
-  gtk_widget_set_visible( menu_bar, visible );
+  gtk_widget_set_visible( header_bar, visible );
   /* The status bar is only shown if the user has it enabled */
   gtkstatusbar_set_visibility( visible ? settings_current.statusbar : 0 );
 }

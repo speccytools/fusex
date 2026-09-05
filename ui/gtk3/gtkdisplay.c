@@ -144,7 +144,8 @@ static void cancel_pending_resize( void );
 static gboolean gtkdisplay_draw( GtkWidget *widget, cairo_t *cr,
                                  gpointer user_data );
 
-static gint drawing_area_resize_callback( GtkWidget *widget, GdkEvent *event,
+static void drawing_area_resize_callback( GtkWidget *widget,
+                                          GtkAllocation *allocation,
                                           gpointer data );
 
 static int
@@ -212,7 +213,7 @@ uidisplay_init( int width, int height )
 
   colour_format = FORMAT_x8r8g8b8;
 
-  g_signal_connect( G_OBJECT( gtkui_window ), "configure_event",
+  g_signal_connect( G_OBJECT( gtkui_drawing_area ), "size-allocate",
                     G_CALLBACK( drawing_area_resize_callback ), NULL );
 
   error = init_colours( colour_format ); if( error ) return error;
@@ -728,24 +729,26 @@ drawing_area_resize_timeout( gpointer data GCC_UNUSED )
   return G_SOURCE_REMOVE;
 }
 
-/* Called by gtkui_window on "configure_event".
-   On GTK 3 the window determines the size of the drawing area.
+/* Called by gtkui_drawing_area on "size-allocate".
+   On GTK 3 the window determines the size of the drawing area, so take
+   the size from the drawing area itself: the window's own size can't be
+   used for this, as with client side decorations it also covers the
+   header bar and the invisible border drawn around the window.
 
    Wait for RESIZE_TIMEOUT_MS before changing the scaler to prevent
    the window from flickering while it is being resized. */
-static gint
-drawing_area_resize_callback( GtkWidget *widget GCC_UNUSED, GdkEvent *event,
+static void
+drawing_area_resize_callback( GtkWidget *widget GCC_UNUSED,
+                              GtkAllocation *allocation,
                               gpointer data GCC_UNUSED )
 {
-  pending_width  = event->configure.width;
-  pending_height = event->configure.height - extra_height;
+  pending_width  = allocation->width;
+  pending_height = allocation->height;
   resize_last_activity = g_get_monotonic_time();
 
   if( !resize_timeout_id )
     resize_timeout_id =
       g_timeout_add( RESIZE_TIMEOUT_MS, drawing_area_resize_timeout, NULL );
-
-  return FALSE;
 }
 
 void
@@ -763,8 +766,9 @@ gtkdisplay_update_geometry( void )
      don't set geometry of widgets. See [bugs:#344] */
   geometry_widget = NULL;
 
-  /* Add extra space for menu bar */
-  extra_height = gtkui_menubar_get_height();
+  /* The header bar is the window's titlebar: GTK adds its height to the
+     size asked for here, so only the status bar has to be accounted for */
+  extra_height = 0;
 
   /* Add extra space for status bar + padding */
   if( settings_current.statusbar ) {
