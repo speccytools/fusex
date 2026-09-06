@@ -151,7 +151,6 @@
 		B61F469C09121DF100C8096C /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 29B97324FDCFA39411CA2CEA /* AppKit.framework */; };
 		B61F46A009121DF100C8096C /* ScalerSupportsScanlines.m in Sources */ = {isa = PBXBuildFile; fileRef = B67F3D0107ED1C9D0045339F /* ScalerSupportsScanlines.m */; };
 		B6251C3E0C2EB24500BD5543 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B6251C3D0C2EB24500BD5543 /* QuartzCore.framework */; };
-		B629532E114FB265007808E0 /* libspectrum.h.in in Resources */ = {isa = PBXBuildFile; fileRef = B6DCBB7A114FA0E700DC9A11 /* libspectrum.h.in */; };
 		B62B19E10DD31DF500D42AAF /* scalers16.c in Sources */ = {isa = PBXBuildFile; fileRef = B62B19E00DD31DF500D42AAF /* scalers16.c */; };
 		B62B1A280DD6655800D42AAF /* fuse.c in Sources */ = {isa = PBXBuildFile; fileRef = B62B1A270DD6655800D42AAF /* fuse.c */; };
 		B62B1A2A0DD667EC00D42AAF /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = B62B1A290DD667EC00D42AAF /* main.m */; };
@@ -380,20 +379,6 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXBuildRule section */
-		B6DCBC42114FA33300DC9A11 /* PBXBuildRule */ = {
-			isa = PBXBuildRule;
-			compilerSpec = com.apple.compilers.proxy.script;
-			filePatterns = "*ibspectrum.h.in";
-			fileType = pattern.proxy;
-			inputFiles = (
-			);
-			isEditable = 1;
-			outputFiles = (
-				"${SRCROOT}/libspectrum.h",
-			);
-			runOncePerArchitecture = 0;
-			script = "perl -p ${SRCROOT}/generate.pl ${INPUT_FILE_PATH} > ${SRCROOT}/libspectrum.h\n";
-		};
 		B6DCBC47114FA3E100DC9A11 /* PBXBuildRule */ = {
 			isa = PBXBuildRule;
 			compilerSpec = com.apple.compilers.proxy.script;
@@ -864,7 +849,6 @@
 		BB363D13A266FD676FFE3610 /* 256s-2.rom */ = {isa = PBXFileReference; lastKnownFileType = file; name = "256s-2.rom"; path = "../roms/256s-2.rom"; sourceTree = SOURCE_ROOT; };
 		BE0CE3A70B709644584824ED /* 256s-1.rom */ = {isa = PBXFileReference; lastKnownFileType = file; name = "256s-1.rom"; path = "../roms/256s-1.rom"; sourceTree = SOURCE_ROOT; };
 		C92EF3866D22AE4CC08978A7 /* 256s-0.rom */ = {isa = PBXFileReference; lastKnownFileType = file; name = "256s-0.rom"; path = "../roms/256s-0.rom"; sourceTree = SOURCE_ROOT; };
-		D12E7FEC29258CF400185E4D /* libspectrum.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = libspectrum.h; path = fusepb/libspectrum.h; sourceTree = "<group>"; };
 		D12E7FED292596B100185E4D /* AppSandboxFileAccess.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AppSandboxFileAccess.m; sourceTree = "<group>"; };
 		D12E7FEE292596B100185E4D /* AppSandboxFileAccessOpenSavePanelDelegate.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AppSandboxFileAccessOpenSavePanelDelegate.m; sourceTree = "<group>"; };
 		D12E7FEF292596B100185E4D /* AppSandboxFileAccessOpenSavePanelDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AppSandboxFileAccessOpenSavePanelDelegate.h; sourceTree = "<group>"; };
@@ -1141,7 +1125,6 @@
 		29B97315FDCFA39411CA2CEA /* Other Sources */ = {
 			isa = PBXGroup;
 			children = (
-				D12E7FEC29258CF400185E4D /* libspectrum.h */,
 				B6DCBB5D114FA0E700DC9A11 /* libspectrum */,
 				B63225E50C66B9D500BB081B /* compat */,
 				B68CB2BC03DD91D800A804BA /* debugger */,
@@ -2000,6 +1983,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = B61F46A509121DF100C8096C /* Build configuration list for PBXNativeTarget "FuseX" */;
 			buildPhases = (
+				D1A55E0129C0F1A000185E4D /* Generate libspectrum.h */,
 				B61F459109121DF100C8096C /* ShellScript */,
 				B61F459209121DF100C8096C /* Copy Files */,
 				B61F45A109121DF100C8096C /* Copy Files */,
@@ -2012,7 +1996,6 @@
 			buildRules = (
 				B6DCBC47114FA3E100DC9A11 /* PBXBuildRule */,
 				B6DCBC48114FA3E100DC9A11 /* PBXBuildRule */,
-				B6DCBC42114FA33300DC9A11 /* PBXBuildRule */,
 			);
 			dependencies = (
 				FEE4C221294E40C80083753A /* PBXTargetDependency */,
@@ -2165,7 +2148,6 @@
 				B665EE221052A4F200FCFED8 /* MainMenu.xib in Resources */,
 				B665EE251052A51B00FCFED8 /* TapeBrowser.xib in Resources */,
 				B665EE281052A53C00FCFED8 /* SavePanelAccessoryView.xib in Resources */,
-				B629532E114FB265007808E0 /* libspectrum.h.in in Resources */,
 				B61700F4163EAF8D00142336 /* PokeMemory.xib in Resources */,
 				B6013812164692F5005FD3AE /* Fuse.iconset in Resources */,
 				70C4AAF3348BCAAF406ABD72 /* fdi.icns in Resources */,
@@ -2198,6 +2180,28 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		D1A55E0129C0F1A000185E4D /* Generate libspectrum.h */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/generate-libspectrum-header.sh",
+				"$(SRCROOT)/config.h",
+				"$(SRCROOT)/../3rdparty/libspectrum/libspectrum.h.in",
+				"$(SRCROOT)/../3rdparty/libspectrum/make-perl.c",
+				"$(SRCROOT)/../3rdparty/libspectrum/generate.pl.in",
+				"$(SRCROOT)/../3rdparty/libspectrum/snap_accessors.txt",
+				"$(SRCROOT)/../3rdparty/libspectrum/tape_accessors.txt",
+			);
+			name = "Generate libspectrum.h";
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/libspectrum.h",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/generate-libspectrum-header.sh\" \"${DERIVED_FILE_DIR}\"\n";
+		};
 		B61F459109121DF100C8096C /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -2528,6 +2532,7 @@
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_VERSION = "";
 				HEADER_SEARCH_PATHS = (
+					"$(DERIVED_FILE_DIR)",
 					"$(FRAMEWORK_SEARCH_PATHS_QUOTED_1)/audiofile.framework/Headers",
 					"$(FRAMEWORK_SEARCH_PATHS_QUOTED_2)/gcrypt.framework/Headers",
 					"$(FRAMEWORK_SEARCH_PATHS_QUOTED_3)/mbedtls.framework/Headers",
@@ -2600,6 +2605,7 @@
 				GCC_OPTIMIZATION_LEVEL = 3;
 				GCC_VERSION = "";
 				HEADER_SEARCH_PATHS = (
+					"$(DERIVED_FILE_DIR)",
 					"$(FRAMEWORK_SEARCH_PATHS_QUOTED_1)/audiofile.framework/Headers",
 					"$(FRAMEWORK_SEARCH_PATHS_QUOTED_2)/gcrypt.framework/Headers",
 					"$(FRAMEWORK_SEARCH_PATHS_QUOTED_3)/mbedtls.framework/Headers",
@@ -2671,6 +2677,7 @@
 				GCC_OPTIMIZATION_LEVEL = 3;
 				GCC_VERSION = "";
 				HEADER_SEARCH_PATHS = (
+					"$(DERIVED_FILE_DIR)",
 					"$(FRAMEWORK_SEARCH_PATHS_QUOTED_1)/audiofile.framework/Headers",
 					"$(FRAMEWORK_SEARCH_PATHS_QUOTED_2)/gcrypt.framework/Headers",
 					"$(FRAMEWORK_SEARCH_PATHS_QUOTED_3)/mbedtls.framework/Headers",
