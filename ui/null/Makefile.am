@@ -25,6 +25,20 @@ fuse_SOURCES += $(ui_null_files)
 
 BUILT_SOURCES += $(ui_null_built)
 
+all-local: @FUSEX_LIB@
+
+# A host loads this from wherever it was installed, so it absorbs libspectrum
+# rather than recording the path it was built at. $(fuse_LDADD) carries
+# -lspectrum, which would let the linker pick the shared library where both are
+# installed; drop it and name the archive.
+@FUSEX_LIB@: fuse$(EXEEXT)
+	$(AM_V_GEN)objects=`echo " $(fuse_OBJECTS) " | sed 's| main\.$(OBJEXT) | |g'`; \
+	libraries=`echo " $(fuse_LDADD) " | sed 's| -lspectrum | |g'`; \
+	$(CCLD) @FUSEX_LDFLAGS@ $(LDFLAGS) -o $@ $$objects $$libraries \
+	  @LIBSPECTRUM_ARCHIVE@ @LIBSPECTRUM_PRIVATE_LIBS@ $(LIBS)
+
+CLEANFILES += @FUSEX_LIB@
+
 endif
 
 CLEANFILES += $(ui_null_built)

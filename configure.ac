@@ -920,6 +920,63 @@ if test "x$missing_routines" = x; then
 fi
 AC_MSG_RESULT($missing_routines)
 
+AC_MSG_CHECKING(how to link the libfusex shared library)
+case "$host_os" in
+  darwin*)
+    FUSEX_LIB=libfusex.dylib
+    FUSEX_LDFLAGS='-dynamiclib -install_name @rpath/libfusex.dylib'
+    ;;
+  mingw32*|cygwin*)
+    FUSEX_LIB=libfusex.dll
+    FUSEX_LDFLAGS='-shared'
+    ;;
+  *)
+    FUSEX_LIB=libfusex.so
+    FUSEX_LDFLAGS='-shared -Wl,-soname,libfusex.so'
+    ;;
+esac
+AC_MSG_RESULT($FUSEX_LIB)
+AC_SUBST(FUSEX_LIB)
+AC_SUBST(FUSEX_LDFLAGS)
+
+dnl A host loads the library from wherever it was installed, so the library
+dnl must not name libspectrum by the path it was built at. Absorb libspectrum
+dnl instead, which needs the dependencies a static link leaves unresolved.
+dnl -lspectrum would leave the choice between the archive and the shared
+dnl library to the linker's search order, and the shared one wins wherever both
+dnl are installed. Name the archive itself.
+AC_MSG_CHECKING(for the libspectrum archive)
+LIBSPECTRUM_ARCHIVE=`$PKG_CONFIG --variable=libdir libspectrum 2>/dev/null`/libspectrum.a
+if test -f "$LIBSPECTRUM_ARCHIVE"; then
+  AC_MSG_RESULT($LIBSPECTRUM_ARCHIVE)
+else
+  LIBSPECTRUM_ARCHIVE=-lspectrum
+  AC_MSG_RESULT([not found, linking libspectrum dynamically])
+  AS_IF([test "$UI" = null], [
+    AC_MSG_WARN([libfusex will depend on a shared libspectrum at the path it
+                 was built against; build libspectrum with --disable-shared
+                 --with-pic for a relocatable library])
+  ])
+fi
+AC_SUBST(LIBSPECTRUM_ARCHIVE)
+
+dnl What the archive itself leaves unresolved, from the .pc file's Libs.private.
+AC_MSG_CHECKING(for libspectrum's private link flags)
+LIBSPECTRUM_PRIVATE_LIBS=`$PKG_CONFIG --static --libs libspectrum 2>/dev/null`
+LIBSPECTRUM_PRIVATE_LIBS=`echo " $LIBSPECTRUM_PRIVATE_LIBS " | sed 's/ -lspectrum / /g'`
+AC_MSG_RESULT($LIBSPECTRUM_PRIVATE_LIBS)
+AC_SUBST(LIBSPECTRUM_PRIVATE_LIBS)
+
+AS_IF([test "$UI" = null], [
+  case "$host_os" in
+    darwin*|mingw32*|cygwin*)
+      ;;
+    *)
+      CFLAGS="$CFLAGS -fPIC"
+      ;;
+  esac
+])
+
 dnl Work out which compatibility routines to use
 AC_MSG_CHECKING(which compatibility routines to use)
 case "$host_os" in

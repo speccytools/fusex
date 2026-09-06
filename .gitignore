@@ -40,6 +40,8 @@
 /lib/tests/idedos-success.hdf
 /lib/tests/success.d80
 /lib/tests/success.mgt
+/libfusex.dylib
+/libfusex.so
 /libtool
 /ltmain.sh
 /m4/libtool.m4

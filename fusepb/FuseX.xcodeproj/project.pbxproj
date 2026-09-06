@@ -309,6 +309,7 @@
 		B6F66E351E473D68005B270A /* memory_pages.c in Sources */ = {isa = PBXBuildFile; fileRef = B6F66E331E473D68005B270A /* memory_pages.c */; };
 		B6FA759D0C1D7507007F5A10 /* audiofile.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B6FA759C0C1D7507007F5A10 /* audiofile.framework */; };
 		B6FA75C60C1D76A5007F5A10 /* audiofile.framework in Copy Files */ = {isa = PBXBuildFile; fileRef = B6FA759C0C1D7507007F5A10 /* audiofile.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		FE1B00120001000000000002 /* libfusex.dylib in Copy Files */ = {isa = PBXBuildFile; fileRef = FE1B00110001000000000001 /* libfusex.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		BAE50FF21E9FEF6A73AC6175 /* 256s-3.rom in Resources */ = {isa = PBXBuildFile; fileRef = B47A67E8F3CF893BB8B0B51B /* 256s-3.rom */; };
 		C0C0617E40B5762CC966FBB0 /* opu.icns in Resources */ = {isa = PBXBuildFile; fileRef = E1F94955E564E275BA43C35D /* opu.icns */; };
 		C56D1BEAC229ADB9FFF68BA0 /* mgt.icns in Resources */ = {isa = PBXBuildFile; fileRef = E58E141DFD2813AA4F512B32 /* mgt.icns */; };
@@ -454,6 +455,7 @@
 				FE8E40202FD71100009FDB81 /* (null) in Copy Files */,
 				B6D65C3818A645A100170B64 /* gcrypt.framework in Copy Files */,
 				FE8E3FD92FD70FFB009FDB81 /* libssh2.framework in Copy Files */,
+				FE1B00120001000000000002 /* libfusex.dylib in Copy Files */,
 			);
 			name = "Copy Files";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -749,6 +751,7 @@
 		B6D2989105B061CB00C2AA14 /* MemoryBrowserController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = MemoryBrowserController.h; path = controllers/MemoryBrowserController.h; sourceTree = "<group>"; };
 		B6D2989205B061CB00C2AA14 /* MemoryBrowserController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = MemoryBrowserController.m; path = controllers/MemoryBrowserController.m; sourceTree = "<group>"; };
 		B6D65C3618A6431500170B64 /* gcrypt.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = gcrypt.framework; path = ../3rdparty/libgcrypt/build/Deployment/gcrypt.framework; sourceTree = "<group>"; };
+		FE1B00110001000000000001 /* libfusex.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libfusex.dylib; path = ../build/libfusex/libfusex.dylib; sourceTree = "<group>"; };
 		B6D670451DD6CB6B0014914E /* FuseXHelp.help */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FuseXHelp.help; sourceTree = BUILT_PRODUCTS_DIR; };
 		B6D670471DD6CB6B0014914E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B6D71DCC1F6A94750000D666 /* divmmc.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = divmmc.c; sourceTree = "<group>"; };

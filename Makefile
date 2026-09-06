@@ -1,4 +1,4 @@
-.PHONY: 3rdparty audiofile libgcrypt FuseGenerator FuseImporter mbedtls libssh2 clean-3rdparty list-teams fusex archive dist dmg appcast appcast-push release release-clean release-notarize release-export clean
+.PHONY: 3rdparty audiofile libgcrypt FuseGenerator FuseImporter mbedtls libssh2 libspectrum libfusex clean-3rdparty list-teams fusex archive dist dmg appcast appcast-push release release-clean release-notarize release-export clean
 
 # Signing parameters (can be overridden from command line)
 # By default, use the signing settings already stored in the Xcode projects.
@@ -11,6 +11,13 @@ PROVISIONING_PROFILE_SPECIFIER ?=
 # Archive path (can be overridden from command line)
 # Example: make archive ARCHIVE_PATH=./build/FuseX.xcarchive
 ARCHIVE_PATH ?= ./build/FuseX.xcarchive
+
+# libfusex, the shared library shipped in the bundle, and the libspectrum it
+# absorbs. The autotools build runs out of tree so it does not overwrite this
+# Makefile. The path is the one FuseX.xcodeproj copies into Frameworks.
+LIBSPECTRUM_DIR = 3rdparty/libspectrum
+LIBSPECTRUM_PREFIX = $(CURDIR)/$(LIBSPECTRUM_DIR)/libspectrum-installed
+LIBFUSEX_BUILD_DIR = build/libfusex
 
 # Release paths and notarization profile
 DIST_APP_PATH ?= dist/FuseX.app
@@ -128,6 +135,28 @@ libssh2: mbedtls
 		CONFIGURATION_BUILD_DIR=build/Deployment \
 		$(XCODEBUILD_SIGN_ARGS)
 
+# Static, so libfusex absorbs it rather than recording the path it was built at.
+libspectrum:
+	@echo "Building libspectrum..."
+	cd $(LIBSPECTRUM_DIR) && \
+	./autogen.sh && \
+	./configure --without-libgcrypt --without-bzip2 --with-fake-glib \
+		--disable-shared --with-pic --prefix="$(LIBSPECTRUM_PREFIX)" && \
+	$(MAKE) && \
+	$(MAKE) install
+
+# --without-png keeps the Homebrew libpng out; every remaining dependency is a
+# system library, so the bundle is loadable wherever it is installed.
+libfusex: libspectrum
+	@echo "Building libfusex..."
+	./autogen.sh
+	@mkdir -p $(LIBFUSEX_BUILD_DIR)
+	cd $(LIBFUSEX_BUILD_DIR) && \
+	PKG_CONFIG_PATH="$(LIBSPECTRUM_PREFIX)/lib/pkgconfig" \
+	$(CURDIR)/configure --with-null-ui --without-pthread \
+		--with-audio-driver=null --without-png && \
+	$(MAKE)
+
 list-teams:
 	@echo "Available code signing identities and development teams:"
 	@echo ""
@@ -147,7 +176,11 @@ list-teams:
 		echo "No code signing identities found. Make sure you have certificates installed in your keychain."; \
 	fi
 
+# libfusex is built from the recipe rather than named as a prerequisite: fusepb
+# regenerates sources the libfusex build compiles, and under make -j sibling
+# prerequisites run concurrently whatever order they are written in.
 fusex: 3rdparty fusepb
+	$(MAKE) libfusex
 	@echo "Building FuseX app..."
 	cd fusepb && \
 	xcodebuild -project FuseX.xcodeproj \
@@ -166,6 +199,7 @@ release-clean:
 	@rm -rf "$(DIST_APP_PATH)"
 
 archive: 3rdparty fusepb
+	$(MAKE) libfusex
 	@echo "Archiving FuseX app..."
 	@mkdir -p build
 	cd fusepb && \
