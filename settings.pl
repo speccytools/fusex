@@ -55,7 +55,7 @@ my %fileAssoc = ( 'snapshot' => 1, 'tape_file' => 1, 'record_file' => 1,
                   'zxcf_pri_file' => 1,
                   'plus3disk_file' => 1, 'betadisk_file' => 1 );
 
-my %command_line_only = ( 'gdbserver_wait' => 1 );
+my %command_line_only = ( 'gdbserver_wait' => 1, 'rom_dir' => 1 );
 
 while(<>) {
 

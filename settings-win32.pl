@@ -30,7 +30,7 @@ sub hashline ($) { '#line ', $_[0] + 1, '"', __FILE__, "\"\n" }
 
 my %options;
 
-my %command_line_only = ( 'gdbserver_wait' => 1 );
+my %command_line_only = ( 'gdbserver_wait' => 1, 'rom_dir' => 1 );
 
 while(<>) {
 

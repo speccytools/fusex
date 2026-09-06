@@ -571,6 +571,7 @@ static void fuse_show_help( void )
    "--no-banner            Suppress the startup copyright banner.\n"
    "--playback <filename>  Play back RZX file <filename>.\n"
    "--record <filename>    Record to RZX file <filename>.\n"
+   "--rom-dir <dir>        Look for ROM images in <dir> first.\n"
    "--separation <type>    Use ACB/ABC stereo for the AY-3-8912 sound chip.\n"
    "--snapshot <filename>  Load snapshot <filename>.\n"
    "--speed <percentage>   How fast should emulation run?\n"

@@ -233,6 +233,8 @@ start_scaler_mode, string, "2x",, 'g', graphics-filter
 
 speccyboot_tap, string, "tap0",
 
+rom_dir, string, NULL
+
 rom_16_0, string, "48.rom",
 rom_48_0, string, "48.rom",
 rom_128_0, string, "128-0.rom",

@@ -314,6 +314,13 @@ utils_find_file_path( const char *filename, char *ret_path,
     return 0;
   }
 
+  if( type == UTILS_AUXILIARY_ROM && settings_current.rom_dir ) {
+    int bytes_written = snprintf( ret_path, PATH_MAX,
+                                  "%s" FUSE_DIR_SEP_STR "%s",
+                                  settings_current.rom_dir, filename );
+    if( bytes_written < PATH_MAX && compat_file_exists( ret_path ) ) return 0;
+  }
+
   /* Otherwise look in some likely locations */
   init_path_context( &ctx, type );
 
