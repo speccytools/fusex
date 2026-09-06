@@ -174,9 +174,6 @@ archive: 3rdparty fusepb
 		-scheme FuseX \
 		-configuration Deployment \
 		-archivePath "$(CURDIR)/$(ARCHIVE_PATH)" \
-		SYMROOT=build \
-		BUILD_DIR=build \
-		CONFIGURATION_BUILD_DIR=build/Deployment \
 			$(XCODEBUILD_SIGN_ARGS)
 	@echo "Archive created at: $(ARCHIVE_PATH)"
 
