@@ -18,7 +18,6 @@
 		58ED2BB163960C572FE0F3E3 /* pzx.icns in Resources */ = {isa = PBXBuildFile; fileRef = 23103D2BCD71D4B9DEC65FCF /* pzx.icns */; };
 		652334C79C3C45C66BE3C10B /* 256s-1.rom in Resources */ = {isa = PBXBuildFile; fileRef = BE0CE3A70B709644584824ED /* 256s-1.rom */; };
 		6616B2D62512C764FFAC046E /* trdos.rom in Resources */ = {isa = PBXBuildFile; fileRef = 34AD35B155C536CA1C00E688 /* trdos.rom */; };
-		B6E1F1AD14F653FB00600EC3 /* gs.rom in Resources */ = {isa = PBXBuildFile; fileRef = B6E1F1A914F653FB00600EC3 /* gs.rom */; };
 		6823C0379589DBCFCE58368B /* 128p-1.rom in Resources */ = {isa = PBXBuildFile; fileRef = 182AC5F263F0617717FE0914 /* 128p-1.rom */; };
 		70561DA4F03E4F3DA5B85553 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EAA54F20E902456BACB24998 /* MetalKit.framework */; };
 		70C4AAF3348BCAAF406ABD72 /* fdi.icns in Resources */ = {isa = PBXBuildFile; fileRef = 0434807795A36A2ADBE801FD /* fdi.icns */; };
@@ -296,6 +295,7 @@
 		B6E1F1AD14F653FB00600EB0 /* specdrum.c in Sources */ = {isa = PBXBuildFile; fileRef = B6E1F1A914F653FB00600EB0 /* specdrum.c */; };
 		B6E1F1AD14F653FB00600EC1 /* general_sound.c in Sources */ = {isa = PBXBuildFile; fileRef = B6E1F1A914F653FB00600EC1 /* general_sound.c */; };
 		B6E1F1AD14F653FB00600EC2 /* gs_z80.c in Sources */ = {isa = PBXBuildFile; fileRef = B6E1F1A914F653FB00600EC2 /* gs_z80.c */; };
+		B6E1F1AD14F653FB00600EC3 /* gs.rom in Resources */ = {isa = PBXBuildFile; fileRef = B6E1F1A914F653FB00600EC3 /* gs.rom */; };
 		B6E1F1B114F6555400600EB0 /* disciple.c in Sources */ = {isa = PBXBuildFile; fileRef = B6E1F1AF14F6555400600EB0 /* disciple.c */; };
 		B6E1F26E14F85BD500600EB0 /* speccyboot-1.4.rom in Resources */ = {isa = PBXBuildFile; fileRef = B6E1F26D14F85BD500600EB0 /* speccyboot-1.4.rom */; };
 		B6F0480F0952B597006D8005 /* dck.icns in Resources */ = {isa = PBXBuildFile; fileRef = B6F0480E0952B597006D8005 /* dck.icns */; };
@@ -490,7 +490,6 @@
 		29B97325FDCFA39411CA2CEA /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = /System/Library/Frameworks/Foundation.framework; sourceTree = "<absolute>"; };
 		2BDC12F02C4E48F98494D156 /* DisplayShaders.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = DisplayShaders.metal; sourceTree = "<group>"; };
 		34AD35B155C536CA1C00E688 /* trdos.rom */ = {isa = PBXFileReference; lastKnownFileType = file; name = trdos.rom; path = ../roms/trdos.rom; sourceTree = SOURCE_ROOT; };
-		B6E1F1A914F653FB00600EC3 /* gs.rom */ = {isa = PBXFileReference; lastKnownFileType = file; name = gs.rom; path = ../roms/gs.rom; sourceTree = SOURCE_ROOT; };
 		384001994B177FFEB8AE6C99 /* udi.icns */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.icns; name = udi.icns; path = resources/udi.icns; sourceTree = SOURCE_ROOT; };
 		3B061F2A9CBA3011FBE7A640 /* d80.icns */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.icns; name = d80.icns; path = resources/d80.icns; sourceTree = SOURCE_ROOT; };
 		6B9DA7F77DF8F6DD5023E33A /* spc.icns */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.icns; name = spc.icns; path = resources/spc.icns; sourceTree = SOURCE_ROOT; };
@@ -814,10 +813,11 @@
 		B6E1F1A714F653FB00600EB0 /* speccyboot.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = speccyboot.c; sourceTree = "<group>"; };
 		B6E1F1A814F653FB00600EB0 /* speccyboot.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = speccyboot.h; sourceTree = "<group>"; };
 		B6E1F1A914F653FB00600EB0 /* specdrum.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = specdrum.c; path = sound/specdrum.c; sourceTree = "<group>"; };
-		B6E1F1AA14F653FB00600EB0 /* specdrum.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = specdrum.h; path = sound/specdrum.h; sourceTree = "<group>"; };
 		B6E1F1A914F653FB00600EC1 /* general_sound.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = general_sound.c; path = sound/general_sound.c; sourceTree = "<group>"; };
-		B6E1F1AA14F653FB00600EC1 /* general_sound.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = general_sound.h; path = sound/general_sound.h; sourceTree = "<group>"; };
 		B6E1F1A914F653FB00600EC2 /* gs_z80.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = gs_z80.c; path = sound/gs_z80.c; sourceTree = "<group>"; };
+		B6E1F1A914F653FB00600EC3 /* gs.rom */ = {isa = PBXFileReference; lastKnownFileType = file; name = gs.rom; path = ../roms/gs.rom; sourceTree = SOURCE_ROOT; };
+		B6E1F1AA14F653FB00600EB0 /* specdrum.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = specdrum.h; path = sound/specdrum.h; sourceTree = "<group>"; };
+		B6E1F1AA14F653FB00600EC1 /* general_sound.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = general_sound.h; path = sound/general_sound.h; sourceTree = "<group>"; };
 		B6E1F1AA14F653FB00600EC2 /* gs_z80.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = gs_z80.h; path = sound/gs_z80.h; sourceTree = "<group>"; };
 		B6E1F1AF14F6555400600EB0 /* disciple.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = disciple.c; sourceTree = "<group>"; };
 		B6E1F1B014F6555400600EB0 /* disciple.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = disciple.h; sourceTree = "<group>"; };
@@ -950,7 +950,7 @@
 		FE0A0203301F000000000001 /* xfs_overlay.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = xfs_overlay.c; sourceTree = "<group>"; };
 		FE0A0204301F000000000001 /* xfs_romfs.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = xfs_romfs.c; sourceTree = "<group>"; };
 		FE0A0205301F000000000001 /* ../roms/spxromfs.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = ../roms/spxromfs.bin; sourceTree = SOURCE_ROOT; };
-		FE0A0206301F000000000001 /* ../roms/spxcontroller.bin */ = {isa = PBXFileReference; lastKnownFileType = file; path = ../roms/spxcontroller.bin; sourceTree = SOURCE_ROOT; };
+		FE0A0206301F000000000001 /* ../roms/spxcontroller.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = ../roms/spxcontroller.bin; sourceTree = SOURCE_ROOT; };
 		FE2DAC582F328D96009AC45A /* xfs.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = xfs.h; sourceTree = "<group>"; };
 		FE2DAC592F328D96009AC45A /* xfs.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = xfs.c; sourceTree = "<group>"; };
 		FE2DAC5C2F328DD5009AC45A /* xfs_engines.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = xfs_engines.h; sourceTree = "<group>"; };
@@ -2214,6 +2214,7 @@
 		};
 		B61F459109121DF100C8096C /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
@@ -2511,6 +2512,7 @@
 		B61F46A609121DF100C8096C /* Development */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ENABLE_OBJC_ARC = NO;
 				CODE_SIGN_ENTITLEMENTS = FuseX.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
@@ -2518,7 +2520,7 @@
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = 48UV5KV3FB;
@@ -2561,7 +2563,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = .;
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
-				MARKETING_VERSION = "1.9.2-fusex-0.1";
+				MARKETING_VERSION = "1.9.2-fusex-0.2";
 				OTHER_CFLAGS = "";
 				OTHER_CODE_SIGN_FLAGS = "";
 				OTHER_LDFLAGS = (
@@ -2585,6 +2587,7 @@
 		B61F46A709121DF100C8096C /* Deployment */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ENABLE_OBJC_ARC = NO;
 				CODE_SIGN_ENTITLEMENTS = FuseX.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
@@ -2592,7 +2595,7 @@
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = YES;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = 48UV5KV3FB;
@@ -2634,7 +2637,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = .;
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
-				MARKETING_VERSION = "1.9.2-fusex-0.1";
+				MARKETING_VERSION = "1.9.2-fusex-0.2";
 				OTHER_CFLAGS = "";
 				OTHER_CODE_SIGN_FLAGS = "";
 				OTHER_LDFLAGS = (
@@ -2658,13 +2661,14 @@
 		B61F46A809121DF100C8096C /* Default */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ENABLE_OBJC_ARC = NO;
 				CODE_SIGN_ENTITLEMENTS = FuseX.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = 48UV5KV3FB;
@@ -2706,7 +2710,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = .;
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
-				MARKETING_VERSION = "1.9.2-fusex-0.1";
+				MARKETING_VERSION = "1.9.2-fusex-0.2";
 				OTHER_CFLAGS = "";
 				OTHER_CODE_SIGN_FLAGS = "";
 				OTHER_LDFLAGS = (
