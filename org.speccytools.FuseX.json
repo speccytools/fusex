@@ -1,0 +1,49 @@
+{
+  "app-id": "org.speccytools.FuseX",
+  "runtime": "org.gnome.Platform",
+  "runtime-version": "50",
+  "sdk": "org.gnome.Sdk",
+  "command": "fuse",
+  "finish-args": [
+    "--share=ipc",
+    "--socket=fallback-x11",
+    "--socket=wayland",
+    "--socket=pulseaudio",
+    "--device=dri",
+    "--filesystem=home"
+  ],
+  "modules": [
+    {
+      "name": "libspectrum",
+      "buildsystem": "simple",
+      "build-commands": [
+        "./autogen.sh",
+        "./configure --prefix=/app --disable-shared --without-libgcrypt --without-libaudiofile --without-fake-glib",
+        "make -j$FLATPAK_BUILDER_N_JOBS",
+        "make install"
+      ],
+      "sources": [
+        {
+          "type": "dir",
+          "path": "3rdparty/libspectrum"
+        }
+      ]
+    },
+    {
+      "name": "fusex",
+      "buildsystem": "simple",
+      "build-commands": [
+        "autoreconf -fi",
+        "./configure --prefix=/app --without-sdl --disable-sockets --enable-desktop-integration --with-desktop-dir=/app/share",
+        "make -j$FLATPAK_BUILDER_N_JOBS",
+        "make install"
+      ],
+      "sources": [
+        {
+          "type": "dir",
+          "path": "."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+name: Release
+
+on:
+  push:
+    tags: ['*.*.*-fusex-*']
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ github.ref_name }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Set release name
+        id: release
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version=${TAG%%-fusex-*}
+          revision=${TAG#*-fusex-}
+          echo "name=FuseX ${version} (${revision})" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: release
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          name: ${{ steps.release.outputs.name }}
+          files: release/*.flatpak
