@@ -1,0 +1,36 @@
+name: Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version string
+        required: true
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Linux Flatpak
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+    steps:
+      - name: Check out FuseX
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Build Flatpak
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: FuseX-${{ inputs.version }}.flatpak
+          manifest-path: org.speccytools.FuseX.json
+          cache-key: flatpak-builder-${{ github.sha }}
