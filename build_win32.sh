@@ -60,7 +60,8 @@ if [[ ! -d "$SCRIPT_DIR/3rdparty/dist/bin" ]] || \
    [[ ! -f "$SCRIPT_DIR/3rdparty/dist/lib/libmbedtls.a" ]] || \
    [[ ! -f "$SCRIPT_DIR/3rdparty/dist/lib/libssh2.a" ]]; then
     echo -e "\n${GREEN}Building 3rdparty (libspectrum, mbedTLS/libssh2 for Spectranet, optional deps)...${NC}"
-    ( cd "$SCRIPT_DIR/3rdparty" && make -j"$(nproc 2>/dev/null || echo 4)" )
+    ( cd "$SCRIPT_DIR/3rdparty" && make -j"$(nproc 2>/dev/null || echo 4)" \
+        MBEDTLS_MAKE_ARGS="WINDOWS=1 SHARED=1" )
 else
     echo -e "\n${GREEN}Using existing 3rdparty/dist${NC}"
 fi

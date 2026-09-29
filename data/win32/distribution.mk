@@ -21,6 +21,8 @@
 
 package_win32=$(PACKAGE)-$(PACKAGE_VERSION)-$(UI)
 top_win32dir=$(top_builddir)/$(package_win32)
+MINGW_RUNTIME_FILES ?=
+MINGW_RUNTIME_DLLS ?= libwinpthread-1.dll libstdc++-6.dll libgcc_s_seh-1.dll libgcc_s_dw2-1.dll
 
 install-win32: all
 	test -n "$(DESTDIR)" || { echo "ERROR: set DESTDIR path"; exit 1; }
@@ -93,7 +95,15 @@ dist-win32-dir: 3rdparty-dist
 	    fi; \
 	  done; \
 	fi
-	@MINGW_BIN=""; \
+	@if test -n "$(MINGW_RUNTIME_FILES)"; then \
+	  echo "Copying compiler runtime DLLs ..."; \
+	  for dll in $(MINGW_RUNTIME_FILES); do \
+	    if test ! -f "$$dll"; then echo "ERROR: MinGW runtime DLL not found: $$dll"; exit 1; fi; \
+	    cp "$$dll" "$(top_win32dir)/" || exit 1; \
+	    echo "  copied $$(basename "$$dll")"; \
+	  done; \
+	else \
+	MINGW_BIN=""; \
 	if test -n "$$MSYSTEM"; then \
 	  if test "$$MSYSTEM" = "MINGW64"; then \
 	    MINGW_BIN="/mingw64/bin"; \
@@ -112,12 +122,13 @@ dist-win32-dir: 3rdparty-dist
 	fi; \
 	if test -n "$$MINGW_BIN"; then \
 	  echo "Copying MinGW runtime DLLs from $$MINGW_BIN ..."; \
-	  for dll in libwinpthread-1.dll libstdc++-6.dll libgcc_s_seh-1.dll libgcc_s_dw2-1.dll; do \
+	  for dll in $(MINGW_RUNTIME_DLLS); do \
 	    if test -f "$$MINGW_BIN/$$dll"; then \
 	      cp "$$MINGW_BIN/$$dll" "$(top_win32dir)/"; \
 	      echo "  copied $$dll"; \
 	    fi; \
 	  done; \
+	fi; \
 	fi
 	@if test -f "$(top_srcdir)/data/win32/WinSparkle.dll"; then \
 	  cp "$(top_srcdir)/data/win32/WinSparkle.dll" "$(top_win32dir)/"; \

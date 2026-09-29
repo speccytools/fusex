@@ -1,8 +1,13 @@
-# Makefile for building FuseX third-party libraries on Windows (MSYS2 MinGW-w64).
-# Run from MSYS2 "MinGW 64-bit" shell: cd 3rdparty && make
+# Makefile for building FuseX third-party libraries into dist/.
 
 SCRIPT_DIR := $(CURDIR)
 DIST_PREFIX := $(SCRIPT_DIR)/dist
+LIBSPECTRUM_CONFIGURE_ARGS ?= --with-fake-glib --without-libaudiofile --without-libgcrypt --without-zlib --without-bzip2
+CMAKE_TOOLCHAIN_FILE ?=
+MBEDTLS_BUILD_TARGET ?= no_test
+MBEDTLS_MAKE_ARGS ?=
+MBEDTLS_CFLAGS ?=
+LIBSSH2_CMAKE_ARGS ?=
 
 export PKG_CONFIG_PATH := $(DIST_PREFIX)/lib/pkgconfig:$(PKG_CONFIG_PATH)
 
@@ -55,8 +60,7 @@ check-tools:
 	@echo "$(GREEN)Checking for required tools...$(NC)"
 	@for tool in gcc make pkg-config cmake; do \
 		if ! command -v $$tool >/dev/null 2>&1; then \
-			echo "$(RED)Error: $$tool is not installed$(NC)"; \
-			echo "Install with: pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-make mingw-w64-x86_64-pkg-config mingw-w64-x86_64-cmake"; \
+			echo "$(RED)Error: required tool '$$tool' is not installed$(NC)"; \
 			exit 1; \
 		fi; \
 		echo "  ✓ $$tool found"; \
@@ -100,8 +104,7 @@ libspectrum: dist-dirs check-libspectrum
 	if [ ! -f configure ]; then \
 		./autogen.sh; \
 	fi && \
-	./configure --with-fake-glib --without-libaudiofile --without-libgcrypt \
-	            --without-zlib --without-bzip2 --prefix="$(DIST_PREFIX)" && \
+	./configure $(LIBSPECTRUM_CONFIGURE_ARGS) --prefix="$(DIST_PREFIX)" && \
 	$(MAKE) && \
 	$(MAKE) install
 
@@ -155,7 +158,7 @@ mbedtls:
 		if [ -f library/Makefile ]; then \
 			$(MAKE) clean || true; \
 		fi && \
-		$(MAKE) WINDOWS=1 SHARED=1 no_test && \
+		$(MAKE) $(MBEDTLS_MAKE_ARGS) $(if $(MBEDTLS_CFLAGS),CFLAGS="$(MBEDTLS_CFLAGS)") $(MBEDTLS_BUILD_TARGET) && \
 		mkdir -p "$(DIST_PREFIX)/include/mbedtls" && \
 		cp -rp include/mbedtls/* "$(DIST_PREFIX)/include/mbedtls/" && \
 		mkdir -p "$(DIST_PREFIX)/lib" && \
@@ -181,6 +184,8 @@ libssh2: mbedtls dist-dirs check-libssh2
 		cd libssh2/src/build && \
 		cmake .. \
 			-G "Unix Makefiles" \
+			$(if $(CMAKE_TOOLCHAIN_FILE),-DCMAKE_TOOLCHAIN_FILE="$(CMAKE_TOOLCHAIN_FILE)") \
+			$(LIBSSH2_CMAKE_ARGS) \
 			-DCMAKE_INSTALL_PREFIX="$(DIST_PREFIX)" \
 			-DCMAKE_BUILD_TYPE=Release \
 			-DBUILD_SHARED_LIBS=OFF \

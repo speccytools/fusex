@@ -41,7 +41,7 @@ Name "${DISPLAY_NAME}"
 outFile "${SETUP_FILE}"
 Caption "${DISPLAY_NAME}"
  
-installDir "$PROGRAMFILES\FuseX"
+installDir "@FUSEX_WINDOWS_INSTALL_DIR@"
 
 ; [Additional Installer Settings ]
 XPStyle on

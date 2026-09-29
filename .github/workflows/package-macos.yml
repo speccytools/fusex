@@ -1,0 +1,79 @@
+name: Package for macOS
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Package
+    runs-on: macos-26
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install dependencies
+        run: brew install autoconf automake cmake libtool pkg-config libpng create-dmg
+
+      - name: Build and sign app
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          upstream_version="${VERSION%%-fusex-*}"
+          fusex_revision="${VERSION#*-fusex-}"
+          make -f Makefile.darwin fusex \
+            FUSEX_VERSION="$VERSION" \
+            MARKETING_VERSION="$upstream_version ($fusex_revision)" \
+            ARCHS="arm64 x86_64" \
+            ONLY_ACTIVE_ARCH=NO \
+            MACOSX_DEPLOYMENT_TARGET=12.0 \
+            XCODEBUILD_SIGN_ARGS='DEVELOPMENT_TEAM="" CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="-" CODE_SIGN_IDENTITY_ALL="-"'
+
+          app="fusepb/build/Deployment/FuseX.app"
+          test -d "$app"
+          codesign --force --sign - \
+            --entitlements 3rdparty/FuseGenerator/thumbnail/thumbnail.entitlements \
+            "$app/Contents/PlugIns/FuseQLThumbnail.appex"
+          codesign --force --sign - \
+            --entitlements 3rdparty/FuseGenerator/preview/preview.entitlements \
+            "$app/Contents/PlugIns/FuseQLPreview.appex"
+          codesign --force --sign - "$app"
+
+      - name: Create and verify DMG
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          app="fusepb/build/Deployment/FuseX.app"
+          dmg="FuseX-${VERSION}.dmg"
+          rm -rf dist
+          mkdir -p dist
+          ditto "$app" dist/FuseX.app
+          make -f Makefile.darwin dmg FUSEX_VERSION="$VERSION" DMG_NAME="$dmg"
+          hdiutil verify "$dmg"
+
+          mount_point="$RUNNER_TEMP/fusex-dmg"
+          mkdir -p "$mount_point"
+          hdiutil attach "$dmg" -readonly -nobrowse -mountpoint "$mount_point"
+          test -d "$mount_point/FuseX.app"
+          hdiutil detach "$mount_point"
+
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: fusex-macos
+          path: FuseX-${{ inputs.version }}.dmg
+          if-no-files-found: error

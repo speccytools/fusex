@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags: ['*.*.*-fusex-*']
+
+jobs:
+  package-macos:
+    name: Package for macOS
+    uses: ./.github/workflows/package-macos.yml
+    with:
+      version: ${{ github.ref_name }}
+
+  package-windows-x64:
+    name: Package for Windows x64
+    uses: ./.github/workflows/package-windows-x64.yml
+    with:
+      version: ${{ github.ref_name }}
+
+  package-flatpak:
+    name: Package for Linux (Flatpak)
+    uses: ./.github/workflows/package-flatpak.yml
+    with:
+      version: ${{ github.ref_name }}
+
+  release:
+    name: Release
+    needs:
+      - package-macos
+      - package-windows-x64
+      - package-flatpak
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Set release name
+        id: release
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version=${TAG%%-fusex-*}
+          revision=${TAG#*-fusex-}
+          echo "name=FuseX ${version} (${revision})" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: release
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          name: ${{ steps.release.outputs.name }}
+          files: |
+            release/*.dmg
+            release/*.exe
+            release/*.flatpak

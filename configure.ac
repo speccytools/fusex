@@ -41,6 +41,15 @@ AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_HEADERS(config.h)
 AC_CANONICAL_HOST
 
+dnl Select the default NSIS install directory from the Windows target architecture.
+FUSEX_WINDOWS_INSTALL_DIR='$PROGRAMFILES\FuseX'
+case "$host_os:$host_cpu" in
+  mingw*:x86_64)
+    FUSEX_WINDOWS_INSTALL_DIR='$PROGRAMFILES64\FuseX'
+    ;;
+esac
+AC_SUBST([FUSEX_WINDOWS_INSTALL_DIR])
+
 dnl Use automake to produce `Makefile.in'
 AM_INIT_AUTOMAKE([1.11 foreign subdir-objects -Wall])
 AM_SILENT_RULES([yes])

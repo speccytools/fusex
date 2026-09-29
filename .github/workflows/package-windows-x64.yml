@@ -1,0 +1,123 @@
+name: Package Windows x64
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version string
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        name: Check out source
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            autoconf automake binutils-mingw-w64-x86-64 bison build-essential \
+            ca-certificates cmake curl flex g++-mingw-w64-x86-64-posix \
+            gcc-mingw-w64-x86-64-posix git groff libtool libtool-bin make \
+            mingw-w64-x86-64-dev nsis perl pkg-config python3 unzip zip
+
+      - name: Set up vcpkg
+        run: |
+          git clone --depth 1 --branch 2026.07.29 https://github.com/microsoft/vcpkg.git "$RUNNER_TEMP/vcpkg"
+          "$RUNNER_TEMP/vcpkg/bootstrap-vcpkg.sh" -disableMetrics
+
+      - uses: actions/cache@v6
+        name: Restore vcpkg package cache
+        with:
+          path: .github/builds/windows/vcpkg_installed
+          key: windows-x64-vcpkg-2026.07.29-${{ hashFiles('.github/builds/windows/vcpkg.json') }}
+
+      - name: Install Windows libraries
+        run: |
+          cd .github/builds/windows
+          VCPKG_ROOT="$RUNNER_TEMP/vcpkg" \
+            "$RUNNER_TEMP/vcpkg/vcpkg" install --triplet x64-mingw-dynamic
+
+      - name: Build package
+        env:
+          VERSION: ${{ inputs.version }}
+          VCPKG_ROOT: ${{ runner.temp }}/vcpkg
+          CC: x86_64-w64-mingw32-gcc-posix
+          CXX: x86_64-w64-mingw32-g++-posix
+          AR: x86_64-w64-mingw32-ar
+          RANLIB: x86_64-w64-mingw32-ranlib
+          WINDRES: x86_64-w64-mingw32-windres
+          STRIP: x86_64-w64-mingw32-strip
+        run: |
+          set -euo pipefail
+          vcpkg_installed="$GITHUB_WORKSPACE/.github/builds/windows/vcpkg_installed/x64-mingw-dynamic"
+          runtime_dlls=()
+          for name in libwinpthread-1.dll libstdc++-6.dll libgcc_s_seh-1.dll; do
+            runtime_dll="$("$CC" -print-file-name="$name")"
+            if [[ "$runtime_dll" == "$name" || ! -f "$runtime_dll" ]]; then
+              echo "Could not resolve $name from $CC" >&2
+              exit 1
+            fi
+            runtime_dlls+=("$runtime_dll")
+          done
+          printf -v runtime_files '%s ' "${runtime_dlls[@]}"
+
+          export VCPKG_INSTALLED_DIR="$vcpkg_installed"
+          export PKG_CONFIG_LIBDIR="$vcpkg_installed/lib/pkgconfig:$GITHUB_WORKSPACE/3rdparty/dist/lib/pkgconfig"
+          export PKG_CONFIG_PATH=
+          export CPPFLAGS="-I$vcpkg_installed/include"
+          export LDFLAGS="-L$vcpkg_installed/lib"
+          export LIBS="$(pkg-config --libs zlib)"
+
+          ./autogen.sh
+          make -C 3rdparty -j"$(nproc)" libspectrum libssh2 \
+            LIBSPECTRUM_CONFIGURE_ARGS="--host=x86_64-w64-mingw32 --with-fake-glib --without-libaudiofile --without-libgcrypt --with-zlib --with-bzip2" \
+            CMAKE_TOOLCHAIN_FILE="$GITHUB_WORKSPACE/.github/builds/windows/x86_64-w64-mingw32.cmake" \
+            MBEDTLS_BUILD_TARGET=lib \
+            MBEDTLS_MAKE_ARGS="WINDOWS=1 SHARED=1" \
+            LIBSSH2_CMAKE_ARGS=-DENABLE_ZLIB_COMPRESSION=ON
+
+          mkdir -p 3rdparty/dist/bin
+          cp "$vcpkg_installed"/bin/*.dll 3rdparty/dist/bin/
+
+          ./configure \
+            --host=x86_64-w64-mingw32 \
+            --with-win32 \
+            --enable-sockets \
+            --with-pthread \
+            --with-zlib \
+            --with-png \
+            --with-libxml2 \
+            --with-audio-driver=win32sound
+
+          make -j"$(nproc)" \
+            MINGW_RUNTIME_FILES="${runtime_files% }" \
+            STRIP="$STRIP" \
+            dist-win32-exe
+
+          mkdir -p build/windows-x64
+          setup="$(find . -maxdepth 1 -name 'fusex-*-win32-setup.exe' -print -quit)"
+          test -n "$setup"
+          cp "$setup" "build/windows-x64/fusex-${VERSION}-windows-x64-setup.exe"
+
+      - uses: actions/upload-artifact@v7
+        name: Upload package
+        with:
+          name: fusex-windows-x64
+          path: build/windows-x64/fusex-*-windows-x64-setup.exe
+          if-no-files-found: error

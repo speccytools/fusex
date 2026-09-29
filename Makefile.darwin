@@ -1,4 +1,4 @@
-.PHONY: 3rdparty audiofile libgcrypt FuseGenerator FuseImporter mbedtls libssh2 libspectrum libfusex clean-3rdparty list-teams fusex archive dist dmg appcast appcast-push release release-clean release-notarize release-export clean
+.PHONY: 3rdparty audiofile libgcrypt FuseGenerator FuseImporter mbedtls libssh2 libspectrum libfusex spectranet-libraries generate-fusepb-sources clean-3rdparty list-teams fusex archive dist dmg appcast appcast-push release release-clean release-notarize release-export clean
 
 # Signing parameters (can be overridden from command line)
 # By default, use the signing settings already stored in the Xcode projects.
@@ -26,6 +26,13 @@ ARCHIVE_APP_PATH = $(ARCHIVE_PATH)/Products/Applications/FuseX.app
 RELEASE_ZIP_PATH ?= ./build/FuseX-notarize.zip
 NOTARYTOOL_PROFILE ?=
 FUSEX_VERSION ?= $(shell awk -F'= ' '/MARKETING_VERSION = / { gsub(/[";]/, "", $$2); print $$2; exit }' fusepb/FuseX.xcodeproj/project.pbxproj)
+MARKETING_VERSION ?=
+ARCHS ?=
+ONLY_ACTIVE_ARCH ?=
+MACOSX_DEPLOYMENT_TARGET ?=
+empty :=
+space := $(empty) $(empty)
+ARCH_FLAGS = -O2 $(if $(MACOSX_DEPLOYMENT_TARGET),-mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)) $(foreach arch,$(ARCHS),-arch $(arch))
 DMG_NAME ?= FuseX-$(FUSEX_VERSION).dmg
 APPCAST_DIR ?= ./build/appcast
 APPCAST_ARCHIVE ?= ./$(DMG_NAME)
@@ -58,10 +65,26 @@ ifneq ($(PROVISIONING_PROFILE_SPECIFIER),)
 	XCODEBUILD_SIGN_ARGS += PROVISIONING_PROFILE_SPECIFIER="$(PROVISIONING_PROFILE_SPECIFIER)"
 endif
 
+XCODEBUILD_BUILD_ARGS :=
+ifneq ($(ARCHS),)
+	XCODEBUILD_BUILD_ARGS += ARCHS="$(ARCHS)"
+endif
+ifneq ($(ONLY_ACTIVE_ARCH),)
+	XCODEBUILD_BUILD_ARGS += ONLY_ACTIVE_ARCH="$(ONLY_ACTIVE_ARCH)"
+endif
+ifneq ($(MACOSX_DEPLOYMENT_TARGET),)
+	XCODEBUILD_BUILD_ARGS += MACOSX_DEPLOYMENT_TARGET="$(MACOSX_DEPLOYMENT_TARGET)"
+endif
+
+XCODEBUILD_APP_ARGS :=
+ifneq ($(MARKETING_VERSION),)
+	XCODEBUILD_APP_ARGS += MARKETING_VERSION="$(MARKETING_VERSION)"
+endif
+
 all: 3rdparty
 
-fusepb:
-	cd fusepb && make clean && make
+generate-fusepb-sources:
+	$(MAKE) -C fusepb
 
 3rdparty: audiofile libgcrypt FuseGenerator FuseImporter mbedtls libssh2
 
@@ -74,6 +97,7 @@ audiofile:
 		SYMROOT=build \
 		BUILD_DIR=build \
 		CONFIGURATION_BUILD_DIR=build/Deployment \
+		$(XCODEBUILD_BUILD_ARGS) \
 		$(XCODEBUILD_SIGN_ARGS)
 
 libgcrypt:
@@ -85,6 +109,7 @@ libgcrypt:
 		SYMROOT=build \
 		BUILD_DIR=build \
 		CONFIGURATION_BUILD_DIR=build/Deployment \
+		$(XCODEBUILD_BUILD_ARGS) \
 		$(XCODEBUILD_SIGN_ARGS)
 
 FuseGenerator:
@@ -101,6 +126,7 @@ FuseGenerator:
 		DEVELOPMENT_TEAM="$(FUSEGENERATOR_DEVELOPMENT_TEAM)" \
 		CODE_SIGN_IDENTITY="$(FUSEGENERATOR_CODE_SIGN_IDENTITY)" \
 		CODE_SIGN_STYLE="$(FUSEGENERATOR_CODE_SIGN_STYLE)" \
+		$(XCODEBUILD_BUILD_ARGS) \
 		$(XCODEBUILD_SIGN_ARGS)
 
 FuseImporter:
@@ -112,6 +138,7 @@ FuseImporter:
 		SYMROOT=build \
 		BUILD_DIR=build \
 		CONFIGURATION_BUILD_DIR=build/Deployment \
+		$(XCODEBUILD_BUILD_ARGS) \
 		$(XCODEBUILD_SIGN_ARGS)
 
 mbedtls:
@@ -123,6 +150,7 @@ mbedtls:
 		SYMROOT=build \
 		BUILD_DIR=build \
 		CONFIGURATION_BUILD_DIR=build/Deployment \
+		$(XCODEBUILD_BUILD_ARGS) \
 		$(XCODEBUILD_SIGN_ARGS)
 
 libssh2: mbedtls
@@ -134,27 +162,38 @@ libssh2: mbedtls
 		SYMROOT=build \
 		BUILD_DIR=build \
 		CONFIGURATION_BUILD_DIR=build/Deployment \
+		$(XCODEBUILD_BUILD_ARGS) \
 		$(XCODEBUILD_SIGN_ARGS)
 
 # Static, so libfusex absorbs it rather than recording the path it was built at.
 libspectrum:
 	@echo "Building libspectrum..."
 	cd $(LIBSPECTRUM_DIR) && \
+	if test -f Makefile; then $(MAKE) distclean; fi && \
 	./autogen.sh && \
-	./configure --without-libgcrypt --without-bzip2 --with-fake-glib \
+	CFLAGS="$(ARCH_FLAGS)" MACOSX_DEPLOYMENT_TARGET="$(MACOSX_DEPLOYMENT_TARGET)" \
+		./configure --without-libgcrypt --without-bzip2 --with-fake-glib \
 		--disable-shared --with-pic --prefix="$(LIBSPECTRUM_PREFIX)" && \
-	$(MAKE) && \
+	$(MAKE) CFLAGS="$(ARCH_FLAGS)" && \
 	$(MAKE) install
+
+spectranet-libraries:
+	CFLAGS="$(ARCH_FLAGS)" $(MAKE) -C 3rdparty libssh2 \
+		MBEDTLS_MAKE_ARGS= MBEDTLS_BUILD_TARGET=lib \
+		MBEDTLS_CFLAGS="$(ARCH_FLAGS)" \
+		LIBSSH2_CMAKE_ARGS="-DCMAKE_OSX_ARCHITECTURES='$(subst $(space),;,$(strip $(ARCHS)))' -DCMAKE_OSX_DEPLOYMENT_TARGET=$(MACOSX_DEPLOYMENT_TARGET)"
 
 # --without-png keeps the Homebrew libpng out; every remaining dependency is a
 # system library, so the bundle is loadable wherever it is installed.
-libfusex: libspectrum
+libfusex: libspectrum spectranet-libraries
 	@echo "Building libfusex..."
 	./autogen.sh
+	@rm -rf $(LIBFUSEX_BUILD_DIR)
 	@mkdir -p $(LIBFUSEX_BUILD_DIR)
 	cd $(LIBFUSEX_BUILD_DIR) && \
+	CFLAGS="$(ARCH_FLAGS)" LDFLAGS="$(ARCH_FLAGS)" MACOSX_DEPLOYMENT_TARGET="$(MACOSX_DEPLOYMENT_TARGET)" \
 	PKG_CONFIG_PATH="$(LIBSPECTRUM_PREFIX)/lib/pkgconfig" \
-	$(CURDIR)/configure --with-null-ui --without-pthread \
+	$(CURDIR)/configure --with-null-ui --with-pthread --enable-sockets \
 		--with-audio-driver=null --without-png && \
 	$(MAKE)
 
@@ -177,10 +216,10 @@ list-teams:
 		echo "No code signing identities found. Make sure you have certificates installed in your keychain."; \
 	fi
 
-# libfusex is built from the recipe rather than named as a prerequisite: fusepb
-# regenerates sources the libfusex build compiles, and under make -j sibling
-# prerequisites run concurrently whatever order they are written in.
-fusex: 3rdparty fusepb
+# libfusex is built from the recipe rather than named as a prerequisite:
+# generate-fusepb-sources regenerates sources the libfusex build compiles. Under
+# make -j, sibling prerequisites run concurrently regardless of their order here.
+fusex: 3rdparty generate-fusepb-sources
 	$(MAKE) -f Makefile.darwin libfusex
 	@echo "Building FuseX app..."
 	cd fusepb && \
@@ -190,6 +229,8 @@ fusex: 3rdparty fusepb
 		SYMROOT=build \
 		BUILD_DIR=build \
 		CONFIGURATION_BUILD_DIR=build/Deployment \
+		$(XCODEBUILD_BUILD_ARGS) \
+		$(XCODEBUILD_APP_ARGS) \
 		$(XCODEBUILD_SIGN_ARGS)
 
 release-clean:
@@ -212,6 +253,8 @@ archive: 3rdparty fusepb
 		SYMROOT=build \
 		BUILD_DIR=build \
 		CONFIGURATION_BUILD_DIR=build/Deployment \
+			$(XCODEBUILD_BUILD_ARGS) \
+			$(XCODEBUILD_APP_ARGS) \
 			$(XCODEBUILD_SIGN_ARGS)
 	@echo "Archive created at: $(ARCHIVE_PATH)"
 
