@@ -384,6 +384,12 @@ option.
 Specify an HDF image to be loaded into the DivMMC's emulated memory card.
 .RE
 .PP
+.B \-\-divmmc\-rom
+.I file
+.RS
+Load an 8192-byte raw image into the emulated DivMMC EPROM.
+.RE
+.PP
 .B \-\-divmmc\-write\-protect
 .RS
 Specify that the emulated DivMMC's write protect jumper that protects
@@ -4536,6 +4542,9 @@ option from the
 .I "Options, Peripherals, Disk..."
 dialog, and the state of its EEPROM write protect jumper controlled via the
 .IR "DivMMC write protect option" .
+The DivMMC EPROM can be initialized from an 8192-byte raw image with the
+.B \-\-divmmc\-rom
+command-line option.
 If you're going to be using the DivMMC, you'll need to load the ESXDOS
 firmware at
 .IR "http://www.esxdos.org/

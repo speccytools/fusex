@@ -15,6 +15,9 @@ The interface can be activated via the *DivMMC interface* option from the
 [Peripherals preferences](peripherals.html) dialog, and the state of its EEPROM
 write protect jumper controlled via the *DivMMC write protect* option.
 
+An 8192-byte raw DivMMC ROM can be loaded at startup with
+`--divmmc-rom /path/to/rom.bin`.
+
 If you're going to be using the DivMMC, you'll need to load the
 [ESXDOS firmware](http://www.esxdos.org/) or use the ZX Spectrum +3e ROMs by
 Garry Lancaster.

@@ -17,6 +17,7 @@
 #else
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/statvfs.h>
 #define O_BINARY 0  /* Not needed on Unix */
 #endif
 #include <sys/stat.h>
@@ -142,6 +143,35 @@ static void fs_unmount(const struct xfs_engine_t* engine, struct xfs_engine_moun
         libspectrum_free(mount->mount_data);
         mount->mount_data = NULL;
     }
+}
+
+static int16_t fs_stats(const struct xfs_engine_mount_t* mount, struct xfs_stats* stats)
+{
+    if (!mount || !stats)
+        return XFS_ERR_INVAL;
+#ifdef WIN32
+    return XFS_ERR_NOATTR;
+#else
+    const struct xfs_fs_mount_data_t* mount_data = get_mount_data(mount);
+    if (!mount_data)
+        return XFS_ERR_IO;
+
+    struct statvfs info;
+    const char* path = mount_data->base_path[0] ? mount_data->base_path : ".";
+    if (statvfs(path, &info) != 0)
+        return xfs_error_from_errno(errno);
+
+    memset(stats, 0, sizeof(*stats));
+    const uint64_t block_size = info.f_frsize ? info.f_frsize : info.f_bsize;
+    stats->total_bytes = (uint64_t)info.f_blocks * block_size;
+    stats->free_bytes = (uint64_t)info.f_bavail * block_size;
+    stats->used_bytes = stats->total_bytes >= stats->free_bytes
+        ? stats->total_bytes - stats->free_bytes : 0;
+    stats->total_known = 1;
+    stats->used_known = 1;
+    stats->free_known = 1;
+    return XFS_ERR_OK;
+#endif
 }
 
 // Open file
@@ -707,6 +737,7 @@ const struct xfs_engine_t xfs_ram_engine = {
     .mount = fs_mount,
     .is_mounted = fs_is_mounted,
     .unmount = fs_unmount,
+    .stats = fs_stats,
     .open = fs_open,
     .read = fs_read,
     .direct_read = NULL,

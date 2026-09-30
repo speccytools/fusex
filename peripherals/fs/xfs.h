@@ -111,6 +111,16 @@ struct xfs_stat_info
     char name[64];    // File/directory name
 };
 
+struct xfs_stats
+{
+    uint8_t total_known;
+    uint8_t used_known;
+    uint8_t free_known;
+    uint64_t total_bytes;
+    uint64_t used_bytes;
+    uint64_t free_bytes;
+};
+
 struct xfs_engine_t
 {
     void* user; // Engine-specific user data
@@ -121,6 +131,7 @@ struct xfs_engine_t
     uint8_t (*is_mounted)(const struct xfs_engine_t* engine, struct xfs_engine_mount_t* mount);
     void (*unmount)(const struct xfs_engine_t* engine, struct xfs_engine_mount_t* mount);
     void (*mount_info)(const struct xfs_engine_mount_t* mount, char* buffer, size_t size);
+    int16_t (*stats)(const struct xfs_engine_mount_t* mount, struct xfs_stats* stats);
 
     // File operations
     int16_t (*open)(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle, const char* path, int flags);

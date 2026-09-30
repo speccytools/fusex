@@ -22,6 +22,7 @@
 
 fuse_SOURCES += \
                 peripherals/dck.c \
+                peripherals/expansion_bus.c \
                 peripherals/if1.c \
                 peripherals/if2.c \
                 peripherals/joystick.c \
@@ -61,7 +62,8 @@ fuse_SOURCES += \
                 peripherals/ide/zxatasp.c \
                 peripherals/ide/zxcf.c \
                 peripherals/ide/zxmmc.c \
-                peripherals/spectranet.c
+                peripherals/spectranet.c \
+                peripherals/spectranext_esxdos.c
 
 if BUILD_SPECCYBOOT
 fuse_SOURCES += peripherals/nic/enc28j60.c
@@ -104,6 +106,7 @@ endif
 
 noinst_HEADERS += \
                   peripherals/dck.h \
+                  peripherals/expansion_bus.h \
                   peripherals/if1.h \
                   peripherals/if2.h \
                   peripherals/joystick.h \
@@ -113,6 +116,7 @@ noinst_HEADERS += \
                   peripherals/scld.h \
                   peripherals/speccyboot.h \
                   peripherals/spectranet.h \
+                  peripherals/spectranext_esxdos.h \
                   peripherals/ula.h \
                   peripherals/usource.h \
                   peripherals/ttx2000s.h \

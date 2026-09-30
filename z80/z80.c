@@ -32,8 +32,8 @@
 #include "infrastructure/startup_manager.h"
 #include "memory_pages.h"
 #include "module.h"
+#include "peripherals/expansion_bus.h"
 #include "peripherals/scld.h"
-#include "peripherals/spectranet.h"
 #include "rzx.h"
 #include "settings.h"
 #include "spectrum.h"
@@ -252,8 +252,7 @@ z80_interrupt( void )
 static void
 z80_nmi( libspectrum_dword ts, int type, void *user_data )
 {
-  /* TODO: this isn't ideal */
-  if( spectranet_available && spectranet_nmi_flipflop() )
+  if( expansion_bus_nmi_suppressed() )
     return;
 
   if( z80.halted ) { PC++; z80.halted = 0; }
@@ -274,10 +273,9 @@ z80_nmi( libspectrum_dword ts, int type, void *user_data )
 
     /* Page in TR-DOS ROM */
     beta_page();
-  } else if( spectranet_available ) {
-    
-    /* Page in spectranet */
-    spectranet_nmi();
+  } else {
+
+    expansion_bus_nmi_page();
   }
 
   Q = 0;
@@ -288,7 +286,7 @@ z80_nmi( libspectrum_dword ts, int type, void *user_data )
 void
 z80_retn( void )
 {
-  spectranet_retn();
+  expansion_bus_retn();
 }
 
 /* Routines for transferring the Z80 contents to and from snapshots */

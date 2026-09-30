@@ -208,6 +208,8 @@
 		B69BE5411660E02500C5D0CE /* w5100_socket.c in Sources */ = {isa = PBXBuildFile; fileRef = B69BE53E1660E02500C5D0CE /* w5100_socket.c */; };
 		B69BE5421660E02500C5D0CE /* w5100.c in Sources */ = {isa = PBXBuildFile; fileRef = B69BE53F1660E02500C5D0CE /* w5100.c */; };
 		B69BE5451660E04000C5D0CE /* spectranet.c in Sources */ = {isa = PBXBuildFile; fileRef = B69BE5431660E04000C5D0CE /* spectranet.c */; };
+		FE1B00140001000000000004 /* expansion_bus.c in Sources */ = {isa = PBXBuildFile; fileRef = FE1B00160001000000000006 /* expansion_bus.c */; };
+		FE1B00150001000000000005 /* spectranext_esxdos.c in Sources */ = {isa = PBXBuildFile; fileRef = FE1B00180001000000000008 /* spectranext_esxdos.c */; };
 		B69D8D4D1D6B34490031BAFC /* zip.c in Sources */ = {isa = PBXBuildFile; fileRef = B69D8D4B1D6B34490031BAFC /* zip.c */; };
 		B69D8D501D6B388A0031BAFC /* trdos.c in Sources */ = {isa = PBXBuildFile; fileRef = B69D8D4E1D6B388A0031BAFC /* trdos.c */; };
 		B6A6F0960B3C108C000B88E9 /* coreaudiosound.c in Sources */ = {isa = PBXBuildFile; fileRef = B6A6F0950B3C108C000B88E9 /* coreaudiosound.c */; };
@@ -665,6 +667,10 @@
 		B69BE5401660E02500C5D0CE /* w5100.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = w5100.h; sourceTree = "<group>"; };
 		B69BE5431660E04000C5D0CE /* spectranet.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = spectranet.c; sourceTree = "<group>"; };
 		B69BE5441660E04000C5D0CE /* spectranet.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = spectranet.h; sourceTree = "<group>"; };
+		FE1B00160001000000000006 /* expansion_bus.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = expansion_bus.c; sourceTree = "<group>"; };
+		FE1B00170001000000000007 /* expansion_bus.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = expansion_bus.h; sourceTree = "<group>"; };
+		FE1B00180001000000000008 /* spectranext_esxdos.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = spectranext_esxdos.c; sourceTree = "<group>"; };
+		FE1B00190001000000000009 /* spectranext_esxdos.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = spectranext_esxdos.h; sourceTree = "<group>"; };
 		B69D8D4B1D6B34490031BAFC /* zip.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = zip.c; sourceTree = "<group>"; };
 		B69D8D4C1D6B34490031BAFC /* zip.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = zip.h; sourceTree = "<group>"; };
 		B69D8D4E1D6B388A0031BAFC /* trdos.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = trdos.c; sourceTree = "<group>"; };
@@ -1710,6 +1716,10 @@
 				FE9900060000000000000006 /* uspeech.h */,
 				B69BE5431660E04000C5D0CE /* spectranet.c */,
 				B69BE5441660E04000C5D0CE /* spectranet.h */,
+				FE1B00160001000000000006 /* expansion_bus.c */,
+				FE1B00170001000000000007 /* expansion_bus.h */,
+				FE1B00180001000000000008 /* spectranext_esxdos.c */,
+				FE1B00190001000000000009 /* spectranext_esxdos.h */,
 				D1ECC73D2924069800147252 /* ttx2000s.c */,
 				D1ECC73C2924069800147252 /* ttx2000s.h */,
 				B6AB429D0677466E007C50EF /* ula.c */,
@@ -1994,6 +2004,7 @@
 			buildPhases = (
 				D1A55E0129C0F1A000185E4D /* Generate libspectrum.h */,
 				B61F459109121DF100C8096C /* ShellScript */,
+				FE1B00130001000000000003 /* Build libfusex */,
 				B61F459209121DF100C8096C /* Copy Files */,
 				B61F45A109121DF100C8096C /* Copy Files */,
 				B61F45FE09121DF100C8096C /* Resources */,
@@ -2226,6 +2237,22 @@
 			shellPath = /bin/sh;
 			shellScript = "make
 ";
+		};
+		FE1B00130001000000000003 /* Build libfusex */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Build libfusex";
+			outputPaths = (
+				"$(SRCROOT)/../build/libfusex/libfusex.dylib",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "PATH=\"/opt/homebrew/bin:/usr/local/bin:${PATH}\" make -C \"${SRCROOT}/..\" -f Makefile.darwin libfusex-xcode\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -2476,6 +2503,8 @@
 				FE9443D12F881F210059A578 /* parson.c in Sources */,
 				B69D8D4D1D6B34490031BAFC /* zip.c in Sources */,
 				B69BE5451660E04000C5D0CE /* spectranet.c in Sources */,
+				FE1B00140001000000000004 /* expansion_bus.c in Sources */,
+				FE1B00150001000000000005 /* spectranext_esxdos.c in Sources */,
 				B6B274061672AC8C00FC209B /* paths.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

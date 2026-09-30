@@ -7,12 +7,13 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <inttypes.h>
 
 // Small buffer for short responses (errors, OK, file sizes, etc.)
 static char short_response_buf[128];
 
 static struct xfs_engine_mount_t vfile_xfs_ram_mount = {
-    .engine = &xfs_ram_engine,
+    .engine = &xfs_overlay_engine,
     .mount_data = NULL  // Will be initialized in ensure_mounted()
 };
 
@@ -123,14 +124,14 @@ static int16_t clear_handle(void)
     int16_t result = 0;
     if (handle_type == HANDLE_FILE)
     {
-        result = xfs_ram_engine.close(&vfile_xfs_ram_mount, &active_handle);
+        result = xfs_overlay_engine.close(&vfile_xfs_ram_mount, &active_handle);
     }
     else if (handle_type == HANDLE_DIR)
     {
-        result = xfs_ram_engine.closedir(&vfile_xfs_ram_mount, &active_handle);
+        result = xfs_overlay_engine.closedir(&vfile_xfs_ram_mount, &active_handle);
     }
 
-    xfs_ram_engine.free_handle(&vfile_xfs_ram_mount, &active_handle);
+    xfs_overlay_engine.free_handle(&vfile_xfs_ram_mount, &active_handle);
 
     handle_type = HANDLE_NONE;
     file_position = 0;  // Reset position when handle is cleared
@@ -214,7 +215,7 @@ static char* handle_vfile_open(const char* args, uint32_t n)
     // Initialize handle (zero out entire structure)
     memset(&active_handle, 0, sizeof(active_handle));
     active_handle.type = XFS_HANDLE_TYPE_FILE;
-    const int16_t result = xfs_ram_engine.open(&vfile_xfs_ram_mount, &active_handle, path, xfs_flags);
+    const int16_t result = xfs_overlay_engine.open(&vfile_xfs_ram_mount, &active_handle, path, xfs_flags);
     if (result == XFS_ERR_OK)
     {
         handle_type = HANDLE_FILE;
@@ -285,7 +286,7 @@ static char* handle_vfile_pread(const char* args, uint32_t n)
     if (count > max_binary) count = max_binary;
     
     // Read data
-    const int16_t bytes_read = xfs_ram_engine.read(&vfile_xfs_ram_mount, &active_handle, (uint8_t*)response_buf, count);
+    const int16_t bytes_read = xfs_overlay_engine.read(&vfile_xfs_ram_mount, &active_handle, (uint8_t*)response_buf, count);
     if (bytes_read < 0)
     {
         const int errno_val = xfs_errno_to_gdb_errno(bytes_read);
@@ -370,7 +371,7 @@ static char* handle_vfile_pwrite(const char* args, uint32_t n)
     hex_to_bin(p, (uint16_t)actual_decoded_len, (uint8_t*)decode_buf);
     
     // Write data from decode buffer
-    const int16_t bytes_written = xfs_ram_engine.write(&vfile_xfs_ram_mount, &active_handle, (const uint8_t*)decode_buf, actual_decoded_len);
+    const int16_t bytes_written = xfs_overlay_engine.write(&vfile_xfs_ram_mount, &active_handle, (const uint8_t*)decode_buf, actual_decoded_len);
     if (bytes_written < 0)
     {
         const int errno_val = xfs_errno_to_gdb_errno(bytes_written);
@@ -401,7 +402,7 @@ static char* handle_vfile_size(const char* args, uint32_t n)
         return "F-1,22";  // EINVAL
     }
     struct xfs_stat_info info;
-    const int16_t result = xfs_ram_engine.stat(&vfile_xfs_ram_mount, path, &info);
+    const int16_t result = xfs_overlay_engine.stat(&vfile_xfs_ram_mount, path, &info);
     if (result == XFS_ERR_OK)
     {
         snprintf(short_response_buf, sizeof(short_response_buf), "F%lx", (unsigned long)info.size);
@@ -431,7 +432,7 @@ static char* handle_vfile_exists(const char* args, uint32_t n)
         return "F-1,22";  // EINVAL
     }
     struct xfs_stat_info info;
-    const int16_t result = xfs_ram_engine.stat(&vfile_xfs_ram_mount, path, &info);
+    const int16_t result = xfs_overlay_engine.stat(&vfile_xfs_ram_mount, path, &info);
     if (result == XFS_ERR_OK)
     {
         return "F,1";
@@ -463,7 +464,7 @@ static char* handle_vfile_unlink(const char* args, uint32_t n)
     {
         return "F-1,22";  // EINVAL
     }
-    const int16_t result = xfs_ram_engine.unlink(&vfile_xfs_ram_mount, path);
+    const int16_t result = xfs_overlay_engine.unlink(&vfile_xfs_ram_mount, path);
     if (result == XFS_ERR_OK)
     {
         return "F0";
@@ -499,6 +500,36 @@ static char* handle_vspectranext_autoboot(const char* args, uint32_t n)
     return "OK";
 }
 
+static char* handle_vspectranext_status(const char* args, uint32_t n)
+{
+    (void)args;
+    (void)n;
+
+    const int mount_result = ensure_mounted();
+    if (mount_result != XFS_ERR_OK)
+        return "E5";
+
+    struct xfs_stats stats;
+    memset(&stats, 0, sizeof(stats));
+    const int16_t result = xfs_overlay_engine.stats
+        ? xfs_overlay_engine.stats(&vfile_xfs_ram_mount, &stats) : XFS_ERR_NOATTR;
+    if (result != XFS_ERR_OK && result != XFS_ERR_NOATTR)
+    {
+        snprintf(short_response_buf, sizeof(short_response_buf), "E%d",
+            xfs_errno_to_gdb_errno(result));
+        return short_response_buf;
+    }
+
+    char* response = vfile_ext_get_response_buf();
+    snprintf(response, vfile_ext_get_response_buf_size(),
+        "OK;version=1;fs.total_known=%u;fs.used_known=%u;fs.free_known=%u"
+        ";fs.total=%" PRIu64 ";fs.used=%" PRIu64 ";fs.free=%" PRIu64
+        ";usb.present=0;usb.mounted=0;usb.total=0;usb.free_known=0;usb.used=0;usb.free=0",
+        stats.total_known, stats.used_known, stats.free_known,
+        stats.total_bytes, stats.used_bytes, stats.free_bytes);
+    return response;
+}
+
 // vSpectranext:opendir - vSpectranext:opendir:<path>
 static char* handle_vspectranext_opendir(const char* args, uint32_t n)
 {
@@ -523,7 +554,7 @@ static char* handle_vspectranext_opendir(const char* args, uint32_t n)
     // Initialize handle (zero out entire structure)
     memset(&active_handle, 0, sizeof(active_handle));
     active_handle.type = XFS_HANDLE_TYPE_DIR;
-    const int16_t result = xfs_ram_engine.opendir(&vfile_xfs_ram_mount, &active_handle, path);
+    const int16_t result = xfs_overlay_engine.opendir(&vfile_xfs_ram_mount, &active_handle, path);
     if (result == XFS_ERR_OK)
     {
         handle_type = HANDLE_DIR;
@@ -548,7 +579,7 @@ static char* handle_vspectranext_readdir(const char* args, uint32_t n)
         return "E9";  // EBADF
     }
     struct xfs_stat_info info;
-    const int16_t result = xfs_ram_engine.readdir(&vfile_xfs_ram_mount, &active_handle, &info);
+    const int16_t result = xfs_overlay_engine.readdir(&vfile_xfs_ram_mount, &active_handle, &info);
     if (result < 0)
     {
         int errno_val = xfs_errno_to_gdb_errno(result);
@@ -650,7 +681,7 @@ static char* handle_vspectranext_mv(const char* args, uint32_t n)
     {
         return "E22";  // EINVAL
     }
-    const int16_t result = xfs_ram_engine.rename(&vfile_xfs_ram_mount, old_path, new_path);
+    const int16_t result = xfs_overlay_engine.rename(&vfile_xfs_ram_mount, old_path, new_path);
     if (result == XFS_ERR_OK)
     {
         return "OK";
@@ -674,7 +705,7 @@ static char* handle_vspectranext_mkdir(const char* args, uint32_t n)
     {
         return "E22";  // EINVAL
     }
-    const int16_t result = xfs_ram_engine.mkdir(&vfile_xfs_ram_mount, path);
+    const int16_t result = xfs_overlay_engine.mkdir(&vfile_xfs_ram_mount, path);
     if (result == XFS_ERR_OK)
     {
         return "OK";
@@ -701,7 +732,7 @@ static char* handle_vspectranext_rmdir(const char* args, uint32_t n)
     {
         return "E22";  // EINVAL
     }
-    const int16_t result = xfs_ram_engine.rmdir(&vfile_xfs_ram_mount, path);
+    const int16_t result = xfs_overlay_engine.rmdir(&vfile_xfs_ram_mount, path);
     if (result == XFS_ERR_OK)
     {
         return "OK";
@@ -820,6 +851,10 @@ char* vfile_handle_v(const char* name, const char* args, uint32_t n)
         else if (!strcmp("autoboot", subcmd))
         {
             return handle_vspectranext_autoboot(actual_args, actual_args_len);
+        }
+        else if (!strcmp("status", subcmd))
+        {
+            return handle_vspectranext_status(actual_args, actual_args_len);
         }
         else if (!strcmp("opendir", subcmd))
         {

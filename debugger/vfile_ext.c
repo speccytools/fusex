@@ -147,18 +147,19 @@ void* vfile_ext_get_filesystem_ram(void)
     return NULL;  // Will be set by ensure_mounted
 }
 
-// Ensure filesystem is mounted (platform-specific implementation)
+// Ensure the filesystem selected by the caller is mounted.
 int vfile_ext_ensure_mounted(struct xfs_engine_mount_t* mount)
 {
-    if (mount->mount_data == NULL)
-    {
-        // Mount the RAM engine with hostname "ram" and path "/"
-        const int16_t mount_result = xfs_ram_engine.mount(&xfs_ram_engine, "ram", "/",
-            NULL, NULL, mount);
-        if (mount_result != XFS_ERR_OK)
-        {
-            return -1;
-        }
-    }
-    return 0;
+    if (!mount)
+        return -1;
+
+    if (mount->mount_data != NULL)
+        return 0;
+
+    if (!mount->engine)
+        mount->engine = &xfs_overlay_engine;
+
+    const int16_t result = mount->engine->mount(mount->engine, "ram", "/",
+        NULL, NULL, mount);
+    return result == XFS_ERR_OK ? 0 : -1;
 }

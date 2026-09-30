@@ -29,6 +29,7 @@
 #include <string.h>
 
 #include "fuse.h"
+#include "peripherals/expansion_bus.h"
 #include "peripherals/disk/beta.h"
 #include "peripherals/disk/didaktik.h"
 #include "peripherals/disk/disciple.h"
@@ -585,6 +586,7 @@ divmmc_set_automap( int state GCC_UNUSED )
 
 int spectranet_available = 0;
 int spectranet_paged = 0;
+int spectranet_romcs_active( void ) { return spectranet_paged; }
 
 void
 spectranet_page( int via_io GCC_UNUSED )
@@ -613,6 +615,41 @@ int
 spectranet_nmi_flipflop( void )
 {
   return 0;
+}
+
+int
+expansion_bus_active( void )
+{
+  return 0;
+}
+
+void
+expansion_bus_m1_begin( libspectrum_word address GCC_UNUSED )
+{
+  abort();
+}
+
+void
+expansion_bus_m1_end( libspectrum_word address GCC_UNUSED,
+                      libspectrum_byte opcode GCC_UNUSED )
+{
+  abort();
+}
+
+int
+expansion_bus_nmi_suppressed( void )
+{
+  return 0;
+}
+
+void
+expansion_bus_nmi_page( void )
+{
+}
+
+void
+expansion_bus_retn( void )
+{
 }
 
 void

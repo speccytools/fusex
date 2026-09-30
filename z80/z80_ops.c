@@ -39,11 +39,10 @@
 #include "peripherals/disk/opus.h"
 #include "peripherals/disk/plusd.h"
 #include "peripherals/ide/divide.h"
-#include "peripherals/ide/divmmc.h"
+#include "peripherals/expansion_bus.h"
 #include "peripherals/if1.h"
 #include "peripherals/multiface.h"
 #include "peripherals/sound/uspeech.h"
-#include "peripherals/spectranet.h"
 #include "peripherals/ula.h"
 #include "peripherals/usource.h"
 #include "profile.h"
@@ -260,24 +259,9 @@ z80_do_opcodes( void )
     
     END_CHECK
 
-    CHECK( divmmc_early, settings_current.divmmc_enabled )
-    
-    if( ( PC & 0xff00 ) == 0x3d00 ) {
-      divmmc_set_automap( 1 );
-    }
-    
-    END_CHECK
+    CHECK( expansion_bus_early, expansion_bus_active() )
 
-    CHECK( spectranet_page, spectranet_available && !settings_current.spectranet_disable )
-
-    if( PC == 0x0008 || ((PC & 0xfff8) == 0x3ff8) )
-      spectranet_page( 0 );
-
-    /* Lower 16K addresses refer to Spectranet ROM while it is paged in. */
-    if( PC == spectranet_programmable_trap &&
-      spectranet_programmable_trap_active &&
-      ( !spectranet_paged || PC >= 0x4000 ) )
-      event_add( 0, z80_nmi_event );
+    expansion_bus_m1_begin( PC );
 
     END_CHECK
 
@@ -320,15 +304,10 @@ z80_do_opcodes( void )
     
     END_CHECK
 
-    CHECK( divmmc_late, settings_current.divmmc_enabled )
+    CHECK( expansion_bus_late, expansion_bus_active() )
 
-    if( ( PC & 0xfff8 ) == 0x1ff8 ) {
-      divmmc_set_automap( 0 );
-    } else if( (PC == 0x0000) || (PC == 0x0008) || (PC == 0x0038)
-      || (PC == 0x0066) || (PC == 0x04c6) || (PC == 0x0562) ) {
-      divmmc_set_automap( 1 );
-    }
-    
+    expansion_bus_m1_end( PC, opcode );
+
     END_CHECK
 
     CHECK( opus, opus_available )
@@ -340,13 +319,6 @@ z80_do_opcodes( void )
     } else if( PC == 0x0008 || PC == 0x0048 || PC == 0x1708 ) {
       opus_page();
     }
-
-    END_CHECK
-
-    CHECK( spectranet_unpage, spectranet_available )
-
-    if( PC == 0x007c )
-      spectranet_unpage();
 
     END_CHECK
 

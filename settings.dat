@@ -206,6 +206,7 @@ divide_slave_file, string, NULL,,, divide-slavefile
 divmmc_enabled, boolean, 0,,, divmmc
 divmmc_wp, boolean, 0,,, divmmc-write-protect
 divmmc_file, string, NULL,,, divmmc-file
+divmmc_rom, string, NULL,,, divmmc-rom
 zxmmc_enabled, boolean, 0,,, zxmmc
 zxmmc_file, string, NULL,,, zxmmc-file
 
@@ -327,4 +328,3 @@ teletext_port_1, numeric, 19761
 teletext_port_2, numeric, 19762
 teletext_port_3, numeric, 19763
 teletext_port_4, numeric, 19764
-

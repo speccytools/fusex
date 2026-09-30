@@ -143,6 +143,44 @@ static void overlay_mount_info(const struct xfs_engine_mount_t* mount, char* buf
     buffer[size - 1] = '\0';
 }
 
+static int16_t overlay_stats(const struct xfs_engine_mount_t* mount, struct xfs_stats* stats)
+{
+    xfs_overlay_mount_t* overlay = overlay_mount_data(mount);
+    if (!overlay || !stats)
+        return XFS_ERR_INVAL;
+
+    memset(stats, 0, sizeof(*stats));
+    bool found = false;
+    for (uint8_t i = 0; i < overlay->layer_count; ++i)
+    {
+        xfs_overlay_layer_t* layer = &overlay->layers[i];
+        if (!layer->config->engine->stats)
+            continue;
+
+        struct xfs_stats child;
+        if (layer->config->engine->stats(&layer->mount, &child) != XFS_ERR_OK)
+            continue;
+
+        found = true;
+        if (child.total_known && (!stats->total_known || child.total_bytes > stats->total_bytes))
+        {
+            stats->total_known = 1;
+            stats->total_bytes = child.total_bytes;
+        }
+        if (child.used_known && (!stats->used_known || child.used_bytes > stats->used_bytes))
+        {
+            stats->used_known = 1;
+            stats->used_bytes = child.used_bytes;
+        }
+        if (child.free_known && (!stats->free_known || child.free_bytes > stats->free_bytes))
+        {
+            stats->free_known = 1;
+            stats->free_bytes = child.free_bytes;
+        }
+    }
+    return found ? XFS_ERR_OK : XFS_ERR_NOATTR;
+}
+
 static bool overlay_path_exists(xfs_overlay_layer_t* layer, const char* path, struct xfs_stat_info* info)
 {
     return layer->config->engine->stat(&layer->mount, path, info) == XFS_ERR_OK;
@@ -711,6 +749,7 @@ const struct xfs_engine_t xfs_overlay_engine = {
     .is_mounted = overlay_is_mounted,
     .unmount = overlay_unmount,
     .mount_info = overlay_mount_info,
+    .stats = overlay_stats,
     .open = overlay_open,
     .read = overlay_read,
     .direct_read = overlay_direct_read,

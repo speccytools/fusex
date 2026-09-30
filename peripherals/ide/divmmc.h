@@ -26,13 +26,19 @@
 
 #include "libspectrum.h"
 
-/* Whether DivMMC is currently paged in */
-extern int divmmc_active;
+/* Whether DivMMC memory is currently mapped into the lower 16K. */
+int divmmc_is_paged( void );
 
 /* Notify DivMMC hardware of an opcode fetch to one of the designated
    entry / exit points. Depending on configuration, it may or may not
    result in the DivMMC memory being paged in */
 void divmmc_set_automap( int state );
+
+/* Present the address visible at the DivMMC expansion connector during an
+   opcode fetch. Early notifications happen before the opcode is read; late
+   notifications happen after it has been read. */
+void divmmc_m1_early( libspectrum_word address );
+void divmmc_m1_late( libspectrum_word address );
 
 /* Call this after some state change other than an opcode fetch which could
    trigger DivMMC paging (such as updating the write-protect flag), to

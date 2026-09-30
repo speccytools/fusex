@@ -96,6 +96,18 @@ void spectranet_page( int via_io );
 void spectranet_nmi( void );
 void spectranet_unpage( void );
 void spectranet_retn( void );
+/* True only while Spectranet is electrically supplying its ROM/RAM window. */
+int spectranet_romcs_active( void );
+
+/* Spectranet-side handling of opcode fetches. The standard early handler
+   implements the device's native traps; the late handler implements PAGEOUT. */
+void spectranet_m1_early( libspectrum_word address );
+void spectranet_m1_late( libspectrum_word address );
+
+/* Electrical address seen by a downstream expansion device. */
+libspectrum_word spectranet_downstream_address( libspectrum_word address );
+
+int spectranet_programmable_trap_is( libspectrum_word address );
 
 int spectranet_nmi_flipflop( void );
 
