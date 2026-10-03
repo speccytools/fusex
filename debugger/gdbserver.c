@@ -676,14 +676,9 @@ static int process_network(int socket)
         if (result == PACKETS_FEED_COMPLETE)
         {
             // Packet complete - ACK already sent by packets_feed_byte()
-            // Process the packet
+            // Process the packet, then go on with any bytes behind it
             process_packet();
             packets_reset();
-            
-            // Clear consumed bytes
-            packets_clear_incoming_raw();
-            pthread_mutex_unlock(&network_read_mutex);
-            return 0;
         }
         else if (result == PACKETS_FEED_INTERRUPT)
         {
@@ -696,7 +691,7 @@ static int process_network(int socket)
         // PACKETS_FEED_NOT_CONSUMED means not consumed (noise) - ignore
     }
     
-    // All bytes consumed but no complete packet yet
+    // All bytes consumed
     packets_clear_incoming_raw();
     pthread_mutex_unlock(&network_read_mutex);
   
