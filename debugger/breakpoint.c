@@ -236,6 +236,7 @@ debugger_check( debugger_breakpoint_type type, libspectrum_dword value )
   GSList *ptr_next;
 
   int signal_breakpoints_updated = 0;
+  int trapped_by_gdbserver = 0;
 
   if( debugger_breakpoints_remove_pending ) {
     debugger_breakpoints_remove_pending = 0;
@@ -267,6 +268,7 @@ debugger_check( debugger_breakpoint_type type, libspectrum_dword value )
         extern int gdbserver_activate_with_reason(int trap_reason);
         if (gdbserver_debugging_enabled) {
             gdbserver_activate_with_reason(DEBUG_TRAP_REASON_BREAKPOINT);
+            trapped_by_gdbserver = 1;
 
             /* The trap above re-enters on this same thread and runs gdbserver
                actions that can add, remove, or clear breakpoints, leaving ptr
@@ -285,6 +287,8 @@ debugger_check( debugger_breakpoint_type type, libspectrum_dword value )
 
   if( signal_breakpoints_updated )
       ui_breakpoints_updated();
+
+  if( trapped_by_gdbserver ) return 0;
 
   /* Debugger mode could have been reset by a breakpoint command */
   return ( debugger_mode == DEBUGGER_MODE_HALTED );
