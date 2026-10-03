@@ -490,7 +490,12 @@ uint8_t process_packet()
         case 'p':
         {
             struct action_register_args_t r;
-            r.reg = strtol(payload, NULL, 16);
+            long reg = strtol(payload, NULL, 16);
+            r.reg = (int)reg;
+            if (r.reg != reg) {
+                packet_send_message((const uint8_t*)"E01", 3);
+                break;
+            }
             if (gdbserver_execute_on_main_thread(action_get_register, &r, tmpbuf))
                 packet_send_message((const uint8_t*)tmpbuf, strlen((const char*)tmpbuf));
             break;
