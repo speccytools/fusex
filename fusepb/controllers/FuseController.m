@@ -203,15 +203,6 @@ get_microdrive_no( int tag ) {
   return 0;
 }
 
-static int
-is_beta_active( void ) {
-  return ( machine_current->capabilities &
-                      LIBSPECTRUM_MACHINE_CAPABILITY_TRDOS_DISK ||
-           periph_is_active( PERIPH_TYPE_BETA128 ) ||
-           periph_is_active( PERIPH_TYPE_BETA128_PENTAGON ) ||
-           periph_is_active( PERIPH_TYPE_BETA128_PENTAGON_LATE ) );
-}
-
 static NSString *
 cocoaui_user_folder_path( NSString *folderName )
 {
@@ -1420,20 +1411,15 @@ save_as_exit:
 {
   bool newValue = NO;
 
-  if( !machine_current ) {
-  } else if( machine_current->capabilities &
-               LIBSPECTRUM_MACHINE_CAPABILITY_PLUS3_DISK ) {
-    newValue = diskPlus3FlipA;
-  } else if( is_beta_active() ) {
-    newValue = diskTrDosFlipA;
-  } else if( periph_is_active( PERIPH_TYPE_OPUS ) ) {
-    newValue = diskOpusFlipA;
-  } else if( periph_is_active( PERIPH_TYPE_DISCIPLE ) ) {
-    newValue = diskDiscipleFlipA;
-  } else if( periph_is_active( PERIPH_TYPE_DIDAKTIK80 ) ) {
-    newValue = diskDidaktikFlipA;
-  } else {
-    newValue = diskPlusDFlipA;
+  if( machine_current ) {
+    switch( ui_media_active_disk_controller() ) {
+    case UI_MEDIA_CONTROLLER_PLUS3:    newValue = diskPlus3FlipA; break;
+    case UI_MEDIA_CONTROLLER_BETA:     newValue = diskTrDosFlipA; break;
+    case UI_MEDIA_CONTROLLER_OPUS:     newValue = diskOpusFlipA; break;
+    case UI_MEDIA_CONTROLLER_DISCIPLE: newValue = diskDiscipleFlipA; break;
+    case UI_MEDIA_CONTROLLER_DIDAKTIK: newValue = diskDidaktikFlipA; break;
+    default:                           newValue = diskPlusDFlipA; break;
+    }
   }
 
   [diskFlipA setState:!newValue];
@@ -1443,20 +1429,15 @@ save_as_exit:
 {
   bool newValue = NO;
 
-  if( !machine_current ) {
-  } else if( machine_current->capabilities &
-               LIBSPECTRUM_MACHINE_CAPABILITY_PLUS3_DISK ) {
-    newValue = diskPlus3FlipB;
-  } else if( is_beta_active() ) {
-    newValue = diskTrDosFlipB;
-  } else if( periph_is_active( PERIPH_TYPE_OPUS ) ) {
-    newValue = diskOpusFlipB;
-  } else if( periph_is_active( PERIPH_TYPE_DISCIPLE ) ) {
-    newValue = diskDiscipleFlipB;
-  } else if( periph_is_active( PERIPH_TYPE_DIDAKTIK80 ) ) {
-    newValue = diskDidaktikFlipB;
-  } else {
-    newValue = diskPlusDFlipB;
+  if( machine_current ) {
+    switch( ui_media_active_disk_controller() ) {
+    case UI_MEDIA_CONTROLLER_PLUS3:    newValue = diskPlus3FlipB; break;
+    case UI_MEDIA_CONTROLLER_BETA:     newValue = diskTrDosFlipB; break;
+    case UI_MEDIA_CONTROLLER_OPUS:     newValue = diskOpusFlipB; break;
+    case UI_MEDIA_CONTROLLER_DISCIPLE: newValue = diskDiscipleFlipB; break;
+    case UI_MEDIA_CONTROLLER_DIDAKTIK: newValue = diskDidaktikFlipB; break;
+    default:                           newValue = diskPlusDFlipB; break;
+    }
   }
 
   [diskFlipB setState:!newValue];
@@ -1466,20 +1447,15 @@ save_as_exit:
 {
   bool newValue = NO;
 
-  if( !machine_current ) {
-  } else if( machine_current->capabilities &
-               LIBSPECTRUM_MACHINE_CAPABILITY_PLUS3_DISK ) {
-    newValue = diskPlus3WpA;
-  } else if( is_beta_active() ) {
-    newValue = diskTrDosWpA;
-  } else if( periph_is_active( PERIPH_TYPE_OPUS ) ) {
-    newValue = diskOpusWpA;
-  } else if( periph_is_active( PERIPH_TYPE_DISCIPLE ) ) {
-    newValue = diskDiscipleWpA;
-  } else if( periph_is_active( PERIPH_TYPE_DIDAKTIK80 ) ) {
-    newValue = diskDidaktikWpA;
-  } else {
-    newValue = diskPlusDWpA;
+  if( machine_current ) {
+    switch( ui_media_active_disk_controller() ) {
+    case UI_MEDIA_CONTROLLER_PLUS3:    newValue = diskPlus3WpA; break;
+    case UI_MEDIA_CONTROLLER_BETA:     newValue = diskTrDosWpA; break;
+    case UI_MEDIA_CONTROLLER_OPUS:     newValue = diskOpusWpA; break;
+    case UI_MEDIA_CONTROLLER_DISCIPLE: newValue = diskDiscipleWpA; break;
+    case UI_MEDIA_CONTROLLER_DIDAKTIK: newValue = diskDidaktikWpA; break;
+    default:                           newValue = diskPlusDWpA; break;
+    }
   }
 
   [diskWpA setState:newValue];
@@ -1489,20 +1465,15 @@ save_as_exit:
 {
   bool newValue = NO;
 
-  if( !machine_current ) {
-  } else if( machine_current->capabilities &
-               LIBSPECTRUM_MACHINE_CAPABILITY_PLUS3_DISK ) {
-    newValue = diskPlus3WpB;
-  } else if( is_beta_active() ) {
-    newValue = diskTrDosWpB;
-  } else if( periph_is_active( PERIPH_TYPE_OPUS ) ) {
-    newValue = diskOpusWpB;
-  } else if( periph_is_active( PERIPH_TYPE_DISCIPLE ) ) {
-    newValue = diskDiscipleWpB;
-  } else if( periph_is_active( PERIPH_TYPE_DIDAKTIK80 ) ) {
-    newValue = diskDidaktikWpB;
-  } else {
-    newValue = diskPlusDWpB;
+  if( machine_current ) {
+    switch( ui_media_active_disk_controller() ) {
+    case UI_MEDIA_CONTROLLER_PLUS3:    newValue = diskPlus3WpB; break;
+    case UI_MEDIA_CONTROLLER_BETA:     newValue = diskTrDosWpB; break;
+    case UI_MEDIA_CONTROLLER_OPUS:     newValue = diskOpusWpB; break;
+    case UI_MEDIA_CONTROLLER_DISCIPLE: newValue = diskDiscipleWpB; break;
+    case UI_MEDIA_CONTROLLER_DIDAKTIK: newValue = diskDidaktikWpB; break;
+    default:                           newValue = diskPlusDWpB; break;
+    }
   }
 
   [diskWpB setState:newValue];
@@ -2397,17 +2368,12 @@ save_as_exit:
 
   [[DisplayOpenGLView instance] pause];
  
-  if( machine_current->capabilities &
-               LIBSPECTRUM_MACHINE_CAPABILITY_PLUS3_DISK ) {
-    fileTypes = plus3FileTypes;
-  } else if( is_beta_active() ) {
-    fileTypes = betaFileTypes;
-  } else if( periph_is_active( PERIPH_TYPE_OPUS ) ) {
-    fileTypes = opusFileTypes;
-  } else if( periph_is_active( PERIPH_TYPE_DIDAKTIK80 ) ) {
-    fileTypes = didaktikFileTypes;
-  } else {
-    fileTypes = plusdFileTypes;
+  switch( ui_media_active_disk_controller() ) {
+  case UI_MEDIA_CONTROLLER_PLUS3:    fileTypes = plus3FileTypes; break;
+  case UI_MEDIA_CONTROLLER_BETA:     fileTypes = betaFileTypes; break;
+  case UI_MEDIA_CONTROLLER_OPUS:     fileTypes = opusFileTypes; break;
+  case UI_MEDIA_CONTROLLER_DIDAKTIK: fileTypes = didaktikFileTypes; break;
+  default:                           fileTypes = plusdFileTypes; break;
   }
 
   drive_info = ui_media_drive_find( ui_media_active_disk_controller(), drive );
@@ -2527,17 +2493,12 @@ save_as_exit:
   
   [[DisplayOpenGLView instance] pause];
   
-  if( machine_current->capabilities &
-               LIBSPECTRUM_MACHINE_CAPABILITY_PLUS3_DISK ) {
-    fileTypes = @[@"dsk"];
-  } else if( is_beta_active() ) {
-    fileTypes = @[@"trd", @"scl", @"udi", @"fdi"];
-  } else if( periph_is_active( PERIPH_TYPE_DIDAKTIK80 ) ) {
-    fileTypes = @[@"d40", @"d80"];
-  } else if( periph_is_active( PERIPH_TYPE_OPUS ) ) {
-    fileTypes = @[@"opd", @"opu", @"dsk"];
-  } else {
-    fileTypes = @[@"mgt", @"img"];
+  switch( ui_media_active_disk_controller() ) {
+  case UI_MEDIA_CONTROLLER_PLUS3:    fileTypes = @[@"dsk"]; break;
+  case UI_MEDIA_CONTROLLER_BETA:     fileTypes = @[@"trd", @"scl", @"udi", @"fdi"]; break;
+  case UI_MEDIA_CONTROLLER_DIDAKTIK: fileTypes = @[@"d40", @"d80"]; break;
+  case UI_MEDIA_CONTROLLER_OPUS:     fileTypes = @[@"opd", @"opu", @"dsk"]; break;
+  default:                           fileTypes = @[@"mgt", @"img"]; break;
   }
   
   drive_info = ui_media_drive_find( ui_media_active_disk_controller(), which );

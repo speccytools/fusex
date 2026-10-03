@@ -31,10 +31,7 @@
 #endif
 
 #include "fuse.h"
-#include "machine.h"
 #include "options.h"
-#include "periph.h"
-#include "peripherals/disk/beta.h"
 #include "ui/ui.h"
 #include "ui/uimedia.h"
 #include "utils.h"
@@ -81,20 +78,39 @@ find_drive( gconstpointer data, gconstpointer user_data )
             && drive->drive_index == info->drive );
 }
 
+static gint
+controller_drive_available( gconstpointer data, gconstpointer user_data )
+{
+  const ui_media_drive_info_t *drive = data;
+  int controller = GPOINTER_TO_INT( user_data );
+
+  return !( drive->is_available && drive->is_available()
+            && drive->controller_index == controller );
+}
+
+static int
+controller_available( int controller )
+{
+  return g_slist_find_custom( registered_drives, GINT_TO_POINTER( controller ),
+                              controller_drive_available ) != NULL;
+}
+
 int
 ui_media_active_disk_controller( void )
 {
-  if( machine_current->capabilities &
-      LIBSPECTRUM_MACHINE_CAPABILITY_PLUS3_DISK )
-    return UI_MEDIA_CONTROLLER_PLUS3;
-  if( beta_active )
-    return UI_MEDIA_CONTROLLER_BETA;
-  if( periph_is_active( PERIPH_TYPE_OPUS ) )
-    return UI_MEDIA_CONTROLLER_OPUS;
-  if( periph_is_active( PERIPH_TYPE_DIDAKTIK80 ) )
-    return UI_MEDIA_CONTROLLER_DIDAKTIK;
-  if( periph_is_active( PERIPH_TYPE_DISCIPLE ) )
-    return UI_MEDIA_CONTROLLER_DISCIPLE;
+  static const ui_media_controller priority[] = {
+    UI_MEDIA_CONTROLLER_PLUS3,
+    UI_MEDIA_CONTROLLER_BETA,
+    UI_MEDIA_CONTROLLER_OPUS,
+    UI_MEDIA_CONTROLLER_DIDAKTIK,
+    UI_MEDIA_CONTROLLER_DISCIPLE,
+  };
+  size_t i;
+
+  for( i = 0; i < sizeof( priority ) / sizeof( priority[0] ); i++ )
+    if( controller_available( priority[i] ) )
+      return priority[i];
+
   return UI_MEDIA_CONTROLLER_PLUSD;
 }
 
