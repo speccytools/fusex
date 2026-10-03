@@ -498,13 +498,15 @@ uint8_t process_packet()
         case 'P':
         {
             struct action_register_args_t r;
-            r.reg = strtol(payload, NULL, 16);
-            if ('=' != *payload++) {
+            char *digits_end;
+            r.reg = strtol(payload, &digits_end, 16);
+            if (digits_end == payload || '=' != *digits_end || strlen(digits_end + 1) < SZ * 2) {
                 packet_send_message((const uint8_t*)"E01", 3);
                 break;
             }
-          
-            hex2mem(payload, (void *)&r.value, SZ * 2);
+            payload = digits_end + 1;
+
+            hex2mem(payload, (void *)&r.value, SZ);
           
             if (gdbserver_execute_on_main_thread(action_set_register, &r, tmpbuf))
                 packet_send_message((const uint8_t*)tmpbuf, strlen((const char*)tmpbuf));
