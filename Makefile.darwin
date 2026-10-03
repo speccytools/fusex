@@ -17,7 +17,7 @@ ARCHIVE_PATH ?= ./build/FuseX.xcarchive
 # build over the source root. LIBFUSEX_BUILD_DIR is the path
 # FuseX.xcodeproj copies into Frameworks.
 LIBSPECTRUM_DIR = 3rdparty/libspectrum
-LIBSPECTRUM_PREFIX = $(CURDIR)/$(LIBSPECTRUM_DIR)/libspectrum-installed
+LIBSPECTRUM_PREFIX = $(CURDIR)/build/libspectrum-installed
 LIBFUSEX_BUILD_DIR = build/libfusex
 
 # Release paths and notarization profile
