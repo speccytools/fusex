@@ -42,6 +42,7 @@ int engine_cp_call(const char *input_file, const char *output_file, int argc, ch
     struct xfs_engine_mount_t ram = {0};
     int destination_open = 0;
     int result = -2;
+    uint32_t copied = 0;
     uint8_t *buffer = engine_cp_input_buffer();
 
     if ((argc != 1 && argc != 3) ||
@@ -58,17 +59,27 @@ int engine_cp_call(const char *input_file, const char *output_file, int argc, ch
     if (engine_fs_ram_source_aliases_destination(source_index, source_path, output_file))
         return -3;
     if (engine_fs_open_read(source_index, source_path, &source, &source_mount))
+    {
+        ENGINE_CP_LOG("snx: cp source open failed: %s\n", input_file);
         return -2;
+    }
     while (offset)
     {
         const uint32_t requested = offset < CP_BUFFER_SIZE ? offset : CP_BUFFER_SIZE;
         const int32_t count = source_mount->engine->read(source_mount, &source, buffer, requested);
-        if (count <= 0) goto done;
+        if (count <= 0) {
+            ENGINE_CP_LOG("snx: cp skip failed: %s rc=%ld remaining=%lu\n",
+                          input_file, (long)count, (unsigned long)offset);
+            goto done;
+        }
         offset -= (uint32_t)count;
     }
     if (engine_fs_ram_mount(&ram) ||
         engine_fs_ram_open_write(&ram, &destination, output_file))
+    {
+        ENGINE_CP_LOG("snx: cp destination open failed: %s\n", output_file);
         goto done;
+    }
     destination_open = 1;
     for (;;)
     {
@@ -80,14 +91,24 @@ int engine_cp_call(const char *input_file, const char *output_file, int argc, ch
         }
         const int32_t count = source_mount->engine->read(source_mount, &source, buffer, requested);
         if (count < 0)
+        {
+            ENGINE_CP_LOG("snx: cp source read failed: %s rc=%ld copied=%lu\n",
+                          input_file, (long)count, (unsigned long)copied);
             break;
+        }
         if (count == 0)
         {
             result = argc == 1 ? 0 : -2;
             break;
         }
-        if (ram.engine->write(&ram, &destination, buffer, (uint32_t)count) != count)
+        const int32_t written = ram.engine->write(&ram, &destination, buffer, (uint32_t)count);
+        if (written != count)
+        {
+            ENGINE_CP_LOG("snx: cp destination write failed: %s rc=%ld copied=%lu\n",
+                          output_file, (long)written, (unsigned long)copied);
             break;
+        }
+        copied += (uint32_t)count;
         if (argc == 3)
             remaining -= (uint32_t)count;
     }
@@ -99,7 +120,24 @@ done:
         ram.engine->free_handle(&ram, &destination);
     }
     engine_fs_close(source_mount, &source);
+    if (ram.mount_data)
+        ram.engine->unmount(ram.engine, &ram);
     return result;
+}
+
+int engine_rm_call(const char *input_file, const char *output_file, int argc, char *argv[])
+{
+    (void)output_file;
+    (void)argv;
+    if (argc != 1 || !input_file || !*input_file || strchr(input_file, ':'))
+        return -3;
+
+    struct xfs_engine_mount_t ram = {0};
+    if (engine_fs_ram_mount(&ram))
+        return -2;
+    const int16_t removed = ram.engine->unlink(&ram, input_file);
+    ram.engine->unmount(ram.engine, &ram);
+    return removed == XFS_ERR_OK || removed == XFS_ERR_NOENT ? 0 : -2;
 }
 
 static int lz4_write(void *context, const uint8_t *data, size_t length)
@@ -143,6 +181,8 @@ int engine_lz4_call(const char *input_file, const char *output_file, int argc, c
     ram.engine->free_handle(&ram, &destination);
 free_buffers:
     engine_fs_close(source_mount, &source);
+    if (ram.mount_data)
+        ram.engine->unmount(ram.engine, &ram);
     engine_lz4_free(frame);
     engine_lz4_free(block);
     return result;

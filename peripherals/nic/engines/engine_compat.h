@@ -9,6 +9,9 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
+
+#define ENGINE_CP_LOG(...) fprintf(stderr, __VA_ARGS__)
 
 #define ENGINE_FS_READ_BUF_SIZE (256u * 1024u)
 
@@ -25,17 +28,11 @@ static inline const struct xfs_engine_t *engine_ram_destination(void)
 
 static inline int engine_prepare_ram_mount(struct xfs_engine_mount_t *ram)
 {
-    static struct xfs_engine_mount_t singleton;
-    static int ready;
     if (!ram) return -1;
-    if (!ready) {
-        singleton.engine = engine_ram_destination();
-        if (singleton.engine->mount(singleton.engine, "ram", "/", NULL, NULL,
-                                    &singleton) != XFS_ERR_OK) return -1;
-        ready = 1;
-    }
-    *ram = singleton;
-    return 0;
+    if (ram->mount_data) return 0;
+    ram->engine = engine_ram_destination();
+    return ram->engine->mount(ram->engine, "ram", "/", NULL, NULL,
+                              ram) == XFS_ERR_OK ? 0 : -1;
 }
 
 static inline uint8_t *engine_read_buffer(void)

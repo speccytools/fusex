@@ -141,6 +141,8 @@ int spectranext_enginecall_dispatch(const char *input_file, const char *output_f
         return engine_cp_call(input_file, output_file, argc, argv);
     if (strcmp(argv[0], "lz4") == 0)
         return engine_lz4_call(input_file, output_file, argc, argv);
+    if (strcmp(argv[0], "rm") == 0)
+        return engine_rm_call(input_file, output_file, argc, argv);
     return -1;
 }
 
