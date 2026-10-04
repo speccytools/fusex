@@ -24,6 +24,7 @@ enum xfs_error {
     XFS_ERR_INVAL       = -22,  // Invalid parameter
     XFS_ERR_NOSPC       = -28,  // No space left on device
     XFS_ERR_NOMEM       = -12,  // No more memory available
+    XFS_ERR_BUSY        = -16,  // Resource busy
     XFS_ERR_NOATTR      = -61,  // No data/attr available
     XFS_ERR_NAMETOOLONG = -36,  // File name too long
 };
@@ -96,14 +97,15 @@ enum
 {
     FS_STORAGE_RAM = 0,
     FS_STORAGE_FLASH = 1,
-    FS_STORAGE_SYSTEM = 2
+    FS_STORAGE_SYSTEM = 2,
+    FS_STORAGE_USB = 3
 };
 #endif
 
 struct xfs_stat_info
 {
     uint8_t type;      // XFS_TYPE_REG or XFS_TYPE_DIR
-    uint8_t storage;   // FS_STORAGE_RAM or FS_STORAGE_FLASH
+    uint8_t storage;   // FS_STORAGE_* backing layer
     uint32_t size;     // File size (for files)
     uint32_t atime;    // Unix access time, or 0 when unavailable
     uint32_t mtime;    // Unix modification time, or 0 when unavailable
@@ -419,6 +421,7 @@ extern void xfs_debug_log(const char *format, ...);
 
 char* xfs_compat_get_cwd_buffer(uint8_t mount_point);
 void xfs_compat_init(void);
+const struct xfs_engine_t* xfs_compat_local_mount_engine(const char* hostname, const char* path);
 
 // Command handlers (FreeRTOS-independent, usable in emulator)
 extern void xfs_handle_command(volatile struct xfs_registers_t* registers);

@@ -78,6 +78,7 @@ fuse_SOURCES += \
                 peripherals/nic/dns_processor.c \
                 peripherals/nic/engines/engine_argv.c \
                 peripherals/nic/engines/engine_fs.c \
+                peripherals/nic/engines/cp.c \
                 peripherals/nic/engines/engine_utf8.c \
                 peripherals/nic/engines/json.c \
                 peripherals/nic/engines/xpath.c \
@@ -96,6 +97,7 @@ fuse_SOURCES += \
                 peripherals/fs/xfs_romfs.c \
                 peripherals/fs/ramfs.c \
                 peripherals/fs/xfs_https.c \
+                peripherals/fs/http_downloader.c \
                 peripherals/fs/xfs_https_compat.c \
                 peripherals/fs/xfs_sftp.c \
                 peripherals/http/httpc.c \
@@ -152,6 +154,7 @@ noinst_HEADERS += \
                   peripherals/nic/enc28j60.h \
                   peripherals/nic/w5100.h \
                   peripherals/nic/w5100_internals.h \
+                  peripherals/fs/http_downloader.h \
                   peripherals/security/tls.h \
                   peripherals/security/ssh.h \
                   peripherals/security/mbedtls_config.h

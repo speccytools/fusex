@@ -137,6 +137,10 @@ int spectranext_enginecall_dispatch(const char *input_file, const char *output_f
         return engine_json_call(input_file, output_file, argc, argv);
     if (strcmp(argv[0], "xpath") == 0)
         return engine_xpath_call(input_file, output_file, argc, argv);
+    if (strcmp(argv[0], "cp") == 0)
+        return engine_cp_call(input_file, output_file, argc, argv);
+    if (strcmp(argv[0], "lz4") == 0)
+        return engine_lz4_call(input_file, output_file, argc, argv);
     return -1;
 }
 
@@ -325,6 +329,31 @@ static void spectranext_controller_process_command(void)
                                        ? SPECTRANEXT_STATUS_SUCCESS
                                        : SPECTRANEXT_STATUS_ERROR);
             break;
+
+        case SPECTRANEXT_CMD_CP_START:
+        {
+            char input_file[128], output_file[128];
+            memcpy(input_file, (const void *)spectranext_controller.workspace.enginecall.io.input_file,
+                   sizeof(input_file));
+            memcpy(output_file, (const void *)spectranext_controller.workspace.enginecall.io.output_file,
+                   sizeof(output_file));
+            input_file[sizeof(input_file) - 1u] = '\0';
+            output_file[sizeof(output_file) - 1u] = '\0';
+            char operation[16];
+            memcpy(operation, (const void *)spectranext_controller.workspace.enginecall.io.operation,
+                   sizeof(operation));
+            operation[sizeof(operation) - 1u] = '\0';
+            char *argv[] = { operation };
+            const int result = strcmp(operation, "lz4") == 0
+                ? engine_lz4_call(input_file, output_file, 1, argv)
+                : strcmp(operation, "cp") == 0
+                    ? engine_cp_call(input_file, output_file, 1, argv) : -3;
+            uint8_t *registers = (uint8_t *)&spectranext_controller;
+            registers[SPECTRANEXT_CONTROLLER_CP_RESULT_OFFSET] = (uint8_t)result;
+            registers[SPECTRANEXT_CONTROLLER_CP_STATE_OFFSET] = result == 0 ? 2 : 3;
+            spectranext_set_status(SPECTRANEXT_STATUS_SUCCESS);
+            break;
+        }
 
         case SPECTRANEXT_CMD_GET_MESSAGE:
             spectranext_controller_get_message();

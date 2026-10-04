@@ -40,6 +40,26 @@ static xfs_overlay_mount_t* overlay_mount_data(const struct xfs_engine_mount_t* 
     return (xfs_overlay_mount_t*)mount->mount_data;
 }
 
+static bool overlay_layer_available(xfs_overlay_layer_t* layer)
+{
+    return !layer->config->engine->is_mounted
+        || layer->config->engine->is_mounted(layer->config->engine, &layer->mount);
+}
+
+static xfs_overlay_layer_t* overlay_write_layer(xfs_overlay_mount_t* overlay)
+{
+    if (overlay->default_layer && overlay_layer_available(overlay->default_layer))
+        return overlay->default_layer;
+
+    for (uint8_t i = 0; i < overlay->layer_count; ++i)
+    {
+        if (&overlay->layers[i] != overlay->default_layer
+            && overlay_layer_available(&overlay->layers[i]))
+            return &overlay->layers[i];
+    }
+    return NULL;
+}
+
 static int overlay_layer_index_for_config(const xfs_overlay_mount_t* overlay,
     const xfs_overlay_layer_config_t* config)
 {
@@ -106,7 +126,8 @@ static int16_t overlay_mount(const struct xfs_engine_t* engine, const char* host
     int default_layer = overlay_layer_index_for_config(overlay, config->default_layer);
     overlay->default_layer = &overlay->layers[default_layer >= 0 ? (uint8_t)default_layer : (overlay->layer_count - 1)];
     out_mount->mount_data = overlay;
-    XFS_DEBUG("overlay: mount success layers=%u default=%u\n", overlay->layer_count, overlay->default_layer);
+    XFS_DEBUG("overlay: mount success layers=%u default=%p\n", overlay->layer_count,
+        (void*)overlay->default_layer);
     return XFS_ERR_OK;
 }
 
@@ -154,7 +175,7 @@ static int16_t overlay_stats(const struct xfs_engine_mount_t* mount, struct xfs_
     for (uint8_t i = 0; i < overlay->layer_count; ++i)
     {
         xfs_overlay_layer_t* layer = &overlay->layers[i];
-        if (!layer->config->engine->stats)
+        if (!overlay_layer_available(layer) || !layer->config->engine->stats)
             continue;
 
         struct xfs_stats child;
@@ -181,11 +202,6 @@ static int16_t overlay_stats(const struct xfs_engine_mount_t* mount, struct xfs_
     return found ? XFS_ERR_OK : XFS_ERR_NOATTR;
 }
 
-static bool overlay_path_exists(xfs_overlay_layer_t* layer, const char* path, struct xfs_stat_info* info)
-{
-    return layer->config->engine->stat(&layer->mount, path, info) == XFS_ERR_OK;
-}
-
 static bool overlay_is_system_dir(const xfs_overlay_mount_t* overlay, const char* path)
 {
     if (overlay->layer_count == 0)
@@ -199,7 +215,8 @@ static bool overlay_is_system_dir(const xfs_overlay_mount_t* overlay, const char
 }
 
 /* Shadow only an already-existing immediate parent; never create missing paths. */
-static int16_t overlay_mkdir_shadow(xfs_overlay_mount_t* overlay, const char* path)
+static int16_t overlay_mkdir_shadow(xfs_overlay_mount_t* overlay,
+    xfs_overlay_layer_t* target, const char* path)
 {
     const char* slash = strrchr(path, '/');
     if (!slash)
@@ -216,23 +233,24 @@ static int16_t overlay_mkdir_shadow(xfs_overlay_mount_t* overlay, const char* pa
     parent[parent_len] = '\0';
 
     struct xfs_stat_info info;
-    xfs_overlay_layer_t* first_layer = &overlay->layers[0];
-    int16_t err = first_layer->config->engine->stat(&first_layer->mount, parent, &info);
+    int16_t err = target->config->engine->stat(&target->mount, parent, &info);
     if (err == XFS_ERR_OK)
         return info.type == XFS_TYPE_DIR ? XFS_ERR_OK : XFS_ERR_NOTDIR;
     if (err != XFS_ERR_NOENT)
         return err;
 
-    for (uint8_t i = 1; i < overlay->layer_count; ++i)
+    for (uint8_t i = 0; i < overlay->layer_count; ++i)
     {
         xfs_overlay_layer_t* layer = &overlay->layers[i];
+        if (layer == target || !overlay_layer_available(layer))
+            continue;
         err = layer->config->engine->stat(&layer->mount, parent, &info);
         if (err == XFS_ERR_OK)
         {
             if (info.type != XFS_TYPE_DIR)
                 return XFS_ERR_NOTDIR;
 
-            err = first_layer->config->engine->mkdir(&first_layer->mount, parent);
+            err = target->config->engine->mkdir(&target->mount, parent);
             return err == XFS_ERR_EXIST ? XFS_ERR_OK : err;
         }
         if (err != XFS_ERR_NOENT)
@@ -251,9 +269,10 @@ static int16_t overlay_open(const struct xfs_engine_mount_t* mount, struct xfs_h
 
     if ((flags & XFS_O_CREAT) != 0)
     {
-        // we always create on first layer
-        xfs_overlay_layer_t* layer = &overlay->layers[0];
-        const int16_t shadow_err = overlay_mkdir_shadow(overlay, path);
+        xfs_overlay_layer_t* layer = overlay_write_layer(overlay);
+        if (!layer)
+            return XFS_ERR_IO;
+        const int16_t shadow_err = overlay_mkdir_shadow(overlay, layer, path);
         if (shadow_err != XFS_ERR_OK)
             return shadow_err;
 
@@ -279,6 +298,8 @@ static int16_t overlay_open(const struct xfs_engine_mount_t* mount, struct xfs_h
     for (uint8_t i = 0; i < overlay->layer_count; ++i)
     {
         xfs_overlay_layer_t* layer = &overlay->layers[i];
+        if (!overlay_layer_available(layer))
+            continue;
         const int16_t stat_err = layer->config->engine->stat(&layer->mount, path, &stat_info);
         if (stat_err == XFS_ERR_OK)
         {
@@ -301,11 +322,13 @@ static int16_t overlay_open(const struct xfs_engine_mount_t* mount, struct xfs_h
             first_error = stat_err;
     }
 
-    xfs_overlay_layer_t* layer = overlay->default_layer;
+    xfs_overlay_layer_t* layer = overlay_write_layer(overlay);
+    if (!layer)
+        return first_error;
     xfs_overlay_file_handle_t* overlay_handle = calloc(1, sizeof(*overlay_handle));
     if (!overlay_handle)
         return XFS_ERR_NOMEM;
-    overlay_handle->layer = overlay->default_layer;
+    overlay_handle->layer = layer;
     overlay_handle->child.type = XFS_HANDLE_TYPE_FILE;
 
     const int16_t err = layer->config->engine->open(&layer->mount, &overlay_handle->child, path, flags);
@@ -379,54 +402,23 @@ static int32_t overlay_lseek(const struct xfs_engine_mount_t* mount, struct xfs_
     return layer->config->engine->lseek(&layer->mount, &overlay_handle->child, offset, whence);
 }
 
-static bool overlay_entry_shadowed(xfs_overlay_mount_t* overlay, const char* path,
-    uint8_t layer_index, const char* name)
-{
-    if (strcmp(name, ".") == 0)
-        return false;
-
-    char child[XFS_PATH_MAX];
-    if (overlay_join_path(child, sizeof(child), path, name) != XFS_ERR_OK)
-        return false;
-
-    struct xfs_stat_info info;
-    for (uint8_t i = 0; i < layer_index; ++i)
-    {
-        if (overlay_path_exists(&overlay->layers[i], child, &info))
-            return true;
-    }
-    return false;
-}
-
-static bool overlay_cached_dir_seen(const xfs_overlay_dir_handle_t* dir_handle, const char* name)
+static bool overlay_cached_name_seen(const xfs_overlay_dir_handle_t* dir_handle, const char* name)
 {
     for (size_t i = 0; i < dir_handle->size; ++i)
     {
-        if (dir_handle->entries[i]->type == XFS_TYPE_DIR &&
-            strcmp(dir_handle->entries[i]->name, name) == 0)
+        if (strcmp(dir_handle->entries[i]->name, name) == 0)
             return true;
     }
     return false;
 }
 
 static int16_t overlay_cache_readdir_entry(xfs_overlay_dir_handle_t* dir_handle,
-    const char* path, uint8_t layer_index, struct xfs_stat_info* info)
+    const char* path, const struct xfs_stat_info* info)
 {
-    if (strcmp(info->name, "..") == 0)
+    if (strcmp(info->name, ".") == 0 || strcmp(info->name, "..") == 0)
         return XFS_ERR_OK;
-    if (info->type == XFS_TYPE_DIR && overlay_cached_dir_seen(dir_handle, info->name))
+    if (overlay_cached_name_seen(dir_handle, info->name))
         return XFS_ERR_OK;
-    if (overlay_entry_shadowed(dir_handle->overlay, path, layer_index, info->name))
-        return XFS_ERR_OK;
-    if (info->type == XFS_TYPE_DIR)
-    {
-        char child[XFS_PATH_MAX];
-        const int16_t err = overlay_join_path(child, sizeof(child), path, info->name);
-        if (err != XFS_ERR_OK)
-            return err;
-        if (overlay_is_system_dir(dir_handle->overlay, child))
-            info->storage = FS_STORAGE_SYSTEM;
-    }
 
     if (dir_handle->size == dir_handle->capacity)
     {
@@ -445,10 +437,25 @@ static int16_t overlay_cache_readdir_entry(xfs_overlay_dir_handle_t* dir_handle,
         dir_handle->capacity = new_capacity;
     }
 
+    /* Keep the metadata returned by the layer scan. Re-resolving a cached name
+     * here later can race a commit between LittleFS layers and turn a valid
+     * directory entry into XFS_ERR_NOENT. */
     struct xfs_stat_info* entry = xfs_extra_ram_alloc(sizeof(*entry));
     if (!entry)
         return XFS_ERR_NOMEM;
     *entry = *info;
+    if (entry->type == XFS_TYPE_DIR)
+    {
+        char child[XFS_PATH_MAX];
+        const int16_t err = overlay_join_path(child, sizeof(child), path, entry->name);
+        if (err != XFS_ERR_OK)
+        {
+            xfs_extra_ram_free(entry);
+            return err;
+        }
+        if (overlay_is_system_dir(dir_handle->overlay, child))
+            entry->storage = FS_STORAGE_SYSTEM;
+    }
     dir_handle->entries[dir_handle->size++] = entry;
     return XFS_ERR_OK;
 }
@@ -456,7 +463,10 @@ static int16_t overlay_cache_readdir_entry(xfs_overlay_dir_handle_t* dir_handle,
 static void overlay_free_dir_entries(xfs_overlay_dir_handle_t* dir_handle)
 {
     for (size_t i = 0; i < dir_handle->size; ++i)
+    {
         xfs_extra_ram_free(dir_handle->entries[i]);
+        dir_handle->entries[i] = NULL;
+    }
     xfs_extra_ram_free(dir_handle->entries);
     dir_handle->entries = NULL;
     dir_handle->size = 0;
@@ -479,6 +489,8 @@ static int16_t overlay_scan_dir(xfs_overlay_dir_handle_t* dir_handle, const char
     for (uint8_t layer_index = 0; layer_index < dir_handle->overlay->layer_count; ++layer_index)
     {
         xfs_overlay_layer_t* layer = &dir_handle->overlay->layers[layer_index];
+        if (!overlay_layer_available(layer))
+            continue;
         struct xfs_handle_t child = {.type = XFS_HANDLE_TYPE_DIR};
         int16_t err = layer->config->engine->opendir(&layer->mount, &child, path);
         if (err == XFS_ERR_NOENT)
@@ -490,7 +502,7 @@ static int16_t overlay_scan_dir(xfs_overlay_dir_handle_t* dir_handle, const char
         struct xfs_stat_info info;
         while ((err = layer->config->engine->readdir(&layer->mount, &child, &info)) > 0)
         {
-            err = overlay_cache_readdir_entry(dir_handle, path, layer_index, &info);
+            err = overlay_cache_readdir_entry(dir_handle, path, &info);
             if (err != XFS_ERR_OK)
                 break;
         }
@@ -596,6 +608,8 @@ static int16_t overlay_stat(const struct xfs_engine_mount_t* mount, const char* 
     int16_t first_error = XFS_ERR_NOENT;
     for (uint8_t i = 0; i < overlay->layer_count; ++i)
     {
+        if (!overlay_layer_available(&overlay->layers[i]))
+            continue;
         int16_t err = overlay->layers[i].config->engine->stat(&overlay->layers[i].mount, path, stat_info);
         if (err == XFS_ERR_OK)
         {
@@ -623,6 +637,8 @@ static int16_t overlay_unlink(const struct xfs_engine_mount_t* mount, const char
     for (uint8_t i = 0; i < overlay->layer_count; ++i)
     {
         xfs_overlay_layer_t* layer = &overlay->layers[i];
+        if (!overlay_layer_available(layer))
+            continue;
         int16_t err = layer->config->engine->stat(&layer->mount, path, &info);
         if (err == XFS_ERR_OK)
         {
@@ -644,7 +660,9 @@ static int16_t overlay_mkdir(const struct xfs_engine_mount_t* mount, const char*
     xfs_overlay_mount_t* overlay = overlay_mount_data(mount);
     if (!overlay)
         return XFS_ERR_IO;
-    xfs_overlay_layer_t* layer = overlay->default_layer;
+    xfs_overlay_layer_t* layer = overlay_write_layer(overlay);
+    if (!layer)
+        return XFS_ERR_IO;
     return layer->config->engine->mkdir(&layer->mount, path);
 }
 
@@ -659,6 +677,8 @@ static int16_t overlay_rmdir(const struct xfs_engine_mount_t* mount, const char*
     for (uint8_t i = 0; i < overlay->layer_count; ++i)
     {
         xfs_overlay_layer_t* layer = &overlay->layers[i];
+        if (!overlay_layer_available(layer))
+            continue;
         int16_t err = layer->config->engine->stat(&layer->mount, path, &info);
         if (err == XFS_ERR_OK)
         {
@@ -706,6 +726,8 @@ static int16_t overlay_rename(const struct xfs_engine_mount_t* mount, const char
     for (uint8_t i = 0; i < overlay->layer_count; ++i)
     {
         xfs_overlay_layer_t* layer = &overlay->layers[i];
+        if (!overlay_layer_available(layer))
+            continue;
         int16_t err = layer->config->engine->stat(&layer->mount, old_path, &info);
         if (err == XFS_ERR_OK)
             return layer->config->engine->rename(&layer->mount, old_path, new_path);
@@ -720,8 +742,21 @@ static int16_t overlay_chmod(const struct xfs_engine_mount_t* mount, const char*
     xfs_overlay_mount_t* overlay = overlay_mount_data(mount);
     if (!overlay)
         return XFS_ERR_IO;
-    xfs_overlay_layer_t* layer = overlay->default_layer;
-    return layer->config->engine->chmod(&layer->mount, path, mode);
+
+    struct xfs_stat_info info;
+    int16_t first_error = XFS_ERR_NOENT;
+    for (uint8_t i = 0; i < overlay->layer_count; ++i)
+    {
+        xfs_overlay_layer_t* layer = &overlay->layers[i];
+        if (!overlay_layer_available(layer))
+            continue;
+        int16_t err = layer->config->engine->stat(&layer->mount, path, &info);
+        if (err == XFS_ERR_OK)
+            return layer->config->engine->chmod(&layer->mount, path, mode);
+        if (err != XFS_ERR_NOENT && first_error == XFS_ERR_NOENT)
+            first_error = err;
+    }
+    return first_error;
 }
 
 static void overlay_free_handle(const struct xfs_engine_mount_t* mount, struct xfs_handle_t* handle)

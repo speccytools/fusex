@@ -7,6 +7,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "debugger/gdbserver.h"
 #include "utils.h"
@@ -40,6 +41,12 @@ const xfs_overlay_config_t xfs_default_overlay = {
     .layers = { &xfs_ram_layer, &xfs_romfs_layer, NULL },
     .default_layer = &xfs_ram_layer,
 };
+
+const struct xfs_engine_t* xfs_compat_local_mount_engine(const char* hostname, const char* path)
+{
+    if (path[0] != '\0' && strcmp(path, "/") != 0) return NULL;
+    return strcmp(hostname, "ram") == 0 ? &xfs_overlay_engine : NULL;
+}
 
 static bool xfs_compat_load_romfs_file(const char* path)
 {

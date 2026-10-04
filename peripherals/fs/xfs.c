@@ -198,13 +198,10 @@ void xfs_handle_mount(volatile struct xfs_registers_t* registers)
     {
         XFS_DEBUG("xfs: mount hostname='%s' path='%s' mount_point=%d\n", hostname, path, mount_point);
 
-        if (strcmp(hostname, "ram") == 0 && (path[0] == '\0' || strcmp(path, "/") == 0))
+        engine = xfs_compat_local_mount_engine(hostname, path);
+        if (!engine)
         {
-            engine = &xfs_overlay_engine;
-        }
-        else
-        {
-            XFS_DEBUG("xfs: mount failed: invalid ram mount target\n");
+            XFS_DEBUG("xfs: mount failed: invalid local mount target\n");
             registers->result = XFS_ERR_INVAL;
             registers->status = XFS_STATUS_ERROR;
             return;
@@ -222,7 +219,8 @@ void xfs_handle_mount(volatile struct xfs_registers_t* registers)
     }
     else if (strcmp(protocol, "sftp") == 0)
     {
-        XFS_DEBUG("xfs: mount sftp path='%s' mount_point=%d\n", path, mount_point);
+        XFS_DEBUG("xfs: mount sftp hostname='%s' path='%s' mount_point=%d\n",
+            hostname, path, mount_point);
         engine = &sftp_engine;
     }
     else

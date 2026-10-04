@@ -339,6 +339,7 @@
 		FE2DAC6D2F329E6D009AC45A /* xfs_worker.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC6B2F329E6D009AC45A /* xfs_worker.c */; };
 		FE2DAC752F32A23C009AC45A /* http_sck.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC722F32A23C009AC45A /* http_sck.c */; };
 		FE2DAC772F32A480009AC45A /* xfs_https.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC762F32A480009AC45A /* xfs_https.c */; };
+		FE9A0101301F000000000001 /* http_downloader.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9A0102301F000000000001 /* http_downloader.c */; };
 		FE2DAC782F32A480009AC45A /* xfs_sftp.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC792F32A480009AC45A /* xfs_sftp.c */; };
 		FE2DAC7B2F32A500009AC45A /* httpc.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC7A2F32A500009AC45A /* httpc.c */; };
 		FE2DAC802F32AB6C009AC45A /* vfile_ext.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC7F2F32AB6C009AC45A /* vfile_ext.c */; };
@@ -353,6 +354,7 @@
 		FE9443BC2F881C540059A578 /* engine_argv.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9443B72F881C540059A578 /* engine_argv.c */; };
 		FE9443BD2F881C540059A578 /* lexer.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9443B02F881C540059A578 /* lexer.c */; };
 		FE9443BE2F881C540059A578 /* engine_fs.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9443B92F881C540059A578 /* engine_fs.c */; };
+		FE9443FA2F881C540059A578 /* cp.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9443FB2F881C540059A578 /* cp.c */; };
 		FE9443BF2F881C540059A578 /* json.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9443BA2F881C540059A578 /* json.c */; };
 		FE9443C02F881C540059A578 /* ast.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9443AE2F881C540059A578 /* ast.c */; };
 		FE9443C12F881C540059A578 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9443B42F881C540059A578 /* parser.c */; };
@@ -967,6 +969,8 @@
 		FE2DAC722F32A23C009AC45A /* http_sck.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = http_sck.c; sourceTree = "<group>"; };
 		FE2DAC732F32A23C009AC45A /* httpc.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = httpc.h; sourceTree = "<group>"; };
 		FE2DAC762F32A480009AC45A /* xfs_https.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = xfs_https.c; sourceTree = "<group>"; };
+		FE9A0102301F000000000001 /* http_downloader.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = http_downloader.c; sourceTree = "<group>"; };
+		FE9A0103301F000000000001 /* http_downloader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = http_downloader.h; sourceTree = "<group>"; };
 		FE2DAC792F32A480009AC45A /* xfs_sftp.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = xfs_sftp.c; sourceTree = "<group>"; };
 		FE2DAC792F32A4F3009AC45A /* localely.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = localely.h; sourceTree = "<group>"; };
 		FE2DAC7A2F32A500009AC45A /* httpc.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = httpc.c; sourceTree = "<group>"; };
@@ -992,6 +996,7 @@
 		FE9443B72F881C540059A578 /* engine_argv.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = engine_argv.c; sourceTree = "<group>"; };
 		FE9443B82F881C540059A578 /* engine_fs.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = engine_fs.h; sourceTree = "<group>"; };
 		FE9443B92F881C540059A578 /* engine_fs.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = engine_fs.c; sourceTree = "<group>"; };
+		FE9443FB2F881C540059A578 /* cp.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = cp.c; sourceTree = "<group>"; };
 		FE9443BA2F881C540059A578 /* json.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = json.c; sourceTree = "<group>"; };
 		FE9443CF2F881F210059A578 /* parson.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = parson.h; sourceTree = "<group>"; };
 		FE9443D02F881F210059A578 /* parson.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = parson.c; sourceTree = "<group>"; };
@@ -1923,6 +1928,8 @@
 				FE2DAC6B2F329E6D009AC45A /* xfs_worker.c */,
 				FE2DAC6E2F329EE2009AC45A /* xfs_worker.h */,
 				FE2DAC762F32A480009AC45A /* xfs_https.c */,
+				FE9A0102301F000000000001 /* http_downloader.c */,
+				FE9A0103301F000000000001 /* http_downloader.h */,
 				FE2DAC792F32A480009AC45A /* xfs_sftp.c */,
 				FEFB7C1E301EB52200F1CFEC /* xfs_https_compat.h */,
 				FEFB7C1F301EB52200F1CFEC /* xfs_https_compat.c */,
@@ -1967,6 +1974,7 @@
 				FE9443B72F881C540059A578 /* engine_argv.c */,
 				FE9443B82F881C540059A578 /* engine_fs.h */,
 				FE9443B92F881C540059A578 /* engine_fs.c */,
+				FE9443FB2F881C540059A578 /* cp.c */,
 				FE9443BA2F881C540059A578 /* json.c */,
 				FE9443E52F881C540059A578 /* engine_utf8.h */,
 				FE9443E62F881C540059A578 /* engine_utf8.c */,
@@ -2402,6 +2410,7 @@
 				FE9443BC2F881C540059A578 /* engine_argv.c in Sources */,
 				FE9443BD2F881C540059A578 /* lexer.c in Sources */,
 				FE9443BE2F881C540059A578 /* engine_fs.c in Sources */,
+				FE9443FA2F881C540059A578 /* cp.c in Sources */,
 				FE9443BF2F881C540059A578 /* json.c in Sources */,
 				FE9443E82F881C540059A578 /* engine_utf8.c in Sources */,
 				FE9443E92F881C540059A578 /* xpath.c in Sources */,
@@ -2435,6 +2444,7 @@
 				FE8E3FD62FD70BD9009FDB81 /* ssh.c in Sources */,
 				FE2DAC7B2F32A500009AC45A /* httpc.c in Sources */,
 				FE2DAC772F32A480009AC45A /* xfs_https.c in Sources */,
+				FE9A0101301F000000000001 /* http_downloader.c in Sources */,
 				FE2DAC782F32A480009AC45A /* xfs_sftp.c in Sources */,
 				B6DCBBD2114FA0E700DC9A11 /* ide.c in Sources */,
 				FEFB7C20301EB52200F1CFEC /* xfs_https_compat.c in Sources */,
