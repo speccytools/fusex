@@ -5,6 +5,8 @@
 
 // Mounted engines array - shared between task and emulator
 struct xfs_engine_mount_t xfs_mounted_engines[4] = {0};
+/* Exact mount arguments, kept separately from backend-owned mount_data. */
+static char* xfs_mount_identities[4] = {0};
 
 // Handles array - shared between task and emulator  
 struct xfs_handle_t xfs_handles[XFS_MAX_FDS] = {};
@@ -61,6 +63,40 @@ static void xfs_set_root_cwd(struct xfs_engine_mount_t* mount)
     }
     mount->cwd[0] = '/';
     mount->cwd[1] = '\0';
+}
+
+static bool xfs_mount_identity_matches(const char* identity, const char* const fields[5])
+{
+    if (!identity)
+        return false;
+
+    for (size_t i = 0; i < 5; ++i)
+    {
+        if (strcmp(identity, fields[i]) != 0)
+            return false;
+        identity += strlen(identity) + 1;
+    }
+    return true;
+}
+
+static char* xfs_mount_identity_create(const char* const fields[5])
+{
+    size_t length = 0;
+    for (size_t i = 0; i < 5; ++i)
+        length += strlen(fields[i]) + 1;
+
+    char* identity = xfs_extra_ram_alloc(length);
+    if (!identity)
+        return NULL;
+
+    char* next = identity;
+    for (size_t i = 0; i < 5; ++i)
+    {
+        const size_t field_length = strlen(fields[i]) + 1;
+        memcpy(next, fields[i], field_length);
+        next += field_length;
+    }
+    return identity;
 }
 
 static int16_t xfs_resolve_path(const struct xfs_engine_mount_t* mount, const char* path,
@@ -167,6 +203,7 @@ void xfs_handle_mount(volatile struct xfs_registers_t* registers)
     const char* username = (const char*)registers->arguments.mount.username;
     const char* password = (const char*)registers->arguments.mount.password;
     const int mount_point = registers->mount_point;
+    const char* const fields[5] = {protocol, hostname, path, username, password};
 
     if (mount_point < 0 || mount_point >= 4)
     {
@@ -178,6 +215,13 @@ void xfs_handle_mount(volatile struct xfs_registers_t* registers)
 
     if (xfs_mounted_engines[mount_point].engine != NULL)
     {
+        if (xfs_mount_identity_matches(xfs_mount_identities[mount_point], fields))
+        {
+            XFS_DEBUG("xfs: mount already active with same URI mount_point=%d\n", mount_point);
+            registers->result = XFS_ERR_OK;
+            registers->status = XFS_STATUS_COMPLETE;
+            return;
+        }
         XFS_DEBUG("xfs: mount failed: mount_point=%d already mounted\n", mount_point);
         registers->result = XFS_ERR_EXIST;
         registers->status = XFS_STATUS_ERROR;
@@ -231,16 +275,26 @@ void xfs_handle_mount(volatile struct xfs_registers_t* registers)
         return;
     }
 
+    char* identity = xfs_mount_identity_create(fields);
+    if (!identity)
+    {
+        registers->result = XFS_ERR_NOMEM;
+        registers->status = XFS_STATUS_ERROR;
+        return;
+    }
+
     const int16_t mount_result = engine->mount(engine, hostname, path, username, password,
         &xfs_mounted_engines[mount_point]);
     if (mount_result != XFS_ERR_OK)
     {
+        xfs_extra_ram_free(identity);
         XFS_DEBUG("xfs: mount failed: result=%d mount_point=%d\n", mount_result, mount_point);
         registers->result = mount_result;
         registers->status = XFS_STATUS_ERROR;
     }
     else
     {
+        xfs_mount_identities[mount_point] = identity;
         xfs_mounted_engines[mount_point].engine = engine;
         xfs_mounted_engines[mount_point].cwd = xfs_compat_get_cwd_buffer(mount_point);
         xfs_set_root_cwd(&xfs_mounted_engines[mount_point]);
@@ -290,6 +344,8 @@ void xfs_handle_umount(volatile struct xfs_registers_t* registers)
 
     if (xfs_mounted_engines[mount_point].engine == NULL)
     {
+        xfs_extra_ram_free(xfs_mount_identities[mount_point]);
+        xfs_mount_identities[mount_point] = NULL;
         XFS_DEBUG("xfs: umount mount_point=%d (already idle)\n", mount_point);
         registers->result = 0;
         registers->status = XFS_STATUS_COMPLETE;
@@ -301,7 +357,10 @@ void xfs_handle_umount(volatile struct xfs_registers_t* registers)
         eng->unmount(eng, &xfs_mounted_engines[mount_point]);
 
     xfs_mounted_engines[mount_point].engine = NULL;
+    xfs_mounted_engines[mount_point].mount_data = NULL;
     xfs_mounted_engines[mount_point].cwd = NULL;
+    xfs_extra_ram_free(xfs_mount_identities[mount_point]);
+    xfs_mount_identities[mount_point] = NULL;
 
     XFS_DEBUG("xfs: umount success mount_point=%d\n", mount_point);
     registers->result = 0;
@@ -1278,6 +1337,10 @@ void xfs_free(void)
             
             xfs_mounted_engines[mount_point].engine = NULL;
         }
+        xfs_mounted_engines[mount_point].mount_data = NULL;
+        xfs_mounted_engines[mount_point].cwd = NULL;
+        xfs_extra_ram_free(xfs_mount_identities[mount_point]);
+        xfs_mount_identities[mount_point] = NULL;
     }
     
     // Clear xfs_handles array (should already be cleared, but be explicit)
