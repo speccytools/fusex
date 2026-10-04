@@ -27,10 +27,13 @@ static xfs_romfs_mount_t* romfs_mount_data(const struct xfs_engine_mount_t* moun
 }
 
 static int16_t romfs_mount(const struct xfs_engine_t* engine, const char* hostname,
-    const char* path, struct xfs_engine_mount_t* out_mount)
+    const char* path, const char* username, const char* password,
+    struct xfs_engine_mount_t* out_mount)
 {
     (void)hostname;
     (void)path;
+    (void)username;
+    (void)password;
     const xfs_romfs_config_t* config = (const xfs_romfs_config_t*)engine->user;
     if (!config || !config->start || !config->end)
         return XFS_ERR_INVAL;
@@ -73,6 +76,21 @@ static void romfs_mount_info(const struct xfs_engine_mount_t* mount, char* buffe
     const char* name = romfs && romfs->config && romfs->config->name ? romfs->config->name : "romfs";
     snprintf(buffer, size, "xfs://%s/", name);
     buffer[size - 1] = '\0';
+}
+
+static int16_t romfs_stats(const struct xfs_engine_mount_t* mount, struct xfs_stats* stats)
+{
+    const xfs_romfs_mount_t* romfs = romfs_mount_data(mount);
+    if (!romfs || !romfs->config || !stats)
+        return XFS_ERR_INVAL;
+
+    memset(stats, 0, sizeof(*stats));
+    stats->total_bytes = (uint64_t)(romfs->config->end - romfs->config->start);
+    stats->used_bytes = stats->total_bytes;
+    stats->total_known = 1;
+    stats->used_known = 1;
+    stats->free_known = 1;
+    return XFS_ERR_OK;
 }
 
 static int16_t romfs_open(const struct xfs_engine_mount_t* mount, struct xfs_handle_t* handle,
@@ -356,6 +374,7 @@ const struct xfs_engine_t xfs_romfs_engine = {
     .is_mounted = romfs_is_mounted,
     .unmount = romfs_unmount,
     .mount_info = romfs_mount_info,
+    .stats = romfs_stats,
     .open = romfs_open,
     .read = romfs_read,
     .direct_read = romfs_direct_read,

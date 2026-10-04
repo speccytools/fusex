@@ -9,6 +9,7 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <sys/types.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 #ifdef WIN32
@@ -44,7 +45,9 @@ void* malloc_allocator(void *arena, void *ptr, size_t oldsz, size_t newsz)
         return libspectrum_malloc(newsz);
     }
 
-    if (oldsz)
+    /* httpc frees with oldsz=0; the pointer is the ownership signal. */
+    (void)oldsz;
+    if (ptr)
     {
         libspectrum_free(ptr);
     }
@@ -87,6 +90,18 @@ int sck_http_open(httpc_options_t *os, void **socket_out, void *opts, const char
         printf("http: failed to create socket\n");
         freeaddrinfo(result);
         return HTTPC_ERROR;
+    }
+
+    /* Streaming file handles must release their worker after a silent peer. */
+    if (os->context)
+    {
+#ifdef WIN32
+        DWORD timeout = 10000;
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&timeout, sizeof(timeout));
+#else
+        struct timeval timeout = { .tv_sec = 10, .tv_usec = 0 };
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+#endif
     }
 
     // Set socket to blocking mode
@@ -168,6 +183,20 @@ int sck_http_close(httpc_options_t *os, void *socket)
 
     libspectrum_free(sock);
     return HTTPC_OK;
+}
+
+void sck_http_abort(void *socket)
+{
+    if (!socket) return;
+    fuse_http_socket_t *sock = socket;
+    if (sock->fd != compat_socket_invalid)
+    {
+#ifdef WIN32
+        shutdown(sock->fd, SD_BOTH);
+#else
+        shutdown(sock->fd, SHUT_RDWR);
+#endif
+    }
 }
 
 int sck_http_read(httpc_options_t *os, void *socket, unsigned char *buf, size_t *length)
@@ -287,3 +316,17 @@ httpc_options_t tls_sck = {
     .logger = sck_http_logger,
     .flags = HTTPC_OPT_LOGGING_ON
 };
+
+void sck_http_options_init(httpc_options_t *options)
+{
+    memset(options, 0, sizeof(*options));
+    options->allocator = malloc_allocator;
+    options->open = sck_http_open;
+    options->close = sck_http_close;
+    options->read = sck_http_read;
+    options->write = sck_http_write;
+    options->sleep = sck_http_sleep;
+    options->time = sck_http_time;
+    options->logger = sck_http_logger;
+    options->flags = HTTPC_OPT_LOGGING_ON;
+}

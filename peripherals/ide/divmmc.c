@@ -34,9 +34,11 @@
 #include "machine.h"
 #include "module.h"
 #include "periph.h"
+#include "peripherals/expansion_bus.h"
 #include "settings.h"
 #include "ui/ui.h"
 #include "unittests/helpers.h"
+#include "utils.h"
 #include "divmmc.h"
 #include "divxxx.h"
 
@@ -64,6 +66,27 @@ static const periph_t divmmc_periph = {
   /* .ports = */ divmmc_ports,
   /* .hard_reset = */ 1,
   /* .activate = */ divmmc_activate,
+};
+
+static int
+divmmc_bus_active( void )
+{
+  return periph_is_active( PERIPH_TYPE_DIVMMC );
+}
+
+static const expansion_bus_device_t divmmc_bus_device = {
+  /* .type = */ PERIPH_TYPE_DIVMMC,
+  /* .position = */ EXPANSION_BUS_POSITION_DIVMMC,
+  /* .capabilities = */ EXPANSION_BUS_CAP_AUTOMAP |
+                        EXPANSION_BUS_CAP_RESET_ROM |
+                        EXPANSION_BUS_CAP_NMI_ROM,
+  /* .active = */ divmmc_bus_active,
+  /* .m1_begin = */ divmmc_m1_early,
+  /* .m1_end = */ divmmc_m1_late,
+  /* .downstream_address = */ NULL,
+  /* .nmi_suppressed = */ NULL,
+  /* .nmi_page = */ NULL,
+  /* .retn = */ NULL,
 };
 
 static divxxx_t *divmmc_state;
@@ -127,6 +150,7 @@ divmmc_init( void *context )
   module_register( &divmmc_module_info );
 
   periph_register( PERIPH_TYPE_DIVMMC, &divmmc_periph );
+  expansion_bus_register( &divmmc_bus_device );
 
   divmmc_state = divxxx_alloc( "DivMMC EPROM", DIVMMC_PAGES, "DivMMC RAM",
       event_type_string, &settings_current.divmmc_enabled,
@@ -275,6 +299,31 @@ divmmc_set_automap( int state )
 }
 
 void
+divmmc_m1_early( libspectrum_word address )
+{
+  if( ( address & 0xff00 ) == 0x3d00 )
+    divmmc_set_automap( 1 );
+}
+
+void
+divmmc_m1_late( libspectrum_word address )
+{
+  if( ( address & 0xfff8 ) == 0x1ff8 ) {
+    divmmc_set_automap( 0 );
+  } else if( address == 0x0000 || address == 0x0008 ||
+             address == 0x0038 || address == 0x0066 ||
+             address == 0x04c6 || address == 0x0562 ) {
+    divmmc_set_automap( 1 );
+  }
+}
+
+int
+divmmc_is_paged( void )
+{
+  return divxxx_get_active( divmmc_state );
+}
+
+void
 divmmc_refresh_page_state( void )
 {
   divxxx_refresh_page_state( divmmc_state );
@@ -355,7 +404,26 @@ divmmc_to_snapshot( libspectrum_snap *snap )
 static void
 divmmc_activate( void )
 {
+  utils_file file;
+
   divxxx_activate( divmmc_state );
+
+  if( !settings_current.divmmc_rom ) return;
+
+  if( utils_read_file( settings_current.divmmc_rom, &file ) ) return;
+
+  if( file.length != DIVMMC_PAGE_LENGTH ) {
+    ui_error( UI_ERROR_ERROR,
+              "DivMMC ROM '%s' is %lu bytes; expected %u bytes",
+              settings_current.divmmc_rom, (unsigned long)file.length,
+              DIVMMC_PAGE_LENGTH );
+    utils_close_file( &file );
+    return;
+  }
+
+  memcpy( divxxx_get_eprom( divmmc_state ), file.buffer,
+          DIVMMC_PAGE_LENGTH );
+  utils_close_file( &file );
 }
 
 static libspectrum_dword

@@ -68,6 +68,9 @@ void xfs_reset(void)
     
     // Call xfs_free() from xfs.c to clean up all resources
     xfs_free();
+    xfs_registers.command = 0;
+    xfs_registers.result = 0;
+    xfs_registers.status = XFS_STATUS_IDLE;
     
     XFS_DEBUG("xfs: reset complete\n");
 }

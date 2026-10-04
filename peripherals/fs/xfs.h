@@ -24,6 +24,7 @@ enum xfs_error {
     XFS_ERR_INVAL       = -22,  // Invalid parameter
     XFS_ERR_NOSPC       = -28,  // No space left on device
     XFS_ERR_NOMEM       = -12,  // No more memory available
+    XFS_ERR_BUSY        = -16,  // Resource busy
     XFS_ERR_NOATTR      = -61,  // No data/attr available
     XFS_ERR_NAMETOOLONG = -36,  // File name too long
 };
@@ -96,14 +97,15 @@ enum
 {
     FS_STORAGE_RAM = 0,
     FS_STORAGE_FLASH = 1,
-    FS_STORAGE_SYSTEM = 2
+    FS_STORAGE_SYSTEM = 2,
+    FS_STORAGE_USB = 3
 };
 #endif
 
 struct xfs_stat_info
 {
     uint8_t type;      // XFS_TYPE_REG or XFS_TYPE_DIR
-    uint8_t storage;   // FS_STORAGE_RAM or FS_STORAGE_FLASH
+    uint8_t storage;   // FS_STORAGE_* backing layer
     uint32_t size;     // File size (for files)
     uint32_t atime;    // Unix access time, or 0 when unavailable
     uint32_t mtime;    // Unix modification time, or 0 when unavailable
@@ -111,15 +113,27 @@ struct xfs_stat_info
     char name[64];    // File/directory name
 };
 
+struct xfs_stats
+{
+    uint8_t total_known;
+    uint8_t used_known;
+    uint8_t free_known;
+    uint64_t total_bytes;
+    uint64_t used_bytes;
+    uint64_t free_bytes;
+};
+
 struct xfs_engine_t
 {
     void* user; // Engine-specific user data
 
     // Mount/unmount operations
-    int16_t (*mount)(const struct xfs_engine_t* engine, const char* hostname, const char* path, struct xfs_engine_mount_t* out_mount);
+    int16_t (*mount)(const struct xfs_engine_t* engine, const char* hostname, const char* path,
+        const char* username, const char* password, struct xfs_engine_mount_t* out_mount);
     uint8_t (*is_mounted)(const struct xfs_engine_t* engine, struct xfs_engine_mount_t* mount);
     void (*unmount)(const struct xfs_engine_t* engine, struct xfs_engine_mount_t* mount);
     void (*mount_info)(const struct xfs_engine_mount_t* mount, char* buffer, size_t size);
+    int16_t (*stats)(const struct xfs_engine_mount_t* mount, struct xfs_stats* stats);
 
     // File operations
     int16_t (*open)(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle, const char* path, int flags);
@@ -179,6 +193,11 @@ typedef struct
 extern const xfs_overlay_config_t xfs_default_overlay;
 extern xfs_romfs_config_t xfs_default_romfs;
 
+/* Platform-specific backing for large, temporary XFS allocations. */
+void* xfs_extra_ram_alloc(size_t size);
+void* xfs_extra_ram_realloc(void* ptr, size_t size);
+void xfs_extra_ram_free(void* ptr);
+
 enum xfs_handle_type_t
 {
     XFS_HANDLE_TYPE_NONE = 0,
@@ -210,7 +229,9 @@ struct xfs_args_mount_t
 {
     char protocol[32]; // e.g., "xfs"
     char hostname[64]; // e.g., "ram"
-    char path[160]; // e.g., "/folder/"
+    char path[288]; // e.g., "/folder/"
+    char username[64];
+    char password[64];
 };
 
 struct xfs_args_open_t
@@ -317,7 +338,7 @@ struct xfs_stat_t
 // Union of all argument types
 union xfs_arguments_t
 {
-    uint8_t raw[256];
+    uint8_t raw[512];
     struct xfs_args_mount_t mount;
     struct xfs_args_open_t open;
     struct xfs_args_read_t read;
@@ -351,9 +372,9 @@ struct xfs_registers_t
     uint8_t mount_point;
     // Reserved for alignment
     uint8_t reserved[1];
-    // Arguments section (256 bytes) - use union to access typed structs
+    // Arguments section (512 bytes) - use union to access typed structs
     union xfs_arguments_t arguments;
-    // 0x1108: temporary space - used for process variables
+    // 0x1208: temporary space - used for process variables
     union
     {
         uint8_t tmp[248];
@@ -364,17 +385,23 @@ struct xfs_registers_t
             uint16_t total;
         } fops;
     };
-    // 0x1200: Workspace section (1024+ bytes for data transfer) - shifted by 8 bytes
+    // 0x1300: Workspace section (1024 bytes for data transfer)
     uint8_t workspace[1024];
 
-    // 0x1600
-    uint8_t module_space[2560];
+    // 0x1700
+    uint8_t module_space[2304];
 };
 
 #pragma pack(pop)
 
 _Static_assert(4096 == sizeof(struct xfs_registers_t), "xfs_registers_t is not 4096");
-_Static_assert(0x200 == offsetof(struct xfs_registers_t, workspace), "workspace is not at 0x200");
+_Static_assert(512 == sizeof(union xfs_arguments_t), "xfs_arguments_t is not 512 bytes");
+_Static_assert(512 == sizeof(struct xfs_args_mount_t), "xfs_args_mount_t is not 512 bytes");
+_Static_assert(384 == offsetof(struct xfs_args_mount_t, username), "mount username offset is not 384");
+_Static_assert(448 == offsetof(struct xfs_args_mount_t, password), "mount password offset is not 448");
+_Static_assert(0x208 == offsetof(struct xfs_registers_t, tmp), "temporary space is not at 0x208");
+_Static_assert(0x300 == offsetof(struct xfs_registers_t, workspace), "workspace is not at 0x300");
+_Static_assert(0x700 == offsetof(struct xfs_registers_t, module_space), "module space is not at 0x700");
 _Static_assert(0x008 == offsetof(struct xfs_registers_t, arguments), "arguments is not at 0x008");
 
 extern void xfs_init();
@@ -394,6 +421,7 @@ extern void xfs_debug_log(const char *format, ...);
 
 char* xfs_compat_get_cwd_buffer(uint8_t mount_point);
 void xfs_compat_init(void);
+const struct xfs_engine_t* xfs_compat_local_mount_engine(const char* hostname, const char* path);
 
 // Command handlers (FreeRTOS-independent, usable in emulator)
 extern void xfs_handle_command(volatile struct xfs_registers_t* registers);

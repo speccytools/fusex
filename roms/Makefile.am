@@ -51,6 +51,7 @@ ROMS = \
        roms/se-0.rom \
        roms/se-1.rom \
        roms/speccyboot-1.4.rom \
+       roms/spxcontroller.bin \
        roms/spxromfs.bin
 
 pkgdata_DATA += $(ROMS)

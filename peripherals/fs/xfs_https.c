@@ -1,6 +1,7 @@
 #include "xfs.h"
 
 #include "xfs_https_compat.h"
+#include "http_downloader.h"
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
@@ -8,10 +9,7 @@
 
 struct xfs_handle_https_file_t
 {
-    uint8_t *blob;       /* PSRAM download blob from download_blob_alloc */
-    size_t   blob_size;  /* Bytes received (download complete size) */
-    size_t   read_pos;   /* Current read cursor */
-    /** Set after successful open; cleared after blob released in https_close. */
+    http_download_t *download;
     uint8_t live;
 };
 
@@ -567,8 +565,11 @@ static int16_t https_fetch_and_parse_index(const struct xfs_engine_mount_t* engi
 }
 
 // Mount HTTPS filesystem
-static int16_t https_mount(const struct xfs_engine_t* engine, const char* hostname, const char* path, struct xfs_engine_mount_t* out_mount)
+static int16_t https_mount(const struct xfs_engine_t* engine, const char* hostname, const char* path,
+    const char* username, const char* password, struct xfs_engine_mount_t* out_mount)
 {
+    (void)username;
+    (void)password;
     XFS_DEBUG("https: mount hostname='%s' path='%s'\n", hostname ? hostname : "(null)", path ? path : "(null)");
     
     if (!hostname || !engine || !path)
@@ -746,124 +747,38 @@ static void https_unmount(const struct xfs_engine_t* engine, struct xfs_engine_m
     mount->mount_data = NULL;
 }
 
-// Open file — download body into a PSRAM blob (see download_blob.c)
+// Open a bounded-memory stream; the downloader owns its 256 KB ring.
 static int16_t https_open(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle, const char* path, int flags)
 {
-    XFS_DEBUG("https: open path='%s' flags=0x%04x\n", path ? path : "(null)", flags);
-    
-    (void)flags; // HTTPS is read-only, ignore write flags
-    
+    (void)flags;
     struct https_engine_mount_data_t* mount_data = get_mount_data(engine);
-    if (!mount_data || mount_data->url[0] == '\0')
-    {
-        XFS_DEBUG("https: open failed: not mounted\n");
-        return XFS_ERR_IO;
-    }
-    
-    // Build full URL
+    if (!mount_data || mount_data->url[0] == '\0') return XFS_ERR_IO;
     char url[512];
-    if (build_https_url(mount_data->url, path, url, sizeof(url)) != 0)
-    {
-        XFS_DEBUG("https: open failed: invalid URL\n");
-        return XFS_ERR_INVAL;
-    }
-    
-    XFS_DEBUG("https: open URL='%s'\n", url);
-
-    struct xfs_handle_https_file_t *https_handle = xfs_https_calloc(1, sizeof(struct xfs_handle_https_file_t));
-    if (!https_handle)
-    {
-        XFS_DEBUG("https: open failed: no memory for handle\n");
-        return XFS_ERR_NOMEM;
-    }
-
-    XFS_DEBUG("https: open downloading from URL...\n");
-    int e = xfs_https_download_file(url, &https_handle->blob, &https_handle->blob_size);
-    const int response = xfs_https_http_response();
-    if (e != XFS_HTTPS_HTTP_OK)
-    {
-        XFS_DEBUG("https: open failed %d: httpc_get error (response %d, bytes=%zu)\n",
-                  e, response, https_handle->blob_size);
-        if (https_handle->blob)
-        {
-            xfs_https_download_file_free(https_handle->blob);
-        }
-        xfs_https_free(https_handle);
+    if (build_https_url(mount_data->url, path, url, sizeof(url)) != 0) return XFS_ERR_INVAL;
+    struct xfs_handle_https_file_t *file = xfs_https_calloc(1, sizeof(*file));
+    if (!file) return XFS_ERR_NOMEM;
+    int error;
+    file->download = http_downloader_open(url, &error);
+    if (!file->download) {
+        xfs_https_free(file);
+        if (error == HTTP_DOWNLOAD_NOENT) return XFS_ERR_NOENT;
+        if (error == HTTP_DOWNLOAD_BUSY) return XFS_ERR_BUSY;
+        if (error == HTTP_DOWNLOAD_NOMEM) return XFS_ERR_NOMEM;
         return XFS_ERR_IO;
     }
-
-    if (response < 200 || response >= 300)
-    {
-        XFS_DEBUG("https: open failed: HTTP response=%d\n", response);
-        xfs_https_download_file_free(https_handle->blob);
-        xfs_https_free(https_handle);
-
-        if (response == 404)
-        {
-            return XFS_ERR_NOENT;
-        }
-
-        return XFS_ERR_IO;
-    }
-
-    XFS_DEBUG("https: open download complete bytes=%zu\n", https_handle->blob_size);
-
-    https_handle->live = 1;
+    file->live = 1;
     handle->type = XFS_HANDLE_TYPE_FILE;
-    handle->data = https_handle;
-
-    XFS_DEBUG("https: open success\n");
+    handle->data = file;
     return XFS_ERR_OK;
 }
 
-// Read from downloaded blob
 static int32_t https_read(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle, void* buffer, uint32_t size)
 {
     (void)engine;
-    struct xfs_handle_https_file_t *https_handle = get_https_file_handle(handle);
-
-    if (!https_handle || !https_handle->blob)
-    {
-        XFS_DEBUG("https: read failed: invalid handle\n");
-        return XFS_ERR_BADF;
-    }
-
-    if (https_handle->read_pos > https_handle->blob_size)
-    {
-        XFS_DEBUG("https: read: read_pos > blob_size (corrupt state)\n");
-        return XFS_ERR_IO;
-    }
-
-    const size_t avail = https_handle->blob_size - https_handle->read_pos;
-    const uint32_t take = (size > avail) ? (uint32_t)avail : size;
-    const int32_t n = (int32_t)take;
-
-    if (n > 0 && buffer != NULL)
-        memmove(buffer, https_handle->blob + https_handle->read_pos, (size_t)n);
-
-    https_handle->read_pos += (size_t)n;
-
-    XFS_DEBUG("https: read size=%lu bytes_read=%ld\n", (unsigned long)size, (long)n);
-    return n;
-}
-
-/** Expose download blob + size without copying (valid until close frees the blob). */
-static const uint8_t *https_direct_read(const struct xfs_engine_mount_t *engine, struct xfs_handle_t *handle,
-                                        size_t *out_len)
-{
-    (void)engine;
-    if (!out_len)
-        return NULL;
-
-    struct xfs_handle_https_file_t *h = get_https_file_handle(handle);
-    if (!h || !h->blob)
-    {
-        *out_len = 0;
-        return NULL;
-    }
-
-    *out_len = h->blob_size;
-    return h->blob;
+    struct xfs_handle_https_file_t *file = get_https_file_handle(handle);
+    if (!file || !file->download) return XFS_ERR_BADF;
+    const int32_t count = http_downloader_read(file->download, buffer, size);
+    return count < 0 ? XFS_ERR_IO : count;
 }
 
 // Write not supported
@@ -877,77 +792,23 @@ static int32_t https_write(const struct xfs_engine_mount_t* engine, struct xfs_h
     return XFS_ERR_INVAL;
 }
 
-/* Release blob; wrapper freed in https_free_handle. Safe to call twice (e.g. close + xfs_free). */
+/* The wrapper is released by https_free_handle; close is idempotent. */
 static int16_t https_close(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle)
 {
-    XFS_DEBUG("https: close\n");
     (void)engine;
-
-    if (!handle->data)
-    {
-        return XFS_ERR_OK;
+    struct xfs_handle_https_file_t *file = get_https_file_handle(handle);
+    if (file && file->live) {
+        http_downloader_close(file->download);
+        file->download = NULL;
+        file->live = 0;
     }
-
-    struct xfs_handle_https_file_t *https_handle = get_https_file_handle(handle);
-    if (!https_handle || !https_handle->live)
-    {
-        return XFS_ERR_OK;
-    }
-
-    if (https_handle->blob)
-    {
-        xfs_https_download_file_free(https_handle->blob);
-        https_handle->blob = NULL;
-    }
-    https_handle->live = 0;
-
-    XFS_DEBUG("https: close success\n");
     return XFS_ERR_OK;
 }
 
-// Seek within downloaded blob (read_pos)
 static int32_t https_lseek(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle, int32_t offset, uint8_t whence)
 {
-    XFS_DEBUG("https: lseek offset=%ld whence=%d\n", (long)offset, whence);
-    (void)engine;
-
-    struct xfs_handle_https_file_t *https_handle = get_https_file_handle(handle);
-    if (!https_handle || !https_handle->blob)
-    {
-        XFS_DEBUG("https: lseek failed: invalid handle\n");
-        return XFS_ERR_BADF;
-    }
-
-    const size_t sz = https_handle->blob_size;
-    int64_t new_pos;
-
-    if (whence == 0) /* SEEK_SET */
-        new_pos = offset;
-    else if (whence == 1) /* SEEK_CUR */
-        new_pos = (int64_t)https_handle->read_pos + offset;
-    else if (whence == 2) /* SEEK_END */
-        new_pos = (int64_t)sz + offset;
-    else
-    {
-        XFS_DEBUG("https: lseek failed: invalid whence\n");
-        return XFS_ERR_INVAL;
-    }
-
-    if (new_pos < 0)
-    {
-        XFS_DEBUG("https: lseek failed: negative position\n");
-        return XFS_ERR_INVAL;
-    }
-    if (new_pos > (int64_t)sz)
-        new_pos = (int64_t)sz;
-    if (new_pos > INT32_MAX)
-    {
-        XFS_DEBUG("https: lseek: position exceeds int32_t range\n");
-        return XFS_ERR_INVAL;
-    }
-
-    https_handle->read_pos = (size_t)new_pos;
-    return (int32_t)new_pos;
+    (void)engine; (void)handle; (void)offset; (void)whence;
+    return XFS_ERR_INVAL;
 }
 
 // Parse index.txt file line into xfs_handle_https_dir_entry_t
@@ -1038,7 +899,6 @@ static int parse_index_line_to_entry(const char* line, struct xfs_handle_https_d
     return 0;
 }
 
-// Open directory - fetch index.txt file
 static int16_t https_opendir(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle, const char* path)
 {
     XFS_DEBUG("https: opendir path='%s'\n", path ? path : "(null)");
@@ -1486,7 +1346,6 @@ const struct xfs_engine_t https_engine = {
     .mount_info = https_mount_info,
     .open = https_open,
     .read = https_read,
-    .direct_read = https_direct_read,
     .write = https_write,
     .close = https_close,
     .lseek = https_lseek,
@@ -1513,7 +1372,6 @@ const struct xfs_engine_t http_engine = {
     .mount_info = https_mount_info,
     .open = https_open,
     .read = https_read,
-    .direct_read = https_direct_read,
     .write = https_write,
     .close = https_close,
     .lseek = https_lseek,

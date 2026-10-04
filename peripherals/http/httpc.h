@@ -49,6 +49,7 @@ struct httpc_options { /* Note that get/put/etcetera functions can *write* to th
 	     *state;      /* internal state for each operation; do not use */
 
 	unsigned flags;   /* options for library */
+	size_t receive_buffer_size; /* zero uses the default small response buffer */
 
 	int argc;         /* custom headers count; number of custom headers */
 	char **argv;      /* custom headers; appended to the HTTP request */

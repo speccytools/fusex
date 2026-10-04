@@ -261,7 +261,8 @@ section "!Fuse Core Files (required)" SecCore
     SetOutPath $INSTDIR\lib
     File "lib\*"
     SetOutPath "$INSTDIR\roms"
-    File "roms\*"
+    File "roms\spxcontroller.bin"
+    File /x "spxcontroller.bin" "roms\*"
     SetOutPath "$INSTDIR\ui\widget"
     File /nonfatal "ui\widget\fuse.font"
  
