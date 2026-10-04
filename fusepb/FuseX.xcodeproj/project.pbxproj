@@ -208,8 +208,6 @@
 		B69BE5411660E02500C5D0CE /* w5100_socket.c in Sources */ = {isa = PBXBuildFile; fileRef = B69BE53E1660E02500C5D0CE /* w5100_socket.c */; };
 		B69BE5421660E02500C5D0CE /* w5100.c in Sources */ = {isa = PBXBuildFile; fileRef = B69BE53F1660E02500C5D0CE /* w5100.c */; };
 		B69BE5451660E04000C5D0CE /* spectranet.c in Sources */ = {isa = PBXBuildFile; fileRef = B69BE5431660E04000C5D0CE /* spectranet.c */; };
-		FE1B00140001000000000004 /* expansion_bus.c in Sources */ = {isa = PBXBuildFile; fileRef = FE1B00160001000000000006 /* expansion_bus.c */; };
-		FE1B00150001000000000005 /* spectranext_esxdos.c in Sources */ = {isa = PBXBuildFile; fileRef = FE1B00180001000000000008 /* spectranext_esxdos.c */; };
 		B69D8D4D1D6B34490031BAFC /* zip.c in Sources */ = {isa = PBXBuildFile; fileRef = B69D8D4B1D6B34490031BAFC /* zip.c */; };
 		B69D8D501D6B388A0031BAFC /* trdos.c in Sources */ = {isa = PBXBuildFile; fileRef = B69D8D4E1D6B388A0031BAFC /* trdos.c */; };
 		B6A6F0960B3C108C000B88E9 /* coreaudiosound.c in Sources */ = {isa = PBXBuildFile; fileRef = B6A6F0950B3C108C000B88E9 /* coreaudiosound.c */; };
@@ -311,7 +309,6 @@
 		B6F66E351E473D68005B270A /* memory_pages.c in Sources */ = {isa = PBXBuildFile; fileRef = B6F66E331E473D68005B270A /* memory_pages.c */; };
 		B6FA759D0C1D7507007F5A10 /* audiofile.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B6FA759C0C1D7507007F5A10 /* audiofile.framework */; };
 		B6FA75C60C1D76A5007F5A10 /* audiofile.framework in Copy Files */ = {isa = PBXBuildFile; fileRef = B6FA759C0C1D7507007F5A10 /* audiofile.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		FE1B00120001000000000002 /* libfusex.dylib in Copy Files */ = {isa = PBXBuildFile; fileRef = FE1B00110001000000000001 /* libfusex.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		BAE50FF21E9FEF6A73AC6175 /* 256s-3.rom in Resources */ = {isa = PBXBuildFile; fileRef = B47A67E8F3CF893BB8B0B51B /* 256s-3.rom */; };
 		C0C0617E40B5762CC966FBB0 /* opu.icns in Resources */ = {isa = PBXBuildFile; fileRef = E1F94955E564E275BA43C35D /* opu.icns */; };
 		C56D1BEAC229ADB9FFF68BA0 /* mgt.icns in Resources */ = {isa = PBXBuildFile; fileRef = E58E141DFD2813AA4F512B32 /* mgt.icns */; };
@@ -334,12 +331,14 @@
 		FE0A0103301F000000000001 /* xfs_romfs.c in Sources */ = {isa = PBXBuildFile; fileRef = FE0A0204301F000000000001 /* xfs_romfs.c */; };
 		FE0A0104301F000000000001 /* ../roms/spxromfs.bin in Resources */ = {isa = PBXBuildFile; fileRef = FE0A0205301F000000000001 /* ../roms/spxromfs.bin */; };
 		FE0A0106301F000000000001 /* ../roms/spxcontroller.bin in Resources */ = {isa = PBXBuildFile; fileRef = FE0A0206301F000000000001 /* ../roms/spxcontroller.bin */; };
+		FE1B00120001000000000002 /* libfusex.dylib in Copy Files */ = {isa = PBXBuildFile; fileRef = FE1B00110001000000000001 /* libfusex.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		FE1B00140001000000000004 /* expansion_bus.c in Sources */ = {isa = PBXBuildFile; fileRef = FE1B00160001000000000006 /* expansion_bus.c */; };
+		FE1B00150001000000000005 /* spectranext_esxdos.c in Sources */ = {isa = PBXBuildFile; fileRef = FE1B00180001000000000008 /* spectranext_esxdos.c */; };
 		FE2DAC5A2F328D96009AC45A /* xfs.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC592F328D96009AC45A /* xfs.c */; };
 		FE2DAC6C2F329E6D009AC45A /* xfs_fs.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC6A2F329E6D009AC45A /* xfs_fs.c */; };
 		FE2DAC6D2F329E6D009AC45A /* xfs_worker.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC6B2F329E6D009AC45A /* xfs_worker.c */; };
 		FE2DAC752F32A23C009AC45A /* http_sck.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC722F32A23C009AC45A /* http_sck.c */; };
 		FE2DAC772F32A480009AC45A /* xfs_https.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC762F32A480009AC45A /* xfs_https.c */; };
-		FE9A0101301F000000000001 /* http_downloader.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9A0102301F000000000001 /* http_downloader.c */; };
 		FE2DAC782F32A480009AC45A /* xfs_sftp.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC792F32A480009AC45A /* xfs_sftp.c */; };
 		FE2DAC7B2F32A500009AC45A /* httpc.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC7A2F32A500009AC45A /* httpc.c */; };
 		FE2DAC802F32AB6C009AC45A /* vfile_ext.c in Sources */ = {isa = PBXBuildFile; fileRef = FE2DAC7F2F32AB6C009AC45A /* vfile_ext.c */; };
@@ -354,7 +353,6 @@
 		FE9443BC2F881C540059A578 /* engine_argv.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9443B72F881C540059A578 /* engine_argv.c */; };
 		FE9443BD2F881C540059A578 /* lexer.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9443B02F881C540059A578 /* lexer.c */; };
 		FE9443BE2F881C540059A578 /* engine_fs.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9443B92F881C540059A578 /* engine_fs.c */; };
-		FE9443FA2F881C540059A578 /* cp.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9443FB2F881C540059A578 /* cp.c */; };
 		FE9443BF2F881C540059A578 /* json.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9443BA2F881C540059A578 /* json.c */; };
 		FE9443C02F881C540059A578 /* ast.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9443AE2F881C540059A578 /* ast.c */; };
 		FE9443C12F881C540059A578 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9443B42F881C540059A578 /* parser.c */; };
@@ -363,12 +361,14 @@
 		FE9443D42F882E210059A578 /* spectranext_stdout.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9443D32F882E210059A578 /* spectranext_stdout.c */; };
 		FE9443E82F881C540059A578 /* engine_utf8.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9443E62F881C540059A578 /* engine_utf8.c */; };
 		FE9443E92F881C540059A578 /* xpath.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9443E72F881C540059A578 /* xpath.c */; };
+		FE9443FA2F881C540059A578 /* cp.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9443FB2F881C540059A578 /* cp.c */; };
 		FE981C372FA55F84005FE59F /* gdbserver_remote_commands.c in Sources */ = {isa = PBXBuildFile; fileRef = FE981C362FA55F84005FE59F /* gdbserver_remote_commands.c */; };
 		FE9900010000000000000001 /* sp0256.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9900020000000000000002 /* sp0256.c */; };
 		FE9900040000000000000004 /* uspeech.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9900050000000000000005 /* uspeech.c */; };
 		FE9913010000000000000001 /* dsnap.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9913020000000000000002 /* dsnap.c */; };
 		FE9913030000000000000003 /* wav_macos.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9913040000000000000004 /* wav_macos.c */; };
 		FE9913050000000000000005 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FE9913060000000000000006 /* AudioToolbox.framework */; };
+		FE9A0101301F000000000001 /* http_downloader.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9A0102301F000000000001 /* http_downloader.c */; };
 		FEC02C952EEF06E4008277BA /* FuseImporter.mdimporter in CopyFiles */ = {isa = PBXBuildFile; fileRef = FEC02C942EEF06E4008277BA /* FuseImporter.mdimporter */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		FEC02C9F2EEF65D6008277BA /* spectranext_controller.c in Sources */ = {isa = PBXBuildFile; fileRef = FEC02C9C2EEF65D5008277BA /* spectranext_controller.c */; };
 		FEC02CA02EEF65D6008277BA /* spectranext.h in Sources */ = {isa = PBXBuildFile; fileRef = FEC02C9D2EEF65D5008277BA /* spectranext.h */; };
@@ -669,10 +669,6 @@
 		B69BE5401660E02500C5D0CE /* w5100.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = w5100.h; sourceTree = "<group>"; };
 		B69BE5431660E04000C5D0CE /* spectranet.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = spectranet.c; sourceTree = "<group>"; };
 		B69BE5441660E04000C5D0CE /* spectranet.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = spectranet.h; sourceTree = "<group>"; };
-		FE1B00160001000000000006 /* expansion_bus.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = expansion_bus.c; sourceTree = "<group>"; };
-		FE1B00170001000000000007 /* expansion_bus.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = expansion_bus.h; sourceTree = "<group>"; };
-		FE1B00180001000000000008 /* spectranext_esxdos.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = spectranext_esxdos.c; sourceTree = "<group>"; };
-		FE1B00190001000000000009 /* spectranext_esxdos.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = spectranext_esxdos.h; sourceTree = "<group>"; };
 		B69D8D4B1D6B34490031BAFC /* zip.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = zip.c; sourceTree = "<group>"; };
 		B69D8D4C1D6B34490031BAFC /* zip.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = zip.h; sourceTree = "<group>"; };
 		B69D8D4E1D6B388A0031BAFC /* trdos.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = trdos.c; sourceTree = "<group>"; };
@@ -760,7 +756,6 @@
 		B6D2989105B061CB00C2AA14 /* MemoryBrowserController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = MemoryBrowserController.h; path = controllers/MemoryBrowserController.h; sourceTree = "<group>"; };
 		B6D2989205B061CB00C2AA14 /* MemoryBrowserController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = MemoryBrowserController.m; path = controllers/MemoryBrowserController.m; sourceTree = "<group>"; };
 		B6D65C3618A6431500170B64 /* gcrypt.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = gcrypt.framework; path = ../3rdparty/libgcrypt/build/Deployment/gcrypt.framework; sourceTree = "<group>"; };
-		FE1B00110001000000000001 /* libfusex.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libfusex.dylib; path = ../build/libfusex/libfusex.dylib; sourceTree = "<group>"; };
 		B6D670451DD6CB6B0014914E /* FuseXHelp.help */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FuseXHelp.help; sourceTree = BUILT_PRODUCTS_DIR; };
 		B6D670471DD6CB6B0014914E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B6D71DCC1F6A94750000D666 /* divmmc.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = divmmc.c; sourceTree = "<group>"; };
@@ -959,6 +954,11 @@
 		FE0A0204301F000000000001 /* xfs_romfs.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = xfs_romfs.c; sourceTree = "<group>"; };
 		FE0A0205301F000000000001 /* ../roms/spxromfs.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = ../roms/spxromfs.bin; sourceTree = SOURCE_ROOT; };
 		FE0A0206301F000000000001 /* ../roms/spxcontroller.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = ../roms/spxcontroller.bin; sourceTree = SOURCE_ROOT; };
+		FE1B00110001000000000001 /* libfusex.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libfusex.dylib; path = ../build/libfusex/libfusex.dylib; sourceTree = "<group>"; };
+		FE1B00160001000000000006 /* expansion_bus.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = expansion_bus.c; sourceTree = "<group>"; };
+		FE1B00170001000000000007 /* expansion_bus.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = expansion_bus.h; sourceTree = "<group>"; };
+		FE1B00180001000000000008 /* spectranext_esxdos.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = spectranext_esxdos.c; sourceTree = "<group>"; };
+		FE1B00190001000000000009 /* spectranext_esxdos.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = spectranext_esxdos.h; sourceTree = "<group>"; };
 		FE2DAC582F328D96009AC45A /* xfs.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = xfs.h; sourceTree = "<group>"; };
 		FE2DAC592F328D96009AC45A /* xfs.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = xfs.c; sourceTree = "<group>"; };
 		FE2DAC5C2F328DD5009AC45A /* xfs_engines.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = xfs_engines.h; sourceTree = "<group>"; };
@@ -969,8 +969,6 @@
 		FE2DAC722F32A23C009AC45A /* http_sck.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = http_sck.c; sourceTree = "<group>"; };
 		FE2DAC732F32A23C009AC45A /* httpc.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = httpc.h; sourceTree = "<group>"; };
 		FE2DAC762F32A480009AC45A /* xfs_https.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = xfs_https.c; sourceTree = "<group>"; };
-		FE9A0102301F000000000001 /* http_downloader.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = http_downloader.c; sourceTree = "<group>"; };
-		FE9A0103301F000000000001 /* http_downloader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = http_downloader.h; sourceTree = "<group>"; };
 		FE2DAC792F32A480009AC45A /* xfs_sftp.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = xfs_sftp.c; sourceTree = "<group>"; };
 		FE2DAC792F32A4F3009AC45A /* localely.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = localely.h; sourceTree = "<group>"; };
 		FE2DAC7A2F32A500009AC45A /* httpc.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = httpc.c; sourceTree = "<group>"; };
@@ -996,7 +994,6 @@
 		FE9443B72F881C540059A578 /* engine_argv.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = engine_argv.c; sourceTree = "<group>"; };
 		FE9443B82F881C540059A578 /* engine_fs.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = engine_fs.h; sourceTree = "<group>"; };
 		FE9443B92F881C540059A578 /* engine_fs.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = engine_fs.c; sourceTree = "<group>"; };
-		FE9443FB2F881C540059A578 /* cp.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = cp.c; sourceTree = "<group>"; };
 		FE9443BA2F881C540059A578 /* json.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = json.c; sourceTree = "<group>"; };
 		FE9443CF2F881F210059A578 /* parson.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = parson.h; sourceTree = "<group>"; };
 		FE9443D02F881F210059A578 /* parson.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = parson.c; sourceTree = "<group>"; };
@@ -1005,6 +1002,7 @@
 		FE9443E52F881C540059A578 /* engine_utf8.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = engine_utf8.h; sourceTree = "<group>"; };
 		FE9443E62F881C540059A578 /* engine_utf8.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = engine_utf8.c; sourceTree = "<group>"; };
 		FE9443E72F881C540059A578 /* xpath.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = xpath.c; sourceTree = "<group>"; };
+		FE9443FB2F881C540059A578 /* cp.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = cp.c; sourceTree = "<group>"; };
 		FE981C352FA55F84005FE59F /* gdbserver_remote_commands.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = gdbserver_remote_commands.h; sourceTree = "<group>"; };
 		FE981C362FA55F84005FE59F /* gdbserver_remote_commands.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = gdbserver_remote_commands.c; sourceTree = "<group>"; };
 		FE9900020000000000000002 /* sp0256.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = sp0256.c; path = sound/sp0256.c; sourceTree = "<group>"; };
@@ -1015,6 +1013,8 @@
 		FE9913040000000000000004 /* wav_macos.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = wav_macos.c; sourceTree = "<group>"; };
 		FE9913060000000000000006 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = /System/Library/Frameworks/AudioToolbox.framework; sourceTree = "<absolute>"; };
 		FE9913070000000000000007 /* wav_internals.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = wav_internals.h; sourceTree = "<group>"; };
+		FE9A0102301F000000000001 /* http_downloader.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = http_downloader.c; sourceTree = "<group>"; };
+		FE9A0103301F000000000001 /* http_downloader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = http_downloader.h; sourceTree = "<group>"; };
 		FEC02C942EEF06E4008277BA /* FuseImporter.mdimporter */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.spotlight-importer"; name = FuseImporter.mdimporter; path = ../3rdparty/FuseImporter/build/Deployment/FuseImporter.mdimporter; sourceTree = "<group>"; };
 		FEC02C9C2EEF65D5008277BA /* spectranext_controller.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = spectranext_controller.c; sourceTree = "<group>"; };
 		FEC02C9D2EEF65D5008277BA /* spectranext.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = spectranext.h; sourceTree = "<group>"; };
@@ -1999,6 +1999,7 @@
 			isa = PBXGroup;
 			children = (
 				FE9913060000000000000006 /* AudioToolbox.framework */,
+				FE1B00110001000000000001 /* libfusex.dylib */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -2209,6 +2210,21 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		B61F459109121DF100C8096C /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "make
+";
+		};
 		D1A55E0129C0F1A000185E4D /* Generate libspectrum.h */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -2230,21 +2246,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"${SRCROOT}/generate-libspectrum-header.sh\" \"${DERIVED_FILE_DIR}\"\n";
-		};
-		B61F459109121DF100C8096C /* ShellScript */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "make
-";
 		};
 		FE1B00130001000000000003 /* Build libfusex */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -2601,7 +2602,7 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = .;
-				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				MARKETING_VERSION = "1.9.2-fusex-0.2";
 				OTHER_CFLAGS = "";
 				OTHER_CODE_SIGN_FLAGS = "";
@@ -2675,7 +2676,7 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = .;
-				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				MARKETING_VERSION = "1.9.2-fusex-0.2";
 				OTHER_CFLAGS = "";
 				OTHER_CODE_SIGN_FLAGS = "";
@@ -2748,7 +2749,7 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = .;
-				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				MARKETING_VERSION = "1.9.2-fusex-0.2";
 				OTHER_CFLAGS = "";
 				OTHER_CODE_SIGN_FLAGS = "";

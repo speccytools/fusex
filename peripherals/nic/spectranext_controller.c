@@ -204,6 +204,7 @@ static void spectranext_controller_process_command(void)
 
     switch (cmd)
     {
+        /* The shared controller ROM serves GET_VERSION (15) directly. */
         case SPECTRANEXT_CMD_GET_CONTROLLER_STATUS:
             spectranext_controller.workspace.get_controller_status.out.controller_status =
                 spectranext_state.controller_status;
