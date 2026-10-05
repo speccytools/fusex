@@ -96,6 +96,8 @@ static void
 w5100_socket_init_common( nic_w5100_socket_t *socket )
 {
   socket->fd = compat_socket_invalid;
+  socket->protocol = W5100_SOCKET_PROTOCOL_TCP;
+  socket->backend_protocol = W5100_SOCKET_PROTOCOL_TCP;
   socket->tls_socket = NULL;
   socket->ssh_socket = NULL;
   socket->io_selfpipe = NULL;
@@ -180,6 +182,10 @@ nic_w5100_socket_reset( nic_w5100_socket_t *socket )
 
   w5100_socket_clean( socket );
 
+  memset( socket->mss, 0, sizeof( socket->mss ) );
+  socket->protocol = W5100_SOCKET_PROTOCOL_TCP;
+  socket->backend_protocol = W5100_SOCKET_PROTOCOL_TCP;
+
   w5100_socket_release_lock( socket );
 }
 
@@ -228,9 +234,10 @@ w5100_socket_open( nic_w5100_socket_t *socket_obj )
       socket_obj->mode == W5100_SOCKET_MODE_TCP ) &&
     socket_obj->state == W5100_SOCKET_STATE_CLOSED ) {
 
+    libspectrum_byte backend_selector = socket_obj->protocol;
     int tcp = socket_obj->mode == W5100_SOCKET_MODE_TCP;
     int type = tcp ? SOCK_STREAM : SOCK_DGRAM;
-    int protocol = tcp ? IPPROTO_TCP : IPPROTO_UDP;
+    int socket_protocol = tcp ? IPPROTO_TCP : IPPROTO_UDP;
     const char *description = tcp ? "TCP" : "UDP";
     int final_state = tcp ? W5100_SOCKET_STATE_INIT : W5100_SOCKET_STATE_UDP;
 #ifndef WIN32
@@ -239,7 +246,16 @@ w5100_socket_open( nic_w5100_socket_t *socket_obj )
 
     w5100_socket_clean( socket_obj );
 
-    socket_obj->fd = socket( AF_INET, type, protocol );
+    /* Sn_PROTO is configuration for OPEN. Keep the W5100-visible register,
+       but latch only the two Spectranext selectors for TCP sockets. Unknown
+       values retain ordinary TCP behaviour. */
+    socket_obj->protocol = backend_selector;
+    socket_obj->backend_protocol = W5100_SOCKET_PROTOCOL_TCP;
+    if( tcp && ( backend_selector == W5100_SOCKET_PROTOCOL_TLS ||
+                 backend_selector == W5100_SOCKET_PROTOCOL_SSH ) )
+      socket_obj->backend_protocol = backend_selector;
+
+    socket_obj->fd = socket( AF_INET, type, socket_protocol );
     if( socket_obj->fd == compat_socket_invalid ) {
       nic_w5100_error( UI_ERROR_ERROR,
         "w5100: failed to open %s socket for socket %d; errno %d: %s\n",
@@ -324,6 +340,7 @@ w5100_socket_connect( nic_w5100_t *self, nic_w5100_socket_t *socket )
   if( socket->state == W5100_SOCKET_STATE_INIT ) {
     struct sockaddr_in sa;
     uint16_t port;
+    libspectrum_byte backend_protocol;
     
     if( !socket->socket_bound )
       if( w5100_socket_bind_port( self, socket ) )
@@ -335,8 +352,19 @@ w5100_socket_connect( nic_w5100_t *self, nic_w5100_socket_t *socket )
     memcpy( &sa.sin_addr.s_addr, socket->dip, 4 );
     port = ntohs( sa.sin_port );
 
-    /* Check if this is a TCP connection to port 443 (HTTPS) */
-    if( socket->mode == W5100_SOCKET_MODE_TCP && port == 443 ) {
+    backend_protocol = socket->backend_protocol;
+
+    /* Explicit selectors latched by OPEN take precedence. Ordinary TCP
+       sockets retain Spectranext's legacy port-based translation. */
+    if( backend_protocol == W5100_SOCKET_PROTOCOL_TCP ) {
+      if( port == 443 )
+        backend_protocol = W5100_SOCKET_PROTOCOL_TLS;
+      else if( port == 22 )
+        backend_protocol = W5100_SOCKET_PROTOCOL_SSH;
+    }
+
+    if( socket->mode == W5100_SOCKET_MODE_TCP &&
+        backend_protocol == W5100_SOCKET_PROTOCOL_TLS ) {
       /* Look up hostname from DNS cache for SNI */
       uint32_t ipv4_host = ntohl( sa.sin_addr.s_addr );
       const char *hostname = dns_resolve_hostname( ipv4_host );
@@ -350,7 +378,8 @@ w5100_socket_connect( nic_w5100_t *self, nic_w5100_socket_t *socket )
         return;
       }
     }
-    else if( socket->mode == W5100_SOCKET_MODE_TCP && port == 22 ) {
+    else if( socket->mode == W5100_SOCKET_MODE_TCP &&
+             backend_protocol == W5100_SOCKET_PROTOCOL_SSH ) {
       uint32_t ipv4_host = ntohl( sa.sin_addr.s_addr );
       const char *hostname = dns_resolve_hostname( ipv4_host );
       const char *host = ( hostname && hostname[0] ) ? hostname :
@@ -474,6 +503,8 @@ w5100_socket_close( nic_w5100_t *self, nic_w5100_socket_t *socket )
   socket->socket_bound = 0;
   socket->ok_for_io = 0;
   socket->write_pending = 0;
+  socket->protocol = W5100_SOCKET_PROTOCOL_TCP;
+  socket->backend_protocol = W5100_SOCKET_PROTOCOL_TCP;
   socket->state = W5100_SOCKET_STATE_CLOSED;
   compat_socket_selfpipe_wake( self->selfpipe );
   nic_w5100_debug( "w5100: closed socket %d\n", socket->id );
@@ -591,6 +622,14 @@ nic_w5100_socket_read( nic_w5100_t *self, libspectrum_word reg )
       b = socket->port[socket_reg - W5100_SOCKET_PORT0];
       nic_w5100_debug( "w5100: reading 0x%02x from S%d_PORT%d\n", b, socket->id, socket_reg - W5100_SOCKET_PORT0 );
       break;
+    case W5100_SOCKET_MSSR0: case W5100_SOCKET_MSSR1:
+      b = socket->mss[socket_reg - W5100_SOCKET_MSSR0];
+      nic_w5100_debug( "w5100: reading 0x%02x from S%d_MSSR%d\n", b, socket->id, socket_reg - W5100_SOCKET_MSSR0 );
+      break;
+    case W5100_SOCKET_PROTO:
+      b = socket->protocol;
+      nic_w5100_debug( "w5100: reading 0x%02x from S%d_PROTO\n", b, socket->id );
+      break;
     case W5100_SOCKET_TX_FSR0: case W5100_SOCKET_TX_FSR1:
       reg_offset = socket_reg - W5100_SOCKET_TX_FSR0;
       fsr = 0x0800 - (socket->tx_wr - socket->tx_rr);
@@ -657,6 +696,14 @@ nic_w5100_socket_write( nic_w5100_t *self, libspectrum_word reg, libspectrum_byt
     case W5100_SOCKET_DPORT0: case W5100_SOCKET_DPORT1:
       nic_w5100_debug( "w5100: writing 0x%02x to S%d_DPORT%d\n", b, socket->id, socket_reg - W5100_SOCKET_DPORT0 );
       socket->dport[socket_reg - W5100_SOCKET_DPORT0] = b;
+      break;
+    case W5100_SOCKET_MSSR0: case W5100_SOCKET_MSSR1:
+      nic_w5100_debug( "w5100: writing 0x%02x to S%d_MSSR%d\n", b, socket->id, socket_reg - W5100_SOCKET_MSSR0 );
+      socket->mss[socket_reg - W5100_SOCKET_MSSR0] = b;
+      break;
+    case W5100_SOCKET_PROTO:
+      nic_w5100_debug( "w5100: writing 0x%02x to S%d_PROTO\n", b, socket->id );
+      socket->protocol = b;
       break;
     case W5100_SOCKET_TX_WR0:
       nic_w5100_debug( "w5100: writing 0x%02x to S%d_TX_WR0\n", b, socket->id );

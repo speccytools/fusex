@@ -15,12 +15,15 @@
 #include <string.h>
 
 #include "engines/engine.h"
+#include "engines/engine_job.h"
 
 #include "libspectrum.h"
 #include "memory_pages.h"
 #include "peripherals/fs/xfs.h"
 #include "peripherals/fs/xfs_engines.h"
 #include "peripherals/spectranet.h"
+#include "ui/ui.h"
+#include "utils.h"
 
 #define SPECTRANEXT_RAM_PAGE_FIRST 0xC0u
 #define SPECTRANEXT_RAM_PAGE_LAST 0xDFu
@@ -45,6 +48,30 @@ volatile struct spectranext_controller_t spectranext_controller = {
     .status = SPECTRANEXT_STATUS_SUCCESS,
 };
 
+/* Publish worker completion only from the emulation thread. */
+static void update_engine_job_status(void)
+{
+    int result;
+    if (engine_job_poll(&result)) {
+        uint8_t *registers = (uint8_t *)&spectranext_controller;
+        registers[SPECTRANEXT_CONTROLLER_CP_RESULT_OFFSET] = (uint8_t)result;
+        registers[SPECTRANEXT_CONTROLLER_CP_STATE_OFFSET] = result == 0 ? 2 : 3;
+    }
+}
+
+static void read_enginecall_arguments(spectranext_enginecall_args_t *args)
+{
+    memcpy(args->input_file, (const void *)spectranext_controller.workspace.enginecall.io.input_file,
+           sizeof(args->input_file));
+    args->input_file[sizeof(args->input_file) - 1u] = '\0';
+    memcpy(args->output_file, (const void *)spectranext_controller.workspace.enginecall.io.output_file,
+           sizeof(args->output_file));
+    args->output_file[sizeof(args->output_file) - 1u] = '\0';
+    memcpy(args->operation, (const void *)spectranext_controller.workspace.enginecall.io.operation,
+           sizeof(args->operation));
+    args->operation[sizeof(args->operation) - 1u] = '\0';
+}
+
 /*
  * XFS_READ is controller-owned: mount the default RAM-over-ROMFS overlay for
  * this short-lived operation, resolving the caller's absolute path unchanged.
@@ -58,21 +85,34 @@ static int16_t spectranext_xfs_read(const char *path,
 {
     if (path == NULL || path[0] == '\0' || path[0] != '/' ||
         source_offset > INT32_MAX ||
-        target_first_page < SPECTRANEXT_RAM_PAGE_FIRST ||
-        target_first_page > SPECTRANEXT_RAM_PAGE_LAST ||
         target_first_page_offset >= 0x1000u)
         return XFS_ERR_INVAL;
 
-    const uint32_t destination_offset =
-        (uint32_t)(target_first_page - SPECTRANEXT_RAM_PAGE_FIRST) * 0x1000u + target_first_page_offset;
-    const uint32_t destination_capacity = SPECTRANEXT_RAM_PAGE_COUNT * 0x1000u - destination_offset;
-    if (maximum_data > destination_capacity)
+    const bool controller_destination = target_first_page == SPECTRANEXT_CONTROLLER_PAGE;
+    if (controller_destination)
+    {
+        if (target_first_page_offset < SPECTRANEXT_CONTROLLER_XFS_READ_BUFFER_OFFSET ||
+            target_first_page_offset >= SPECTRANEXT_CONTROLLER_CODE_SIZE + SPECTRANEXT_CONTROLLER_WORKSPACE_SIZE ||
+            maximum_data > SPECTRANEXT_CONTROLLER_CODE_SIZE + SPECTRANEXT_CONTROLLER_WORKSPACE_SIZE -
+                           target_first_page_offset)
+            return XFS_ERR_INVAL;
+    }
+    else if (target_first_page >= SPECTRANEXT_RAM_PAGE_FIRST &&
+             target_first_page <= SPECTRANEXT_RAM_PAGE_LAST)
+    {
+        const uint32_t destination_offset =
+            (uint32_t)(target_first_page - SPECTRANEXT_RAM_PAGE_FIRST) * 0x1000u + target_first_page_offset;
+        const uint32_t destination_capacity = SPECTRANEXT_RAM_PAGE_COUNT * 0x1000u - destination_offset;
+        if (maximum_data > destination_capacity)
+            return XFS_ERR_INVAL;
+    }
+    else
         return XFS_ERR_INVAL;
 
     *bytes_read_out = 0;
 
     struct xfs_engine_mount_t mount = { .engine = &xfs_overlay_engine };
-    int16_t err = mount.engine->mount(mount.engine, "ram", "/", &mount);
+    int16_t err = mount.engine->mount(mount.engine, "ram", "/", NULL, NULL, &mount);
     if (err != XFS_ERR_OK)
         return err;
 
@@ -88,7 +128,9 @@ static int16_t spectranext_xfs_read(const char *path,
         uint32_t remaining = maximum_data;
         while (err == XFS_ERR_OK && remaining != 0)
         {
-            uint8_t *const destination = spectranet_ram_page(page);
+            uint8_t *const destination = controller_destination
+                ? (uint8_t *)&spectranext_controller
+                : spectranet_ram_page(page);
             if (destination == NULL)
             {
                 err = XFS_ERR_IO;
@@ -135,6 +177,12 @@ int spectranext_enginecall_dispatch(const char *input_file, const char *output_f
         return engine_json_call(input_file, output_file, argc, argv);
     if (strcmp(argv[0], "xpath") == 0)
         return engine_xpath_call(input_file, output_file, argc, argv);
+    if (strcmp(argv[0], "cp") == 0)
+        return engine_cp_call(input_file, output_file, argc, argv);
+    if (strcmp(argv[0], "lz4") == 0)
+        return engine_lz4_call(input_file, output_file, argc, argv);
+    if (strcmp(argv[0], "rm") == 0)
+        return engine_rm_call(input_file, output_file, argc, argv);
     return -1;
 }
 
@@ -191,11 +239,14 @@ static void spectranext_controller_get_message(void)
 
 static void spectranext_controller_process_command(void)
 {
+    update_engine_job_status();
+    const bool copy_running = engine_job_is_running();
     const uint8_t cmd = spectranext_controller.command;
     spectranext_controller.command = SPECTRANEXT_CMD_REG_IDLE;
 
     switch (cmd)
     {
+        /* The shared controller ROM serves GET_VERSION (15) directly. */
         case SPECTRANEXT_CMD_GET_CONTROLLER_STATUS:
             spectranext_controller.workspace.get_controller_status.out.controller_status =
                 spectranext_state.controller_status;
@@ -297,28 +348,41 @@ static void spectranext_controller_process_command(void)
         }
 
         case SPECTRANEXT_CMD_ENGINECALL:
-            memcpy(spectranext_enginecall_args.input_file,
-                   (const void *)spectranext_controller.workspace.enginecall.io.input_file,
-                   sizeof(spectranext_enginecall_args.input_file) - 1u);
-            spectranext_enginecall_args.input_file[sizeof(spectranext_enginecall_args.input_file) - 1u] = '\0';
-
-            memcpy(spectranext_enginecall_args.output_file,
-                   (const void *)spectranext_controller.workspace.enginecall.io.output_file,
-                   sizeof(spectranext_enginecall_args.output_file) - 1u);
-            spectranext_enginecall_args.output_file[sizeof(spectranext_enginecall_args.output_file) - 1u] = '\0';
-
-            memcpy(spectranext_enginecall_args.operation,
-                   (const void *)spectranext_controller.workspace.enginecall.io.operation,
-                   sizeof(spectranext_enginecall_args.operation) - 1u);
-            spectranext_enginecall_args.operation[sizeof(spectranext_enginecall_args.operation) - 1u] = '\0';
+            if (copy_running) {
+                spectranext_controller.workspace.enginecall.io.result = -3;
+                spectranext_set_status(SPECTRANEXT_STATUS_ERROR);
+                break;
+            }
+            read_enginecall_arguments(&spectranext_enginecall_args);
 
             spectranext_enginecall_args.result = spectranext_enginecall_dispatch(
                 spectranext_enginecall_args.input_file,
                 spectranext_enginecall_args.output_file,
                 spectranext_enginecall_args.operation);
 
-            spectranext_set_status((uint8_t)(int8_t)spectranext_enginecall_args.result);
+            spectranext_controller.workspace.enginecall.io.result =
+                (int8_t)spectranext_enginecall_args.result;
+            spectranext_set_status(spectranext_enginecall_args.result == 0
+                                       ? SPECTRANEXT_STATUS_SUCCESS
+                                       : SPECTRANEXT_STATUS_ERROR);
             break;
+
+        case SPECTRANEXT_CMD_CP_START:
+        {
+            spectranext_enginecall_args_t args;
+            read_enginecall_arguments(&args);
+            const enginecall_t engine = strcmp(args.operation, "cp") == 0 ? engine_cp_call
+                : strcmp(args.operation, "lz4") == 0 ? engine_lz4_call : NULL;
+            const int result = engine_job_start(engine, args.input_file, args.output_file,
+                                                args.operation);
+            uint8_t *registers = (uint8_t *)&spectranext_controller;
+            if (!copy_running) {
+                registers[SPECTRANEXT_CONTROLLER_CP_RESULT_OFFSET] = (uint8_t)result;
+                registers[SPECTRANEXT_CONTROLLER_CP_STATE_OFFSET] = result == 0 ? 1 : 3;
+            }
+            spectranext_set_status(result == 0 ? SPECTRANEXT_STATUS_SUCCESS : SPECTRANEXT_STATUS_ERROR);
+            break;
+        }
 
         case SPECTRANEXT_CMD_GET_MESSAGE:
             spectranext_controller_get_message();
@@ -357,6 +421,29 @@ static void spectranext_controller_process_command(void)
 
 void spectranext_controller_init(void)
 {
+    engine_job_cancel_and_wait();
+    engine_job_poll(NULL);
+    utils_file controller_binary = { 0 };
+
+    memset((void *)&spectranext_controller, 0, sizeof(spectranext_controller));
+    if (utils_read_auxiliary_file("spxcontroller.bin", &controller_binary,
+                                  UTILS_AUXILIARY_ROM) != 0)
+    {
+        ui_error(UI_ERROR_ERROR, "couldn't find Spectranext controller binary ('spxcontroller.bin')");
+    }
+    else if (controller_binary.length > sizeof(spectranext_controller.code))
+    {
+        ui_error(UI_ERROR_ERROR, "Spectranext controller binary is too large (%lu bytes)",
+                 (unsigned long)controller_binary.length);
+        utils_close_file(&controller_binary);
+    }
+    else
+    {
+        memcpy((void *)spectranext_controller.code, controller_binary.buffer,
+               controller_binary.length);
+        utils_close_file(&controller_binary);
+    }
+
     spectranext_controller.command = SPECTRANEXT_CMD_REG_IDLE;
     spectranext_controller.status = SPECTRANEXT_STATUS_SUCCESS;
     spectranext_state.controller_status = WIFI_CONTROLLER_STATUS_OPERATIONAL;
@@ -368,6 +455,7 @@ void spectranext_controller_init(void)
 
 libspectrum_byte spectranext_controller_read(memory_page *page, libspectrum_word address)
 {
+    update_engine_job_status();
     libspectrum_word offset = address & 0xfff;
     uint8_t *registers = (uint8_t *)&spectranext_controller;
     if (offset >= sizeof(spectranext_controller))
@@ -378,14 +466,18 @@ libspectrum_byte spectranext_controller_read(memory_page *page, libspectrum_word
 void spectranext_controller_write(memory_page *page, libspectrum_word address, libspectrum_byte b)
 {
     libspectrum_word offset = address & 0xfff;
-    if (offset >= sizeof(spectranext_controller))
+
+    /* The RP2350 exposes the lower 2 KiB as immutable controller code. */
+    if (offset < SPECTRANEXT_CONTROLLER_CODE_SIZE ||
+        offset >= sizeof(spectranext_controller))
         return;
 
     uint8_t *registers = (uint8_t *)&spectranext_controller;
-    const uint8_t old_command = registers[0];
+    const uint8_t old_command = registers[SPECTRANEXT_CONTROLLER_COMMAND_OFFSET];
     registers[offset] = b;
 
-    if (offset == 0 && old_command == SPECTRANEXT_CMD_REG_IDLE && b != SPECTRANEXT_CMD_REG_IDLE)
+    if (offset == SPECTRANEXT_CONTROLLER_COMMAND_OFFSET &&
+        old_command == SPECTRANEXT_CMD_REG_IDLE && b != SPECTRANEXT_CMD_REG_IDLE)
     {
         spectranext_controller_process_command();
     }

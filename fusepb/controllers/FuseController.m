@@ -642,6 +642,10 @@ error:
     [[DisplayOpenGLView instance] zxataspCommit:unit];
   } else if( settings_current.zxcf_active ) {
     [[DisplayOpenGLView instance] zxcfCommit];
+  } else if( settings_current.divmmc_enabled ) {
+    [[DisplayOpenGLView instance] divmmcCommit];
+  } else if( settings_current.zxmmc_enabled ) {
+    [[DisplayOpenGLView instance] zxmmcCommit];
   }
 
   [[DisplayOpenGLView instance] unpause];
@@ -661,6 +665,10 @@ error:
     [[DisplayOpenGLView instance] zxataspEject:unit];
   } else if( settings_current.zxcf_active ) {
     [[DisplayOpenGLView instance] zxcfEject];
+  } else if( settings_current.divmmc_enabled ) {
+    [[DisplayOpenGLView instance] divmmcEject];
+  } else if( settings_current.zxmmc_enabled ) {
+    [[DisplayOpenGLView instance] zxmmcEject];
   }
 }
 
@@ -1827,6 +1835,8 @@ save_as_exit:
 
 - (void)ui_menu_activate_media_ide_divmmc:(NSNumber*)active
 {
+  [ideMaster setEnabled:[active boolValue]];
+  [ideSlave setEnabled:NO];
 }
 
 - (void)ui_menu_activate_media_ide_divmmc_eject:(NSNumber*)active

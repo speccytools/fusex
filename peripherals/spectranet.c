@@ -34,6 +34,8 @@
 #ifdef BUILD_SPECTRANET
 
 #include "debugger/debugger.h"
+#include "event.h"
+#include "fuse.h"
 #include "flash/am29f010.h"
 #include "infrastructure/startup_manager.h"
 #include "machine.h"
@@ -41,15 +43,19 @@
 #include "module.h"
 #include "nic/w5100.h"
 #include "periph.h"
+#include "peripherals/expansion_bus.h"
+#include "peripherals/spectranext_esxdos.h"
 #include "peripherals/ula.h"
 #include "peripherals/nic/dns_resolver.h"
 #include "peripherals/fs/xfs.h"
 #include "peripherals/fs/xfs_worker.h"
 #include "peripherals/nic/spectranext_controller.h"
+#include "peripherals/nic/engines/engine_job.h"
 #include "peripherals/nic/spectranext_stdout.h"
 #include "settings.h"
 #include "utils.h"
 #include "ui/ui.h"
+#include "z80/z80.h"
 
 #define SPECTRANET_PAGES 256
 #define SPECTRANET_PAGE_LENGTH 0x1000
@@ -99,7 +105,22 @@ int spectranet_programmable_trap_active;
 /* Where the programmable trap will trigger if active */
 libspectrum_word spectranet_programmable_trap;
 
+/* Spectranext hardware automatically raises A15 towards downstream devices
+   while its ROMCS output is asserted. Classic SZX snapshots can override it. */
+static int deny_downstream_a15 = 1;
+
 #ifdef BUILD_SPECTRANET
+
+/* Physical ROMCS is released during a DivMMC IM1 handler. The logical page
+   state stays set until the handler's EI; RET has completed. */
+enum {
+  SPECTRANET_IM1_IDLE,
+  SPECTRANET_IM1_WAIT_EI,
+  SPECTRANET_IM1_EXPECT_RET,
+  SPECTRANET_IM1_RET_FETCHED,
+  SPECTRANET_IM1_FAILED,
+};
+static int spectranet_im1_handoff;
 
 /* True if the next write to 0x023b will set the MSB of the programmable trap */
 static int trap_write_msb;
@@ -278,6 +299,7 @@ spectranet_unpage( void )
   if( !spectranet_paged )
     return;
 
+  spectranet_im1_handoff = 0;
   spectranet_paged = 0;
   spectranet_paged_via_io = 0;
   machine_current->ram.romcs = 0;
@@ -289,6 +311,95 @@ void
 spectranet_retn( void )
 {
   nmi_flipflop = 0;
+}
+
+void
+spectranet_m1_early( libspectrum_word address )
+{
+  if( settings_current.spectranet_disable ) return;
+  if( spectranet_im1_handoff == SPECTRANET_IM1_RET_FETCHED ) {
+    /* The previous RET has completed both stack reads. Restore ROMCS before
+       the first opcode fetch at the interrupted return address. */
+    spectranet_im1_handoff = SPECTRANET_IM1_IDLE;
+    machine_current->ram.romcs = 1;
+    machine_current->memory_map();
+  }
+  if( spectranet_im1_handoff ) return;
+
+  if( address == 0x0038 && spectranet_paged &&
+      expansion_bus_has_active_downstream(
+        PERIPH_TYPE_SPECTRANET, EXPANSION_BUS_CAP_AUTOMAP ) ) {
+    /* The downstream ROM chain sees the unmodified $0038 address. Keep the
+       logical page state while it handles the interrupt. */
+    spectranet_im1_handoff = SPECTRANET_IM1_WAIT_EI;
+    machine_current->memory_map();
+    return;
+  }
+
+  if( expansion_bus_has_active_downstream(
+        PERIPH_TYPE_SPECTRANET, EXPANSION_BUS_CAP_AUTOMAP ) ) return;
+
+  if( address == 0x0008 || ( address & 0xfff8 ) == 0x3ff8 )
+    spectranet_page( 0 );
+
+  if( address == spectranet_programmable_trap &&
+      spectranet_programmable_trap_active &&
+      ( !spectranet_paged || address >= 0x4000 ) )
+    event_add( 0, z80_nmi_event );
+}
+
+void
+spectranet_m1_late( libspectrum_word address )
+{
+  if( spectranet_im1_handoff ) return;
+
+  if( address == 0x007c )
+    spectranet_unpage();
+}
+
+static void
+spectranet_im1_opcode( libspectrum_word address, libspectrum_byte opcode )
+{
+  /* This observer sees the actual fetched byte, unlike the device's M1-end
+     callback, which receives only the address. The instruction executes only
+     after this callback returns. */
+  if( spectranet_im1_handoff == SPECTRANET_IM1_WAIT_EI ) {
+    if( opcode == 0xfb )
+      spectranet_im1_handoff = SPECTRANET_IM1_EXPECT_RET;
+  } else if( spectranet_im1_handoff == SPECTRANET_IM1_EXPECT_RET ) {
+    if( opcode == 0xc9 ) {
+      spectranet_im1_handoff = SPECTRANET_IM1_RET_FETCHED;
+    } else {
+      spectranet_im1_handoff = SPECTRANET_IM1_FAILED;
+      ui_error( UI_ERROR_ERROR,
+                "Spectranet IM1 handoff: EI not followed by RET (PC=%04x, opcode=%02x)",
+                address, opcode );
+      fuse_abort();
+    }
+  }
+}
+
+libspectrum_word
+spectranet_downstream_address( libspectrum_word address )
+{
+  if( spectranet_paged && !spectranet_im1_handoff &&
+      deny_downstream_a15 && address < 0x4000 )
+    return address | 0x8000;
+
+  return address;
+}
+
+int
+spectranet_romcs_active( void )
+{
+  return spectranet_paged && !spectranet_im1_handoff;
+}
+
+int
+spectranet_programmable_trap_is( libspectrum_word address )
+{
+  return spectranet_programmable_trap_active &&
+         spectranet_programmable_trap == address;
 }
 
 int
@@ -360,6 +471,7 @@ spectranet_hard_reset( void )
   spectranet_programmable_trap = 0x0000;
   spectranet_programmable_trap_active = 0;
   trap_write_msb = 0;
+  deny_downstream_a15 = 1;
 
   nmi_flipflop = 0;
   spectranet_control_register = 0;
@@ -368,9 +480,9 @@ spectranet_hard_reset( void )
 static void
 spectranet_reset( int hard_reset )
 {
+  spectranet_im1_handoff = 0;
   spectranet_map_page( 0, 0x00 );
   spectranet_map_page( 3, 0xc0 );
-
   if( !periph_is_active( PERIPH_TYPE_SPECTRANET ) ) {
     spectranet_available = 0;
     spectranet_paged = 0;
@@ -389,7 +501,10 @@ spectranet_reset( int hard_reset )
   }
 
   spectranet_available = 1;
-  spectranet_paged = !settings_current.spectranet_disable;
+
+  spectranet_paged =
+    expansion_bus_romcs_granted_on_reset( PERIPH_TYPE_SPECTRANET ) &&
+    !settings_current.spectranet_disable;
 
   if( hard_reset ) {
     spectranet_hard_reset();
@@ -410,7 +525,7 @@ spectranet_reset( int hard_reset )
 static void
 spectranet_memory_map( void )
 {
-  if( !spectranet_paged ) return;
+  if( !spectranet_paged || spectranet_im1_handoff ) return;
 
   memory_map_romcs_full( spectranet_current_map );
 }
@@ -458,6 +573,21 @@ spectranet_activate( void )
     /* Pages 0x40 to 0x47 are the W5100 registers - handled in readbyte()
        and writebyte() */
 
+    /* Page 0x48 contains executable controller code in its lower 2 KiB.
+       readbyte() dispatches controller data accesses through the peripheral
+       callback, but Z80 opcode fetches use memory_page.page directly, so both
+       2 KiB mappings must point at the controller object as well. */
+    {
+      int base = SPECTRANEXT_CONTROLLER_PAGE * MEMORY_PAGES_IN_4K;
+      libspectrum_byte *controller_page =
+        (libspectrum_byte *)(void *)&spectranext_controller;
+
+      for( j = 0; j < MEMORY_PAGES_IN_4K; j++ ) {
+        memory_page *page = &spectranet_full_map[base + j];
+        page->page = controller_page + j * MEMORY_PAGE_SIZE;
+      }
+    }
+
     /* Pages 0xc0 to 0xff are the RAM */
     ram = memory_pool_allocate_persistent( SPECTRANET_RAM_LENGTH, 1 );
 
@@ -492,6 +622,8 @@ spectranet_enabled_snapshot( libspectrum_snap *snap )
 static void
 spectranet_from_snapshot( libspectrum_snap *snap )
 {
+  /* A snapshot restores architectural paging, not an in-flight bus cycle. */
+  spectranet_im1_handoff = 0;
   if( !libspectrum_snap_spectranet_active( snap ) )
     return;
 
@@ -506,6 +638,8 @@ spectranet_from_snapshot( libspectrum_snap *snap )
 
     settings_current.spectranet_disable =
       libspectrum_snap_spectranet_all_traps_disabled( snap );
+    deny_downstream_a15 =
+      libspectrum_snap_spectranet_deny_downstream_a15( snap );
 
     spectranet_map_page( 1, libspectrum_snap_spectranet_page_a( snap ) );
     spectranet_map_page( 2, libspectrum_snap_spectranet_page_b( snap ) );
@@ -549,7 +683,8 @@ spectranet_to_snapshot( libspectrum_snap *snap )
   libspectrum_snap_set_spectranet_programmable_trap_active( snap,
     spectranet_programmable_trap_active );
   libspectrum_snap_set_spectranet_programmable_trap_msb( snap, trap_write_msb );
-  libspectrum_snap_set_spectranet_deny_downstream_a15( snap, 0 );
+  libspectrum_snap_set_spectranet_deny_downstream_a15(
+    snap, deny_downstream_a15 );
   libspectrum_snap_set_spectranet_nmi_flipflop( snap, nmi_flipflop );
 
   libspectrum_snap_set_spectranet_all_traps_disabled( snap,
@@ -590,28 +725,32 @@ static void
 spectranet_page_0( libspectrum_word port, libspectrum_byte data )
 {
   spectranet_map_page( 0, data );
-  memory_map_romcs_full( spectranet_current_map );
+  if( !spectranet_im1_handoff )
+    memory_map_romcs_full( spectranet_current_map );
 }
 
 static void
 spectranet_page_a( libspectrum_word port, libspectrum_byte data )
 {
   spectranet_map_page( 1, data );
-  memory_map_romcs_full( spectranet_current_map );
+  if( !spectranet_im1_handoff )
+    memory_map_romcs_full( spectranet_current_map );
 }
 
 static void
 spectranet_page_b( libspectrum_word port, libspectrum_byte data )
 {
   spectranet_map_page( 2, data );
-  memory_map_romcs_full( spectranet_current_map );
+  if( !spectranet_im1_handoff )
+    memory_map_romcs_full( spectranet_current_map );
 }
 
 static void
 spectranet_page_3( libspectrum_word port, libspectrum_byte data )
 {
   spectranet_map_page( 3, data );
-  memory_map_romcs_full( spectranet_current_map );
+  if( !spectranet_im1_handoff )
+    memory_map_romcs_full( spectranet_current_map );
 }
 
 static libspectrum_byte
@@ -685,11 +824,42 @@ static const periph_t spectranet_periph = {
 };
 
 static int
+spectranet_bus_active( void )
+{
+  return spectranet_available;
+}
+
+static const expansion_bus_device_t spectranet_bus_device = {
+  /* .type = */ PERIPH_TYPE_SPECTRANET,
+  /* .position = */ EXPANSION_BUS_POSITION_SPECTRANET,
+  /* .capabilities = */ EXPANSION_BUS_CAP_RESET_ROM |
+                        EXPANSION_BUS_CAP_NMI_ROM,
+  /* .active = */ spectranet_bus_active,
+  /* .m1_begin = */ spectranet_m1_early,
+  /* .m1_end = */ spectranet_m1_late,
+  /* .downstream_address = */ spectranet_downstream_address,
+  /* .nmi_suppressed = */ spectranet_nmi_flipflop,
+  /* .nmi_page = */ spectranet_nmi,
+  /* .retn = */ spectranet_retn,
+};
+
+static const expansion_bus_observer_t spectranet_im1_observer = {
+  /* .active = */ spectranet_bus_active,
+  /* .m1_begin = */ NULL,
+  /* .m1_end_begin = */ NULL,
+  /* .m1_end = */ spectranet_im1_opcode,
+  /* .reset = */ NULL,
+};
+
+static int
 spectranet_init( void *context )
 {
   module_register( &spectranet_module_info );
   spectranet_source = memory_source_register( "Spectranext" );
   periph_register( PERIPH_TYPE_SPECTRANET, &spectranet_periph );
+  expansion_bus_register( &spectranet_bus_device );
+  expansion_bus_register_observer( &spectranet_im1_observer );
+  spectranext_esxdos_register();
   periph_register_paging_events( event_type_string, &page_event,
 				 &unpage_event );
 
@@ -704,6 +874,7 @@ spectranet_init( void *context )
 static void
 spectranet_end( void )
 {
+  engine_job_cancel_and_wait();
   nic_w5100_free( w5100 );
   flash_am29f010_free( flash_rom );
 }
@@ -1362,6 +1533,12 @@ int spectranet_config_set_int(uint16_t section_id, uint8_t item_id, uint16_t val
 
 #else /* !BUILD_SPECTRANET */
 
+int
+spectranet_romcs_active( void )
+{
+  return 0;
+}
+
 void
 spectranet_register_startup( void )
 {
@@ -1385,6 +1562,28 @@ spectranet_unpage( void )
 void
 spectranet_retn( void )
 {
+}
+
+void
+spectranet_m1_early( libspectrum_word address GCC_UNUSED )
+{
+}
+
+void
+spectranet_m1_late( libspectrum_word address GCC_UNUSED )
+{
+}
+
+libspectrum_word
+spectranet_downstream_address( libspectrum_word address )
+{
+  return address;
+}
+
+int
+spectranet_programmable_trap_is( libspectrum_word address GCC_UNUSED )
+{
+  return 0;
 }
 
 int

@@ -437,7 +437,7 @@ readbyte( libspectrum_word address )
     if( opus_active && address >= 0x2800 && address < 0x3800 )
       return opus_read( address );
 
-    if( spectranet_paged ) {
+    if( spectranet_romcs_active() ) {
       if( spectranet_w5100_paged_0 && address < 0x1000 )
         return spectranet_w5100_read( mapping, address );
       if( spectranet_w5100_paged_a && address >= 0x1000 && address < 0x2000 )
@@ -561,7 +561,7 @@ writebyte_internal( libspectrum_word address, libspectrum_byte b )
   libspectrum_word bank = address >> MEMORY_PAGE_SIZE_LOGARITHM;
   memory_page *mapping = &memory_map_write[ bank ];
   
-  if( spectranet_paged ) {
+  if( spectranet_romcs_active() ) {
     /* all writes need to be parsed by the flash rom emulation */
     spectranet_flash_rom_write(address, b);
     

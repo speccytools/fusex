@@ -22,6 +22,7 @@
 
 fuse_SOURCES += \
                 peripherals/dck.c \
+                peripherals/expansion_bus.c \
                 peripherals/if1.c \
                 peripherals/if2.c \
                 peripherals/joystick.c \
@@ -61,7 +62,8 @@ fuse_SOURCES += \
                 peripherals/ide/zxatasp.c \
                 peripherals/ide/zxcf.c \
                 peripherals/ide/zxmmc.c \
-                peripherals/spectranet.c
+                peripherals/spectranet.c \
+                peripherals/spectranext_esxdos.c
 
 if BUILD_SPECCYBOOT
 fuse_SOURCES += peripherals/nic/enc28j60.c
@@ -76,6 +78,9 @@ fuse_SOURCES += \
                 peripherals/nic/dns_processor.c \
                 peripherals/nic/engines/engine_argv.c \
                 peripherals/nic/engines/engine_fs.c \
+                peripherals/nic/engines/engine_job.c \
+                peripherals/nic/engines/engine_job.h \
+                peripherals/nic/engines/cp.c \
                 peripherals/nic/engines/engine_utf8.c \
                 peripherals/nic/engines/json.c \
                 peripherals/nic/engines/xpath.c \
@@ -94,7 +99,9 @@ fuse_SOURCES += \
                 peripherals/fs/xfs_romfs.c \
                 peripherals/fs/ramfs.c \
                 peripherals/fs/xfs_https.c \
+                peripherals/fs/http_downloader.c \
                 peripherals/fs/xfs_https_compat.c \
+                peripherals/fs/xfs_sftp.c \
                 peripherals/http/httpc.c \
                 peripherals/http/http_sck.c \
                 peripherals/security/tls.c \
@@ -103,6 +110,7 @@ endif
 
 noinst_HEADERS += \
                   peripherals/dck.h \
+                  peripherals/expansion_bus.h \
                   peripherals/if1.h \
                   peripherals/if2.h \
                   peripherals/joystick.h \
@@ -112,6 +120,7 @@ noinst_HEADERS += \
                   peripherals/scld.h \
                   peripherals/speccyboot.h \
                   peripherals/spectranet.h \
+                  peripherals/spectranext_esxdos.h \
                   peripherals/ula.h \
                   peripherals/usource.h \
                   peripherals/ttx2000s.h \
@@ -147,6 +156,7 @@ noinst_HEADERS += \
                   peripherals/nic/enc28j60.h \
                   peripherals/nic/w5100.h \
                   peripherals/nic/w5100_internals.h \
+                  peripherals/fs/http_downloader.h \
                   peripherals/security/tls.h \
                   peripherals/security/ssh.h \
                   peripherals/security/mbedtls_config.h

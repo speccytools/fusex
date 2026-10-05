@@ -14,6 +14,8 @@ NC := \033[0m
 # Optional audiofile: only the legacy `audiofile-patched/` tree (from zip), not the
 # submodule path, so default Windows deps stay minimal and build with current GCC.
 AUDIOFILE_SRC := $(shell if [ -d "audiofile-patched" ]; then echo "audiofile-patched"; else echo ""; fi)
+HOST_CONFIGURE_ARG := $(if $(MACOS_MINGW_CROSS),--host=$(MINGW_HOST),)
+CMAKE_CROSS_ARGS := $(if $(MACOS_MINGW_CROSS),-DCMAKE_SYSTEM_NAME=Windows -DCMAKE_C_COMPILER=$(CC),)
 
 .PHONY: all clean distclean libspectrum audiofile libxml2 mbedtls libssh2 check-tools check-libspectrum check-libssh2 extract-audiofile extract-libxml2 libspectrum-with-audiofile
 
@@ -100,7 +102,7 @@ libspectrum: dist-dirs check-libspectrum
 	if [ ! -f configure ]; then \
 		./autogen.sh; \
 	fi && \
-	./configure --with-fake-glib --without-libaudiofile --without-libgcrypt \
+	./configure $(HOST_CONFIGURE_ARG) --with-fake-glib --without-libaudiofile --without-libgcrypt \
 	            --without-zlib --without-bzip2 --prefix="$(DIST_PREFIX)" && \
 	$(MAKE) && \
 	$(MAKE) install
@@ -181,6 +183,7 @@ libssh2: mbedtls dist-dirs check-libssh2
 		cd libssh2/src/build && \
 		cmake .. \
 			-G "Unix Makefiles" \
+			$(CMAKE_CROSS_ARGS) \
 			-DCMAKE_INSTALL_PREFIX="$(DIST_PREFIX)" \
 			-DCMAKE_BUILD_TYPE=Release \
 			-DBUILD_SHARED_LIBS=OFF \

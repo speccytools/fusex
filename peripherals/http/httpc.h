@@ -43,12 +43,16 @@ struct httpc_options { /* Note that get/put/etcetera functions can *write* to th
 	int (*time)(httpc_options_t *os, unsigned long *millisecond);
 	int (*logger)(httpc_options_t *os, void *file, const char *fmt, va_list ap);
 
+	/* Optional cancellation check before a failed operation is retried. */
+	int (*should_abort)(httpc_options_t *os);
+
 	void *arena       /* passed to allocator */,
 	     *logfile,    /* passed to logger */
 	     *socketopts, /* passed to open */
 	     *state;      /* internal state for each operation; do not use */
 
 	unsigned flags;   /* options for library */
+	size_t receive_buffer_size; /* zero uses the default small response buffer */
 
 	int argc;         /* custom headers count; number of custom headers */
 	char **argv;      /* custom headers; appended to the HTTP request */

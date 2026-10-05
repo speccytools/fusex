@@ -1,4 +1,4 @@
-.PHONY: 3rdparty audiofile libgcrypt FuseGenerator FuseImporter mbedtls libssh2 libspectrum libfusex clean-3rdparty list-teams fusex archive dist dmg appcast appcast-push release release-clean release-notarize release-export clean
+.PHONY: 3rdparty audiofile libgcrypt FuseGenerator FuseImporter mbedtls libssh2 libspectrum libfusex libfusex-xcode clean-3rdparty list-teams fusex archive dist dmg appcast appcast-push release release-clean release-notarize release-export clean
 
 # Signing parameters (can be overridden from command line)
 # By default, use the signing settings already stored in the Xcode projects.
@@ -156,7 +156,18 @@ libfusex: libspectrum
 	PKG_CONFIG_PATH="$(LIBSPECTRUM_PREFIX)/lib/pkgconfig" \
 	$(CURDIR)/configure --with-null-ui --without-pthread \
 		--with-audio-driver=null --without-png && \
-	$(MAKE)
+	$(MAKE) libfusex.dylib
+
+# Xcode calls this phase on every build. Bootstrap the complete autotools build
+# when necessary, then use its generated Makefile for fast incremental rebuilds.
+libfusex-xcode:
+	@if [ ! -f "$(LIBSPECTRUM_PREFIX)/lib/pkgconfig/libspectrum.pc" ] || \
+	    [ ! -f "$(LIBFUSEX_BUILD_DIR)/Makefile" ]; then \
+		$(MAKE) -f Makefile.darwin libfusex; \
+	else \
+		$(MAKE) -C "$(LIBFUSEX_BUILD_DIR)" libfusex.dylib; \
+	fi
+	@test -f "$(LIBFUSEX_BUILD_DIR)/libfusex.dylib"
 
 list-teams:
 	@echo "Available code signing identities and development teams:"
@@ -209,9 +220,6 @@ archive: 3rdparty fusepb
 		-scheme FuseX \
 		-configuration Deployment \
 		-archivePath "$(CURDIR)/$(ARCHIVE_PATH)" \
-		SYMROOT=build \
-		BUILD_DIR=build \
-		CONFIGURATION_BUILD_DIR=build/Deployment \
 			$(XCODEBUILD_SIGN_ARGS)
 	@echo "Archive created at: $(ARCHIVE_PATH)"
 

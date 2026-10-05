@@ -29,6 +29,7 @@ install-win32: all
 	$(MKDIR_P) $(DESTDIR)/3rd-party/ || exit 1
 	test "$(UI)" != "sdl" -a "$(UI)" != "sdl2" || $(MKDIR_P) $(DESTDIR)/ui/widget/ || exit 1
 	cp $(top_srcdir)/roms/*.rom $(DESTDIR)/roms
+	cp $(top_srcdir)/roms/spxcontroller.bin $(DESTDIR)/roms
 	cp $(top_srcdir)/roms/spxromfs.bin $(DESTDIR)/roms
 	cp $(top_srcdir)/roms/README.copyright $(DESTDIR)/roms
 	if test -d "$(top_srcdir)/roms/spectranext-launcher"; then \
@@ -109,6 +110,9 @@ dist-win32-dir: 3rdparty-dist
 	  MINGW_BIN="/ucrt64/bin"; \
 	elif test -z "$$MINGW_BIN" && test -d "/mingw32/bin"; then \
 	  MINGW_BIN="/mingw32/bin"; \
+	fi; \
+	if test "$$MACOS_MINGW_CROSS" = "1" && test -n "$$MINGW_RUNTIME_DIR"; then \
+	  MINGW_BIN="$$MINGW_RUNTIME_DIR"; \
 	fi; \
 	if test -n "$$MINGW_BIN"; then \
 	  echo "Copying MinGW runtime DLLs from $$MINGW_BIN ..."; \

@@ -1,22 +1,18 @@
-#include "config.h"
-
 #include "engine.h"
 #include "engine_fs.h"
 #include "engine_utf8.h"
+#include "xpath_compat.h"
 
-#include "../../fs/xfs.h"
-#include "../spectranext.h"
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#ifdef HAVE_LIB_XML2
+#ifdef ENGINE_XPATH_AVAILABLE
 
 #include <libxml/HTMLparser.h>
 #include <libxml/xmlmemory.h>
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
+
+#include <inttypes.h>
+#include <stdio.h>
+#include <string.h>
 
 enum
 {
@@ -25,16 +21,6 @@ enum
     XPATH_ENGINE_ERR_XPATH = -4,
     XPATH_ENGINE_ERR_NON_SCALAR = -5,
 };
-
-static int xpath_libxml_init(void)
-{
-    static int configured;
-    if (configured)
-        return 0;
-    xmlInitParser();
-    configured = 1;
-    return 0;
-}
 
 static void xpath_register_namespaces(xmlXPathContextPtr ctx, xmlDocPtr doc)
 {
@@ -165,7 +151,7 @@ int engine_xpath_call(const char *input_file, const char *output_file, int argc,
         return XPATH_ENGINE_ERR_XPATH;
     }
 
-    if (xpath_libxml_init() != 0)
+    if (engine_xpath_init() != 0)
         return XPATH_ENGINE_ERR_OPEN;
 
     int mount_index = 0;
@@ -227,7 +213,7 @@ int engine_xpath_call(const char *input_file, const char *output_file, int argc,
     }
     out_open = 1;
 
-    val_buf = (char *)malloc(4096u);
+    val_buf = (char *)engine_xpath_alloc(4096u);
     if (!val_buf)
     {
         rc = XPATH_ENGINE_ERR_OPEN;
@@ -258,18 +244,25 @@ int engine_xpath_call(const char *input_file, const char *output_file, int argc,
 
 cleanup:
     if (val_buf)
-        free(val_buf);
+    {
+        engine_xpath_free(val_buf);
+    }
     if (out_open)
+    {
         engine_fs_close(&ram, &out_h);
+    }
     if (doc)
+    {
         xmlFreeDoc((xmlDocPtr)doc);
+    }
     if (in_mnt)
+    {
         engine_fs_close(in_mnt, &in_h);
+    }
     return rc;
 }
 
-#else /* !HAVE_LIB_XML2 */
-
+#else
 int engine_xpath_call(const char *input_file, const char *output_file, int argc, char *argv[])
 {
     (void)input_file;
@@ -278,5 +271,4 @@ int engine_xpath_call(const char *input_file, const char *output_file, int argc,
     (void)argv;
     return -1;
 }
-
 #endif

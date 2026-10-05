@@ -5,7 +5,7 @@
 #pragma once
 
 #include "ast.h"
-#include "../parson.h"
+#include "../engine_compat.h"
 
 typedef void (*jp_match_cb_t)(JSON_Value *res, void *priv);
 

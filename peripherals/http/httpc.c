@@ -998,11 +998,13 @@ static int httpc_execute_rcv_callback(httpc_t *h, const unsigned char *buf, cons
 	assert(buf);
 	if (h->rcv == NULL) /* null operation */
 		return HTTPC_OK;
-	if ((h->position + length) < h->max) /* discard previous data run */
+	if ((h->position + length) <= h->max) /* discard previous data run */
 		return HTTPC_OK;
-	const size_t diff = (h->position + length) - h->max;
-	assert(diff <= length);
-	const int r = h->rcv(h->rcv_param, (unsigned char*)buf, diff, h->max, h->length);
+	const size_t overlap = h->position < h->max ? h->max - h->position : 0;
+	assert(overlap <= length);
+	const size_t diff = length - overlap;
+	const int r = h->rcv(h->rcv_param, (unsigned char*)buf + overlap, diff,
+	                     h->position + overlap, h->length);
 	if (r == HTTPC_YIELD)
 		return fatal(h, "yield not supported here");
 	if (r < 0)
@@ -1218,7 +1220,7 @@ next_state:
 			h->status = HTTPC_ERROR;
 			next      = SM_DONE;
 		}
-		if (httpc_buffer(h, &h->b0,   HTTPC_STACK_BUFFER_SIZE) < 0) { h->status = HTTPC_ERROR; next = SM_DONE; break; }
+		if (httpc_buffer(h, &h->b0, os->receive_buffer_size ? os->receive_buffer_size : HTTPC_STACK_BUFFER_SIZE) < 0) { h->status = HTTPC_ERROR; next = SM_DONE; break; }
 		if (httpc_buffer(h, &h->burl, strlen(url) + 1) < 0)         { h->status = HTTPC_ERROR; next = SM_DONE; break; }
 		if (httpc_parse_url(h, url) < 0)                      { h->status = HTTPC_ERROR; next = SM_DONE; break; }
 		if (h->retries_max == 0)
@@ -1278,6 +1280,19 @@ next_state:
 			next = SM_RCVH;
 		} else if (h->redirect) {
 			next = SM_REDR;
+		} else if (op == HTTPC_GET && h->max && h->position) {
+			if (os->response == 200) {
+				/* A server may ignore Range. Replay from zero and discard
+				 * bytes already delivered to the callback. */
+				h->position = 0;
+			} else if (os->response == 206 && h->length_set) {
+				if (h->length > ULONG_MAX - h->position) {
+					h->status = fatal(h, "range length overflow");
+					next = SM_DONE;
+				} else {
+					h->length += h->position;
+				}
+			}
 		}
 		break;
 	}
@@ -1313,6 +1328,12 @@ next_state:
 			} else { /* do not care about errors -- only yield */
 				h->open = 0;
 			}
+		}
+
+		if (os->should_abort && os->should_abort(os)) {
+			h->status = HTTPC_ERROR;
+			next = SM_DONE;
+			break;
 		}
 
 		if (h->retries >= h->retries_max) {

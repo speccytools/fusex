@@ -8,6 +8,7 @@
     <objects>
         <customObject id="-2" userLabel="File's Owner" customClass="PreferencesController">
             <connections>
+                <outlet property="bilinearCheckbox" destination="1717" id="1789"/>
                 <outlet property="debuggerPrefsView" destination="jPf-Ep-YVP" id="CpC-Bd-48H"/>
                 <outlet property="externalSoundType" destination="1836" id="1841"/>
                 <outlet property="filterPrefsView" destination="1714" id="1775"/>
@@ -22,7 +23,6 @@
                 <outlet property="rom1Filename" destination="1627" id="1783"/>
                 <outlet property="rom2Filename" destination="1629" id="1784"/>
                 <outlet property="rom3Filename" destination="1626" id="1785"/>
-                <outlet property="bilinearCheckbox" destination="1717" id="1789"/>
                 <outlet property="romPrefsView" destination="1582" id="1778"/>
                 <outlet property="rzxPrefsView" destination="1488" id="1779"/>
                 <outlet property="soundPrefsView" destination="1408" id="1780"/>
@@ -177,7 +177,7 @@
                     <rect key="frame" x="382" y="260" width="116" height="22"/>
                     <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                     <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" state="on" borderStyle="bezel" drawsBackground="YES" id="8Rf-5o-m5G">
-                        <numberFormatter key="formatter" formatterBehavior="default10_4" positiveFormat="#0" negativeFormat="#0" usesGroupingSeparator="NO" minimumIntegerDigits="1" id="jTc-rQ-dSN" customClass="NumberFormatter">
+                        <numberFormatter key="formatter" formatterBehavior="default10_4" positiveFormat="#0" negativeFormat="#0" usesGroupingSeparator="NO" minimumIntegerDigits="1" maximumIntegerDigits="309" id="jTc-rQ-dSN" customClass="NumberFormatter">
                             <real key="minimum" value="1"/>
                         </numberFormatter>
                         <font key="font" metaFont="system"/>
@@ -390,7 +390,7 @@
                     <rect key="frame" x="270" y="28" width="170" height="22"/>
                     <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                     <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" state="on" borderStyle="bezel" drawsBackground="YES" id="fK9-QT-Ywo">
-                        <numberFormatter key="formatter" formatterBehavior="default10_4" positiveFormat="#0" negativeFormat="#0" usesGroupingSeparator="NO" minimumIntegerDigits="1" id="cVi-iS-b2v" customClass="NumberFormatter">
+                        <numberFormatter key="formatter" formatterBehavior="default10_4" positiveFormat="#0" negativeFormat="#0" usesGroupingSeparator="NO" minimumIntegerDigits="1" maximumIntegerDigits="309" id="cVi-iS-b2v" customClass="NumberFormatter">
                             <real key="minimum" value="1"/>
                             <real key="maximum" value="65535"/>
                         </numberFormatter>
@@ -578,14 +578,14 @@
             <point key="canvasLocation" x="132" y="885"/>
         </customView>
         <customView id="1432" userLabel="Peripherals">
-            <rect key="frame" x="0" y="0" width="800" height="563"/>
+            <rect key="frame" x="0.0" y="0.0" width="800" height="563"/>
             <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
             <subviews>
                 <box autoresizesSubviews="NO" fixedFrame="YES" borderType="line" title="External sound interface" translatesAutoresizingMaskIntoConstraints="NO" id="1833">
                     <rect key="frame" x="561" y="414" width="222" height="129"/>
                     <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                     <view key="contentView" id="3G9-p5-WYZ">
-                        <rect key="frame" x="0" y="0" width="222" height="117"/>
+                        <rect key="frame" x="0.0" y="0.0" width="222" height="117"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <matrix verticalHuggingPriority="750" fixedFrame="YES" allowsEmptySelection="NO" translatesAutoresizingMaskIntoConstraints="NO" id="1836">
@@ -645,7 +645,7 @@
                     <rect key="frame" x="18" y="16" width="218" height="142"/>
                     <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                     <view key="contentView" id="GSb-ox-002">
-                        <rect key="frame" x="0" y="0" width="218" height="130"/>
+                        <rect key="frame" x="0.0" y="0.0" width="218" height="130"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <button fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="GSc-hk-001">
@@ -697,7 +697,7 @@
                             <textField focusRingType="none" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="GSo-rm-003">
                                 <rect key="frame" x="50" y="48" width="150" height="22"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" borderStyle="bezel" alignment="left" drawsBackground="YES" state="on" id="GSo-rm-004">
+                                <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" state="on" borderStyle="bezel" alignment="left" drawsBackground="YES" id="GSo-rm-004">
                                     <font key="font" metaFont="system"/>
                                     <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
                                     <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
@@ -820,7 +820,7 @@
                     <rect key="frame" x="18" y="170" width="218" height="373"/>
                     <autoresizingMask key="autoresizingMask"/>
                     <view key="contentView" id="y0s-Gg-gqJ">
-                        <rect key="frame" x="0" y="0" width="218" height="361"/>
+                        <rect key="frame" x="0.0" y="0.0" width="218" height="361"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <matrix verticalHuggingPriority="750" fixedFrame="YES" selectionByRect="NO" allowsEmptySelection="NO" autosizesCells="NO" translatesAutoresizingMaskIntoConstraints="NO" id="1446">
@@ -880,7 +880,7 @@
                                                 <action selector="massStorageTypeClicked:" target="-2" id="1828"/>
                                             </connections>
                                         </buttonCell>
-                                        <buttonCell type="radio" title="DivMMC" imagePosition="left" alignment="left" tag="14" inset="2" id="1453">
+                                        <buttonCell type="radio" title="DivMMC" imagePosition="left" alignment="left" tag="13" inset="2" id="1453">
                                             <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
                                             <font key="font" metaFont="system"/>
                                             <connections>
@@ -960,7 +960,7 @@
                     <rect key="frame" x="256" y="297" width="289" height="246"/>
                     <autoresizingMask key="autoresizingMask"/>
                     <view key="contentView" id="Tsp-i8-Tc0">
-                        <rect key="frame" x="0" y="0" width="289" height="234"/>
+                        <rect key="frame" x="0.0" y="0.0" width="289" height="234"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <button fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="jAC-lg-heD">
@@ -1051,7 +1051,7 @@
                                     <binding destination="270" name="value" keyPath="values.zxataspwriteprotect" id="a1q-3d-peT"/>
                                 </connections>
                             </button>
-                            <textField verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="lbl-mdrlen">
+                            <textField focusRingType="none" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="lbl-mdrlen">
                                 <rect key="frame" x="20" y="8" width="125" height="22"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <textFieldCell key="cell" lineBreakMode="clipping" alignment="right" title="MDR cartridge len:" id="lbl-mdrlen-cell">
@@ -1060,10 +1060,10 @@
                                     <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
                                 </textFieldCell>
                             </textField>
-                            <textField verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="fld-mdrlen">
+                            <textField focusRingType="none" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="fld-mdrlen">
                                 <rect key="frame" x="149" y="8" width="114" height="22"/>
                                 <autoresizingMask key="autoresizingMask"/>
-                                <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" state="on" borderStyle="bezel" drawsBackground="YES" alignment="left" id="fld-mdrlen-cell">
+                                <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" state="on" borderStyle="bezel" alignment="left" drawsBackground="YES" id="fld-mdrlen-cell">
                                     <numberFormatter key="formatter" formatterBehavior="custom10_4" positiveFormat="#" negativeFormat="#" usesGroupingSeparator="NO" paddingCharacter="*" groupingSize="0" minimumIntegerDigits="0" maximumIntegerDigits="3" decimalSeparator="." groupingSeparator="," currencyDecimalSeparator="." plusSign="+" minusSign="-" notANumberSymbol="NaN" perMillSymbol="‰" percentSymbol="%" exponentSymbol="E" positivePrefix="" positiveSuffix="" negativePrefix="-" negativeSuffix="" id="cMb-uh-8m6" customClass="NumberFormatter">
                                         <nil key="negativeInfinitySymbol"/>
                                         <nil key="positiveInfinitySymbol"/>
@@ -1084,7 +1084,7 @@
                     <rect key="frame" x="561" y="268" width="222" height="134"/>
                     <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                     <view key="contentView" id="4mh-bA-ptt">
-                        <rect key="frame" x="0" y="0" width="222" height="122"/>
+                        <rect key="frame" x="0.0" y="0.0" width="222" height="122"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <matrix verticalHuggingPriority="750" fixedFrame="YES" allowsEmptySelection="NO" translatesAutoresizingMaskIntoConstraints="NO" id="Ed3-I0-kNs">
@@ -1608,7 +1608,7 @@
                         <autoresizingMask key="autoresizingMask"/>
                     </tableHeaderView>
                 </scrollView>
-                <textField verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="lbl-rom0">
+                <textField focusRingType="none" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="lbl-rom0">
                     <rect key="frame" x="165" y="321" width="42" height="19"/>
                     <autoresizingMask key="autoresizingMask"/>
                     <textFieldCell key="cell" lineBreakMode="clipping" alignment="right" title="ROM 0:" id="lbl-rom0-cell">
@@ -1617,7 +1617,7 @@
                         <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
                     </textFieldCell>
                 </textField>
-                <textField verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="1628">
+                <textField focusRingType="none" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="1628">
                     <rect key="frame" x="211" y="321" width="441" height="19"/>
                     <autoresizingMask key="autoresizingMask"/>
                     <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" sendsActionOnEndEditing="YES" borderStyle="bezel" alignment="left" id="1628-cell">
@@ -1638,7 +1638,7 @@
                         </binding>
                     </connections>
                 </textField>
-                <textField verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="lbl-rom1">
+                <textField focusRingType="none" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="lbl-rom1">
                     <rect key="frame" x="165" y="294" width="42" height="19"/>
                     <autoresizingMask key="autoresizingMask"/>
                     <textFieldCell key="cell" lineBreakMode="clipping" alignment="right" title="ROM 1:" id="lbl-rom1-cell">
@@ -1647,7 +1647,7 @@
                         <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
                     </textFieldCell>
                 </textField>
-                <textField verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="1627">
+                <textField focusRingType="none" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="1627">
                     <rect key="frame" x="211" y="294" width="441" height="19"/>
                     <autoresizingMask key="autoresizingMask"/>
                     <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" sendsActionOnEndEditing="YES" borderStyle="bezel" alignment="left" id="1627-cell">
@@ -1668,7 +1668,7 @@
                         </binding>
                     </connections>
                 </textField>
-                <textField verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="lbl-rom2">
+                <textField focusRingType="none" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="lbl-rom2">
                     <rect key="frame" x="165" y="267" width="42" height="19"/>
                     <autoresizingMask key="autoresizingMask"/>
                     <textFieldCell key="cell" lineBreakMode="clipping" alignment="right" title="ROM 2:" id="lbl-rom2-cell">
@@ -1677,7 +1677,7 @@
                         <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
                     </textFieldCell>
                 </textField>
-                <textField verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="1629">
+                <textField focusRingType="none" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="1629">
                     <rect key="frame" x="211" y="267" width="441" height="19"/>
                     <autoresizingMask key="autoresizingMask"/>
                     <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" sendsActionOnEndEditing="YES" borderStyle="bezel" alignment="left" id="1629-cell">
@@ -1698,7 +1698,7 @@
                         </binding>
                     </connections>
                 </textField>
-                <textField verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="lbl-rom3">
+                <textField focusRingType="none" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="lbl-rom3">
                     <rect key="frame" x="165" y="240" width="42" height="19"/>
                     <autoresizingMask key="autoresizingMask"/>
                     <textFieldCell key="cell" lineBreakMode="clipping" alignment="right" title="ROM 3:" id="lbl-rom3-cell">
@@ -1707,7 +1707,7 @@
                         <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
                     </textFieldCell>
                 </textField>
-                <textField verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="1626">
+                <textField focusRingType="none" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="1626">
                     <rect key="frame" x="211" y="240" width="441" height="19"/>
                     <autoresizingMask key="autoresizingMask"/>
                     <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" sendsActionOnEndEditing="YES" borderStyle="bezel" alignment="left" id="1626-cell">
@@ -1979,12 +1979,12 @@
                         <font key="font" metaFont="system"/>
                     </buttonCell>
                     <connections>
-                        <binding destination="270" name="value" keyPath="values.paltv2x" id="1743"/>
                         <binding destination="270" name="enabled" keyPath="values.graphicsfilter" id="1790">
                             <dictionary key="options">
                                 <string key="NSValueTransformerName">ScalerSupportsScanlines</string>
                             </dictionary>
                         </binding>
+                        <binding destination="270" name="value" keyPath="values.paltv2x" id="1743"/>
                     </connections>
                 </button>
                 <button fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="1717">

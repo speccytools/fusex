@@ -716,6 +716,21 @@ static int ssh_host_fingerprint(ssh_socket_t *ssh, char *out, size_t out_len)
     return 0;
 }
 
+int ssh_session_verify_or_trust_host(LIBSSH2_SESSION *session, const char *host, uint16_t port)
+{
+    ssh_socket_t temporary;
+    char fingerprint[SSH_FINGERPRINT_MAX];
+    bool known = false;
+
+    if (!session || !host || !host[0]) return -1;
+    memset(&temporary, 0, sizeof(temporary));
+    temporary.session = session;
+    if (ssh_host_fingerprint(&temporary, fingerprint, sizeof(fingerprint)) < 0) return -1;
+    if (ssh_known_host_matches(host, port, fingerprint, &known)) return 0;
+    if (known) return -1;
+    return ssh_store_known_host(host, port, fingerprint);
+}
+
 static int ssh_verify_host(ssh_socket_t *ssh, ssh_zx_send_cb_t cb, void *ctx)
 {
     char fingerprint[SSH_FINGERPRINT_MAX];
