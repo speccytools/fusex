@@ -7,6 +7,8 @@
 #include "memory_pages.h"
 #include "spectranext.h"
 
+#define SPECTRANEXT_CONTROLLER_XFS_READ_BUFFER_OFFSET 0x900u
+
 extern volatile struct spectranext_controller_t spectranext_controller;
 
 extern void spectranext_controller_init(void);

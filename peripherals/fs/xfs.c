@@ -1,4 +1,5 @@
 #include "xfs.h"
+#include "engine_job.h"
 #include "xfs_engines.h"
 #include <stdio.h>
 #include <string.h>
@@ -82,7 +83,8 @@ static bool xfs_mount_identity_matches(const char* identity, const char* const f
 static char* xfs_mount_identity_create(const char* const fields[5])
 {
     size_t length = 0;
-    for (size_t i = 0; i < 5; ++i)
+    size_t i;
+    for (i = 0; i < 5; ++i)
         length += strlen(fields[i]) + 1;
 
     char* identity = xfs_extra_ram_alloc(length);
@@ -90,7 +92,7 @@ static char* xfs_mount_identity_create(const char* const fields[5])
         return NULL;
 
     char* next = identity;
-    for (size_t i = 0; i < 5; ++i)
+    for (i = 0; i < 5; ++i)
     {
         const size_t field_length = strlen(fields[i]) + 1;
         memcpy(next, fields[i], field_length);
@@ -352,6 +354,7 @@ void xfs_handle_umount(volatile struct xfs_registers_t* registers)
         return;
     }
 
+    engine_job_cancel_and_wait();
     const struct xfs_engine_t* const eng = xfs_mounted_engines[mount_point].engine;
     if (eng->unmount)
         eng->unmount(eng, &xfs_mounted_engines[mount_point]);
@@ -1319,6 +1322,7 @@ void xfs_handle_command(volatile struct xfs_registers_t* registers)
  */
 void xfs_free(void)
 {
+    engine_job_cancel_and_wait();
     XFS_DEBUG("xfs: free - cleaning up all mounts and handles\n");
     
     // unmount all engines to clean up engine-specific mount resources

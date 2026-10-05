@@ -50,6 +50,7 @@
 #include "peripherals/fs/xfs.h"
 #include "peripherals/fs/xfs_worker.h"
 #include "peripherals/nic/spectranext_controller.h"
+#include "peripherals/nic/engines/engine_job.h"
 #include "peripherals/nic/spectranext_stdout.h"
 #include "settings.h"
 #include "utils.h"
@@ -873,6 +874,7 @@ spectranet_init( void *context )
 static void
 spectranet_end( void )
 {
+  engine_job_cancel_and_wait();
   nic_w5100_free( w5100 );
   flash_am29f010_free( flash_rom );
 }

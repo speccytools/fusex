@@ -43,6 +43,9 @@ struct httpc_options { /* Note that get/put/etcetera functions can *write* to th
 	int (*time)(httpc_options_t *os, unsigned long *millisecond);
 	int (*logger)(httpc_options_t *os, void *file, const char *fmt, va_list ap);
 
+	/* Optional cancellation check before a failed operation is retried. */
+	int (*should_abort)(httpc_options_t *os);
+
 	void *arena       /* passed to allocator */,
 	     *logfile,    /* passed to logger */
 	     *socketopts, /* passed to open */

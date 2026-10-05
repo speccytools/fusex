@@ -1330,6 +1330,12 @@ next_state:
 			}
 		}
 
+		if (os->should_abort && os->should_abort(os)) {
+			h->status = HTTPC_ERROR;
+			next = SM_DONE;
+			break;
+		}
+
 		if (h->retries >= h->retries_max) {
 			h->status = HTTPC_ERROR;
 			next      = SM_DONE;

@@ -747,7 +747,7 @@ static void https_unmount(const struct xfs_engine_t* engine, struct xfs_engine_m
     mount->mount_data = NULL;
 }
 
-// Open a bounded-memory stream; the downloader owns its 256 KB ring.
+// Open a bounded-memory file; the downloader owns its 256 KiB blob.
 static int16_t https_open(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle, const char* path, int flags)
 {
     (void)flags;
@@ -807,8 +807,11 @@ static int16_t https_close(const struct xfs_engine_mount_t* engine, struct xfs_h
 
 static int32_t https_lseek(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle, int32_t offset, uint8_t whence)
 {
-    (void)engine; (void)handle; (void)offset; (void)whence;
-    return XFS_ERR_INVAL;
+    (void)engine;
+    struct xfs_handle_https_file_t *file = get_https_file_handle(handle);
+    if (!file || !file->download) return XFS_ERR_BADF;
+    const int32_t position = http_downloader_seek(file->download, offset, whence);
+    return position < 0 ? XFS_ERR_INVAL : position;
 }
 
 // Parse index.txt file line into xfs_handle_https_dir_entry_t

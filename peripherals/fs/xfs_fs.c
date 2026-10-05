@@ -34,38 +34,36 @@ static int16_t xfs_error_from_errno(int err)
 }
 
 // Helper function to build a full path
-// Returns pointer to static buffer (not thread-safe, but we're single-threaded)
-static char* build_path(const char* path)
+// Caller-owned storage permits background copies alongside Z80 file reads.
+static void build_path(const char* path, char full_path[PATH_MAX])
 {
-    static char full_path[PATH_MAX];
     // Ensure path starts with / (like RP2350 version)
     if (path[0] != '/')
     {
         // Prepend / if missing
         if (xfs_base_path[0] != '\0')
         {
-            snprintf(full_path, sizeof(full_path), "%s/%s", xfs_base_path, path);
+            snprintf(full_path, PATH_MAX, "%s/%s", xfs_base_path, path);
         }
         else
         {
             full_path[0] = '/';
-            strncpy(full_path + 1, path, sizeof(full_path) - 2);
-            full_path[sizeof(full_path) - 1] = '\0';
+            strncpy(full_path + 1, path, PATH_MAX - 2);
+            full_path[PATH_MAX - 1] = '\0';
         }
     }
     else
     {
         if (xfs_base_path[0] != '\0')
         {
-            snprintf(full_path, sizeof(full_path), "%s%s", xfs_base_path, path);
+            snprintf(full_path, PATH_MAX, "%s%s", xfs_base_path, path);
         }
         else
         {
-            strncpy(full_path, path, sizeof(full_path) - 1);
-            full_path[sizeof(full_path) - 1] = '\0';
+            strncpy(full_path, path, PATH_MAX - 1);
+            full_path[PATH_MAX - 1] = '\0';
         }
     }
-    return full_path;
 }
 
 // Mount data structure
@@ -177,7 +175,8 @@ static int16_t fs_stats(const struct xfs_engine_mount_t* mount, struct xfs_stats
 // Open file
 static int16_t fs_open(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle, const char* path, int flags)
 {
-    char* full_path = build_path(path);
+    char full_path[PATH_MAX];
+    build_path(path, full_path);
     
     // Convert XFS flags to POSIX flags
     int open_flags = 0;
@@ -375,7 +374,8 @@ static int32_t fs_lseek(const struct xfs_engine_mount_t* engine, struct xfs_hand
 // Open directory
 static int16_t fs_opendir(const struct xfs_engine_mount_t* engine, struct xfs_handle_t* handle, const char* path)
 {
-    char* full_path = build_path(path);
+    char full_path[PATH_MAX];
+    build_path(path, full_path);
     
     struct xfs_fs_dir_handle_t* dir_handle = libspectrum_malloc(sizeof(struct xfs_fs_dir_handle_t));
     if (!dir_handle) {
@@ -537,7 +537,8 @@ static int16_t fs_closedir(const struct xfs_engine_mount_t* engine, struct xfs_h
 // Stat file/directory
 static int16_t fs_stat(const struct xfs_engine_mount_t* engine, const char* path, struct xfs_stat_info* stat_info)
 {
-    char* full_path = build_path(path);
+    char full_path[PATH_MAX];
+    build_path(path, full_path);
     struct stat st;
     int ret = stat(full_path, &st);
     
@@ -586,7 +587,8 @@ static int16_t fs_stat(const struct xfs_engine_mount_t* engine, const char* path
 // Unlink file
 static int16_t fs_unlink(const struct xfs_engine_mount_t* engine, const char* path)
 {
-    char* full_path = build_path(path);
+    char full_path[PATH_MAX];
+    build_path(path, full_path);
     int ret = unlink(full_path);
     
     if (ret != 0) {
@@ -601,7 +603,8 @@ static int16_t fs_unlink(const struct xfs_engine_mount_t* engine, const char* pa
 // Create directory
 static int16_t fs_mkdir(const struct xfs_engine_mount_t* engine, const char* path)
 {
-    char* full_path = build_path(path);
+    char full_path[PATH_MAX];
+    build_path(path, full_path);
     int ret = mkdir(full_path, 0755);
     
     if (ret != 0) {
@@ -616,7 +619,8 @@ static int16_t fs_mkdir(const struct xfs_engine_mount_t* engine, const char* pat
 // Remove directory
 static int16_t fs_rmdir(const struct xfs_engine_mount_t* engine, const char* path)
 {
-    char* full_path = build_path(path);
+    char full_path[PATH_MAX];
+    build_path(path, full_path);
     int ret = rmdir(full_path);
     
     if (ret != 0) {
@@ -631,7 +635,8 @@ static int16_t fs_rmdir(const struct xfs_engine_mount_t* engine, const char* pat
 // Change directory (verify it exists)
 static int16_t fs_chdir(const struct xfs_engine_mount_t* engine, const char* path)
 {
-    char* full_path = build_path(path);
+    char full_path[PATH_MAX];
+    build_path(path, full_path);
     struct stat st;
     int err = stat(full_path, &st);
     
@@ -675,15 +680,10 @@ static int16_t fs_getcwd(const struct xfs_engine_mount_t* engine, char* buffer, 
 // Rename file/directory
 static int16_t fs_rename(const struct xfs_engine_mount_t* engine, const char* old_path, const char* new_path)
 {
-    /* build_path() uses a single static buffer. Preserve the old path before
-     * resolving the new one, otherwise both arguments to rename() point at
-     * the new path. */
     char full_old_path[PATH_MAX];
     char full_new_path[PATH_MAX];
-    strncpy(full_old_path, build_path(old_path), sizeof(full_old_path) - 1);
-    full_old_path[sizeof(full_old_path) - 1] = '\0';
-    strncpy(full_new_path, build_path(new_path), sizeof(full_new_path) - 1);
-    full_new_path[sizeof(full_new_path) - 1] = '\0';
+    build_path(old_path, full_old_path);
+    build_path(new_path, full_new_path);
     int ret = rename(full_old_path, full_new_path);
     
     if (ret != 0) {
