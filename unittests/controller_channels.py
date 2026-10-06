@@ -98,8 +98,9 @@ def main():
                 read(channel, 0x48, 0x900 if channel else 0xd00); wait(channel, 1)
                 engine(channel, '0:seed.bin', f'range{channel}.bin', 'cp 100 65536'); wait(channel)
                 assert open(os.path.join(base, f'range{channel}.bin'), 'rb').read() == PAYLOAD[100:100 + 65536]
-                engine(channel, '0:seed.bin', '', 'not-an-engine'); wait(channel, 1)
-                assert ctypes.c_int8(controller[start + 512]).value == -1
+                for operation in ('not-an-engine', 'lz4'):
+                    engine(channel, '0:seed.bin', '', operation); wait(channel, 1)
+                    assert ctypes.c_int8(controller[start + 512]).value == -1
             print('PASS: both channels dispatch status, scan/AP, DNS, XFS_READ, ranged enginecalls and errors')
             mount()
             for background in range(2):
