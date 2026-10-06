@@ -43,7 +43,9 @@
 #include "fuse.h"
 #include "settings.h"
 #include "spectrum.h"
+#ifdef UI_NULL
 #include "unittests/unittests.h"
+#endif
 
 #ifdef UI_WIN32
 /* The Win32 UI supplies WinMain(), which calls this. */
@@ -76,9 +78,12 @@ main( int argc, char **argv )
   if( settings_current.show_help ||
       settings_current.show_version ) return 0;
 
+#ifdef UI_NULL
   if( settings_current.unittests ) {
     r = unittests_run();
-  } else {
+  } else
+#endif
+  {
 #ifdef ENABLE_AUTOMATION
     if( automation_active() ) automation_arm( spectrum_get_frame_count() );
 #endif

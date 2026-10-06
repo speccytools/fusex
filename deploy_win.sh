@@ -8,14 +8,20 @@ readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SETTINGS_PATH="$SCRIPT_DIR/settings.dat"
 readonly APPCAST_REPOSITORY="$SCRIPT_DIR/../speccytools.github.io"
 readonly APPCAST_DESTINATION="$APPCAST_REPOSITORY/updates/windows/appcast.xml"
-readonly MAKEFILE_BACKUP="$(mktemp "${TMPDIR:-/tmp}/fusex-deploy-win-makefile.XXXXXX")"
+readonly MAKEFILE_PATH="$SCRIPT_DIR/Makefile"
+MAKEFILE_BACKUP=""
 readonly TEST_DRIVER_PATH="$SCRIPT_DIR/test-driver"
 TEST_DRIVER_EXISTED=0
 if [[ -e "$TEST_DRIVER_PATH" ]]; then
   TEST_DRIVER_EXISTED=1
 fi
 
-cp -p "$SCRIPT_DIR/Makefile" "$MAKEFILE_BACKUP"
+# configure generates Makefile; a clean checkout does not have one yet.
+if [[ -f "$MAKEFILE_PATH" ]]; then
+  MAKEFILE_BACKUP="$(mktemp "${TMPDIR:-/tmp}/fusex-deploy-win-makefile.XXXXXX")"
+  cp -p "$MAKEFILE_PATH" "$MAKEFILE_BACKUP"
+fi
+readonly MAKEFILE_BACKUP
 
 restore_settings() {
   git -C "$SCRIPT_DIR" restore --source=HEAD -- settings.dat
@@ -27,8 +33,12 @@ handle_interrupt() {
 
 cleanup() {
   restore_settings || true
-  cp -p "$MAKEFILE_BACKUP" "$SCRIPT_DIR/Makefile"
-  rm -f "$MAKEFILE_BACKUP"
+  if [[ -n "$MAKEFILE_BACKUP" ]]; then
+    cp -p "$MAKEFILE_BACKUP" "$MAKEFILE_PATH"
+    rm -f "$MAKEFILE_BACKUP"
+  else
+    rm -f "$MAKEFILE_PATH" "$SCRIPT_DIR/config.status"
+  fi
   # build_win32.sh also removes these on macOS. Keep this defensive cleanup in
   # the deploy wrapper so an interrupted or older cross-build cannot poison a
   # later Xcode build with headers that shadow fusepb's generated headers.

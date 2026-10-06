@@ -123,6 +123,7 @@ options.h: $(srcdir)/perl/cpp-perl.pl config.h $(srcdir)/ui/@OPTIONS_DIR@/option
 	$(AM_V_GEN)$(PERL) $(srcdir)/perl/cpp-perl.pl config.h $(srcdir)/ui/options.dat | $(PERL) -I$(srcdir)/perl $(srcdir)/ui/@OPTIONS_DIR@/options-header.pl - public > $@.tmp && mv $@.tmp $@
 
 AM_CPPFLAGS = \
+              -I$(top_builddir)/debugger \
               $(GLIB_CFLAGS) \
               $(GTK_CFLAGS) \
               $(LIBSPECTRUM_CFLAGS) \

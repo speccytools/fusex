@@ -12,10 +12,12 @@
 #include <sys/socket.h>
 #endif
 #include <limits.h>
+#include <pthread.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "engines/engine.h"
-#include "engines/engine_job.h"
+#include "controller_job.h"
 
 #include "libspectrum.h"
 #include "memory_pages.h"
@@ -29,7 +31,18 @@
 #define SPECTRANEXT_RAM_PAGE_LAST 0xDFu
 #define SPECTRANEXT_RAM_PAGE_COUNT (SPECTRANEXT_RAM_PAGE_LAST - SPECTRANEXT_RAM_PAGE_FIRST + 1u)
 
-spectranext_enginecall_args_t spectranext_enginecall_args;
+/* Worker-owned snapshots. Publication is confined to the emulation thread. */
+struct controller_request {
+    spectranext_workspace_t workspace;
+    uint8_t command, status, channel, default_mount;
+};
+static struct controller_request requests[2];
+static _Thread_local int worker_mount = -1;
+static pthread_mutex_t engine_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t state_lock = PTHREAD_MUTEX_INITIALIZER;
+static void execute_request(void *argument);
+static void spectranext_controller_process_command(unsigned channel);
+
 
 spectranext_state_t spectranext_state = {
     .controller_status = WIFI_CONTROLLER_STATUS_OPERATIONAL,
@@ -48,35 +61,25 @@ volatile struct spectranext_controller_t spectranext_controller = {
     .status = SPECTRANEXT_STATUS_SUCCESS,
 };
 
-/* Publish worker completion only from the emulation thread. */
-static void update_engine_job_status(void)
+/* A completed response is immutable until the caller submits the next request. */
+static void update_controller_jobs(void)
 {
-    int result;
-    if (engine_job_poll(&result)) {
-        uint8_t *registers = (uint8_t *)&spectranext_controller;
-        registers[SPECTRANEXT_CONTROLLER_CP_RESULT_OFFSET] = (uint8_t)result;
-        registers[SPECTRANEXT_CONTROLLER_CP_STATE_OFFSET] = result == 0 ? 2 : 3;
+    for (unsigned channel = 0; channel < 2; ++channel) {
+        if (!controller_job_poll(channel)) continue;
+        struct controller_request *request = &requests[channel];
+        volatile spectranext_workspace_t *workspace = channel
+            ? &spectranext_controller.workspace1 : &spectranext_controller.workspace;
+        memcpy((void *)workspace, &request->workspace, sizeof(*workspace));
+        if (channel) spectranext_controller.status1 = request->status;
+        else spectranext_controller.status = request->status;
     }
-}
-
-static void read_enginecall_arguments(spectranext_enginecall_args_t *args)
-{
-    memcpy(args->input_file, (const void *)spectranext_controller.workspace.enginecall.io.input_file,
-           sizeof(args->input_file));
-    args->input_file[sizeof(args->input_file) - 1u] = '\0';
-    memcpy(args->output_file, (const void *)spectranext_controller.workspace.enginecall.io.output_file,
-           sizeof(args->output_file));
-    args->output_file[sizeof(args->output_file) - 1u] = '\0';
-    memcpy(args->operation, (const void *)spectranext_controller.workspace.enginecall.io.operation,
-           sizeof(args->operation));
-    args->operation[sizeof(args->operation) - 1u] = '\0';
 }
 
 /*
  * XFS_READ is controller-owned: mount the default RAM-over-ROMFS overlay for
  * this short-lived operation, resolving the caller's absolute path unchanged.
  */
-static int16_t spectranext_xfs_read(const char *path,
+static int16_t spectranext_xfs_read(struct controller_request *request, const char *path,
                                     const uint32_t source_offset,
                                     const uint8_t target_first_page,
                                     const uint16_t target_first_page_offset,
@@ -91,10 +94,10 @@ static int16_t spectranext_xfs_read(const char *path,
     const bool controller_destination = target_first_page == SPECTRANEXT_CONTROLLER_PAGE;
     if (controller_destination)
     {
-        if (target_first_page_offset < SPECTRANEXT_CONTROLLER_XFS_READ_BUFFER_OFFSET ||
-            target_first_page_offset >= SPECTRANEXT_CONTROLLER_CODE_SIZE + SPECTRANEXT_CONTROLLER_WORKSPACE_SIZE ||
-            maximum_data > SPECTRANEXT_CONTROLLER_CODE_SIZE + SPECTRANEXT_CONTROLLER_WORKSPACE_SIZE -
-                           target_first_page_offset)
+        const unsigned base = request->channel ? 0xC00u : 0x800u;
+        if (target_first_page_offset < base + 0x100u ||
+            target_first_page_offset >= base + sizeof(request->workspace) ||
+            maximum_data > base + sizeof(request->workspace) - target_first_page_offset)
             return XFS_ERR_INVAL;
     }
     else if (target_first_page >= SPECTRANEXT_RAM_PAGE_FIRST &&
@@ -129,7 +132,7 @@ static int16_t spectranext_xfs_read(const char *path,
         while (err == XFS_ERR_OK && remaining != 0)
         {
             uint8_t *const destination = controller_destination
-                ? (uint8_t *)&spectranext_controller
+                ? (uint8_t *)&request->workspace
                 : spectranet_ram_page(page);
             if (destination == NULL)
             {
@@ -138,7 +141,7 @@ static int16_t spectranext_xfs_read(const char *path,
             }
             const uint32_t chunk_size = remaining < 0x1000u - page_offset
                 ? remaining : 0x1000u - page_offset;
-            const int32_t read_result = mount.engine->read(&mount, &handle, destination + page_offset, chunk_size);
+            const int32_t read_result = mount.engine->read(&mount, &handle, controller_destination ? (uint8_t *)&request->workspace + page_offset - (request->channel ? 0xC00u : 0x800u) : destination + page_offset, chunk_size);
             if (read_result < 0)
             {
                 err = (int16_t)read_result;
@@ -162,7 +165,7 @@ static int16_t spectranext_xfs_read(const char *path,
     return err;
 }
 
-int spectranext_enginecall_dispatch(const char *input_file, const char *output_file, const char *operation)
+static int enginecall_dispatch(const char *input_file, const char *output_file, const char *operation)
 {
     char opbuf[256];
     strncpy(opbuf, operation, sizeof(opbuf) - 1u);
@@ -186,9 +189,24 @@ int spectranext_enginecall_dispatch(const char *input_file, const char *output_f
     return -1;
 }
 
-static void spectranext_set_status(uint8_t status)
+int spectranext_controller_default_mount(void)
 {
-    spectranext_controller.status = status;
+    if (worker_mount >= 0) return worker_mount;
+    const uint8_t *ram = spectranet_ram_page(0xC0);
+    return ram ? ram[0xF6F] : -1;
+}
+
+int spectranext_enginecall_dispatch(const char *input, const char *output, const char *operation)
+{
+    pthread_mutex_lock(&engine_lock);
+    int result = enginecall_dispatch(input, output, operation);
+    pthread_mutex_unlock(&engine_lock);
+    return result;
+}
+
+static void spectranext_set_status(struct controller_request *request, uint8_t status)
+{
+    request->status = status;
 }
 
 bool spectranext_controller_post_message_bytes(const uint8_t *message, size_t length)
@@ -199,10 +217,12 @@ bool spectranext_controller_post_message_bytes(const uint8_t *message, size_t le
     if (length >= SPECTRANEXT_MESSAGE_MAX)
         length = SPECTRANEXT_MESSAGE_MAX - 1u;
 
+    pthread_mutex_lock(&state_lock);
     if (length != 0u)
         memcpy(pending_message, message, length);
     pending_message[length] = '\0';
     message_pending = true;
+    pthread_mutex_unlock(&state_lock);
 
     return true;
 }
@@ -221,86 +241,87 @@ void spectranext_controller_clear_messages(void)
     message_pending = false;
 }
 
-static void spectranext_controller_get_message(void)
+static void spectranext_controller_get_message(struct controller_request *request)
 {
-    memset((void *)&spectranext_controller.workspace.get_message.out, 0,
-           sizeof(spectranext_controller.workspace.get_message.out));
+    memset((void *)&request->workspace.get_message.out, 0,
+           sizeof(request->workspace.get_message.out));
 
     if (message_pending)
     {
-        memcpy((void *)spectranext_controller.workspace.get_message.out.message, pending_message,
-               sizeof(spectranext_controller.workspace.get_message.out.message));
-        spectranext_controller.workspace.get_message.out.pending = 1u;
+        memcpy((void *)request->workspace.get_message.out.message, pending_message,
+               sizeof(request->workspace.get_message.out.message));
+        request->workspace.get_message.out.pending = 1u;
         spectranext_controller_clear_messages();
     }
 
-    spectranext_set_status(SPECTRANEXT_STATUS_SUCCESS);
+    spectranext_set_status(request, SPECTRANEXT_STATUS_SUCCESS);
 }
 
-static void spectranext_controller_process_command(void)
+static void execute_request(void *argument)
 {
-    update_engine_job_status();
-    const bool copy_running = engine_job_is_running();
-    const uint8_t cmd = spectranext_controller.command;
-    spectranext_controller.command = SPECTRANEXT_CMD_REG_IDLE;
+    struct controller_request *request = argument;
+    const uint8_t cmd = request->command;
+    /* Network status and message operations share state; engines/XFS_READ do not. */
+    const bool state_command = cmd != SPECTRANEXT_CMD_ENGINECALL && cmd != SPECTRANEXT_CMD_XFS_READ;
+    if (state_command) pthread_mutex_lock(&state_lock);
 
     switch (cmd)
     {
         /* The shared controller ROM serves GET_VERSION (15) directly. */
         case SPECTRANEXT_CMD_GET_CONTROLLER_STATUS:
-            spectranext_controller.workspace.get_controller_status.out.controller_status =
+            request->workspace.get_controller_status.out.controller_status =
                 spectranext_state.controller_status;
-            spectranext_controller.workspace.get_controller_status.out.wifi_connection =
+            request->workspace.get_controller_status.out.wifi_connection =
                 spectranext_state.connection_status;
-            spectranext_controller.workspace.get_controller_status.out.ipv4 = spectranext_state.ipv4_host;
-            spectranext_set_status(SPECTRANEXT_STATUS_SUCCESS);
+            request->workspace.get_controller_status.out.ipv4 = spectranext_state.ipv4_host;
+            spectranext_set_status(request, SPECTRANEXT_STATUS_SUCCESS);
             break;
 
         case SPECTRANEXT_CMD_WIFI_SCAN_ACCESS_POINTS:
             scan_ap_count = 1;
             strncpy(scan_ap_names[0], "spectranext", sizeof(scan_ap_names[0]) - 1u);
             scan_ap_names[0][sizeof(scan_ap_names[0]) - 1u] = '\0';
-            spectranext_controller.workspace.wifi_scan.io.out.scan_count =
+            request->workspace.wifi_scan.io.out.scan_count =
                 (uint8_t)(scan_ap_count > 255u ? 255u : scan_ap_count);
-            spectranext_set_status(SPECTRANEXT_STATUS_SUCCESS);
+            spectranext_set_status(request, SPECTRANEXT_STATUS_SUCCESS);
             break;
 
         case SPECTRANEXT_CMD_WIFI_GET_ACCESS_POINT:
         {
-            const uint8_t idx = spectranext_controller.workspace.wifi_get_ap.io.in.ap_index;
+            const uint8_t idx = request->workspace.wifi_get_ap.io.in.ap_index;
             if ((uint16_t)idx >= (uint16_t)scan_ap_count)
             {
-                spectranext_set_status(SPECTRANEXT_STATUS_ERROR);
+                spectranext_set_status(request, SPECTRANEXT_STATUS_ERROR);
                 break;
             }
-            strncpy((char *)spectranext_controller.workspace.wifi_get_ap.io.out.ap_name, scan_ap_names[idx],
-                    sizeof(spectranext_controller.workspace.wifi_get_ap.io.out.ap_name) - 1u);
-            spectranext_controller.workspace.wifi_get_ap.io.out.ap_name
-                [sizeof(spectranext_controller.workspace.wifi_get_ap.io.out.ap_name) - 1u] = '\0';
-            spectranext_set_status(SPECTRANEXT_STATUS_SUCCESS);
+            strncpy((char *)request->workspace.wifi_get_ap.io.out.ap_name, scan_ap_names[idx],
+                    sizeof(request->workspace.wifi_get_ap.io.out.ap_name) - 1u);
+            request->workspace.wifi_get_ap.io.out.ap_name
+                [sizeof(request->workspace.wifi_get_ap.io.out.ap_name) - 1u] = '\0';
+            spectranext_set_status(request, SPECTRANEXT_STATUS_SUCCESS);
             break;
         }
 
         case SPECTRANEXT_CMD_WIFI_CONNECT_ACCESS_POINT:
             spectranext_state.connection_status = WIFI_CONNECT_CONNECT_SUCCESS;
-            spectranext_set_status(SPECTRANEXT_STATUS_SUCCESS);
+            spectranext_set_status(request, SPECTRANEXT_STATUS_SUCCESS);
             break;
 
         case SPECTRANEXT_CMD_WIFI_DISCONNECT:
             spectranext_state.connection_status = WIFI_CONNECT_DISCONNECTED;
-            spectranext_set_status(SPECTRANEXT_STATUS_SUCCESS);
+            spectranext_set_status(request, SPECTRANEXT_STATUS_SUCCESS);
             break;
 
         case SPECTRANEXT_CMD_DNS_GETHOSTBYNAME:
         {
             char host[64];
-            memcpy(host, (const void *)spectranext_controller.workspace.dns.io.in.host, 63);
+            memcpy(host, (const void *)request->workspace.dns.io.in.host, 63);
             host[63] = '\0';
 
             if (host[0] == '\0')
             {
-                spectranext_controller.workspace.dns.io.out.ipv4 = 0;
-                spectranext_set_status(SPECTRANEXT_STATUS_ERROR);
+                request->workspace.dns.io.out.ipv4 = 0;
+                spectranext_set_status(request, SPECTRANEXT_STATUS_ERROR);
                 break;
             }
 
@@ -313,8 +334,8 @@ static void spectranext_controller_process_command(void)
             const int gai_err = getaddrinfo(host, NULL, &hints, &res);
             if (gai_err != 0 || res == NULL)
             {
-                spectranext_controller.workspace.dns.io.out.ipv4 = 0;
-                spectranext_set_status(SPECTRANEXT_STATUS_ERROR);
+                request->workspace.dns.io.out.ipv4 = 0;
+                spectranext_set_status(request, SPECTRANEXT_STATUS_ERROR);
                 if (res)
                     freeaddrinfo(res);
                 break;
@@ -336,93 +357,73 @@ static void spectranext_controller_process_command(void)
 
             if (!found)
             {
-                spectranext_controller.workspace.dns.io.out.ipv4 = 0;
-                spectranext_set_status(SPECTRANEXT_STATUS_ERROR);
+                request->workspace.dns.io.out.ipv4 = 0;
+                spectranext_set_status(request, SPECTRANEXT_STATUS_ERROR);
                 break;
             }
 
-            spectranext_controller.workspace.dns.io.out.ipv4 = ipv4_host;
+            request->workspace.dns.io.out.ipv4 = ipv4_host;
             spectranext_state.ipv4_host = ipv4_host;
-            spectranext_set_status(SPECTRANEXT_STATUS_SUCCESS);
+            spectranext_set_status(request, SPECTRANEXT_STATUS_SUCCESS);
             break;
         }
 
         case SPECTRANEXT_CMD_ENGINECALL:
-            if (copy_running) {
-                spectranext_controller.workspace.enginecall.io.result = -3;
-                spectranext_set_status(SPECTRANEXT_STATUS_ERROR);
-                break;
-            }
-            read_enginecall_arguments(&spectranext_enginecall_args);
-
-            spectranext_enginecall_args.result = spectranext_enginecall_dispatch(
-                spectranext_enginecall_args.input_file,
-                spectranext_enginecall_args.output_file,
-                spectranext_enginecall_args.operation);
-
-            spectranext_controller.workspace.enginecall.io.result =
-                (int8_t)spectranext_enginecall_args.result;
-            spectranext_set_status(spectranext_enginecall_args.result == 0
-                                       ? SPECTRANEXT_STATUS_SUCCESS
-                                       : SPECTRANEXT_STATUS_ERROR);
-            break;
-
-        case SPECTRANEXT_CMD_CP_START:
         {
-            spectranext_enginecall_args_t args;
-            read_enginecall_arguments(&args);
-            const enginecall_t engine = strcmp(args.operation, "cp") == 0 ? engine_cp_call
-                : strcmp(args.operation, "lz4") == 0 ? engine_lz4_call : NULL;
-            const int result = engine_job_start(engine, args.input_file, args.output_file,
-                                                args.operation);
-            uint8_t *registers = (uint8_t *)&spectranext_controller;
-            if (!copy_running) {
-                registers[SPECTRANEXT_CONTROLLER_CP_RESULT_OFFSET] = (uint8_t)result;
-                registers[SPECTRANEXT_CONTROLLER_CP_STATE_OFFSET] = result == 0 ? 1 : 3;
-            }
-            spectranext_set_status(result == 0 ? SPECTRANEXT_STATUS_SUCCESS : SPECTRANEXT_STATUS_ERROR);
+            request->workspace.enginecall.io.input_file[127] = '\0';
+            request->workspace.enginecall.io.output_file[127] = '\0';
+            request->workspace.enginecall.io.operation[255] = '\0';
+            worker_mount = request->default_mount;
+            int result = spectranext_enginecall_dispatch(request->workspace.enginecall.io.input_file,
+                request->workspace.enginecall.io.output_file,
+                request->workspace.enginecall.io.operation);
+            worker_mount = -1;
+            request->workspace.enginecall.io.result = (int8_t)result;
+            spectranext_set_status(request, result == 0 ? SPECTRANEXT_STATUS_SUCCESS : SPECTRANEXT_STATUS_ERROR);
             break;
         }
 
         case SPECTRANEXT_CMD_GET_MESSAGE:
-            spectranext_controller_get_message();
+            spectranext_controller_get_message(request);
             break;
 
         case SPECTRANEXT_CMD_XFS_READ:
         {
             char path[SPECTRANEXT_XFS_READ_PATH_MAX];
-            memcpy(path, (const void *)spectranext_controller.workspace.xfs_read.in.source_filename,
+            memcpy(path, (const void *)request->workspace.xfs_read.in.source_filename,
                    sizeof(path));
             if (memchr(path, '\0', sizeof(path)) == NULL)
             {
-                spectranext_set_status(SPECTRANEXT_STATUS_ERROR);
+                spectranext_set_status(request, SPECTRANEXT_STATUS_ERROR);
                 break;
             }
 
             uint32_t bytes_read = 0;
             const int16_t result = spectranext_xfs_read(
-                path,
-                spectranext_controller.workspace.xfs_read.in.source_offset,
-                spectranext_controller.workspace.xfs_read.in.target_first_page,
-                spectranext_controller.workspace.xfs_read.in.target_first_page_offset,
-                spectranext_controller.workspace.xfs_read.in.maximum_data,
+                request, path,
+                request->workspace.xfs_read.in.source_offset,
+                request->workspace.xfs_read.in.target_first_page,
+                request->workspace.xfs_read.in.target_first_page_offset,
+                request->workspace.xfs_read.in.maximum_data,
                 &bytes_read);
-            spectranext_controller.workspace.xfs_read.out.bytes_read = bytes_read;
-            spectranext_set_status(
+            request->workspace.xfs_read.out.bytes_read = bytes_read;
+            spectranext_set_status(request,
                 result == XFS_ERR_OK ? SPECTRANEXT_STATUS_SUCCESS : SPECTRANEXT_STATUS_ERROR);
             break;
         }
 
         default:
-            spectranext_set_status(SPECTRANEXT_STATUS_ERROR);
+            spectranext_set_status(request, SPECTRANEXT_STATUS_ERROR);
             break;
     }
+    if (state_command) pthread_mutex_unlock(&state_lock);
 }
 
 void spectranext_controller_init(void)
 {
-    engine_job_cancel_and_wait();
-    engine_job_poll(NULL);
+    controller_job_cancel_and_wait();
+    controller_job_poll(0);
+    controller_job_poll(1);
     utils_file controller_binary = { 0 };
 
     memset((void *)&spectranext_controller, 0, sizeof(spectranext_controller));
@@ -444,8 +445,8 @@ void spectranext_controller_init(void)
         utils_close_file(&controller_binary);
     }
 
-    spectranext_controller.command = SPECTRANEXT_CMD_REG_IDLE;
-    spectranext_controller.status = SPECTRANEXT_STATUS_SUCCESS;
+    spectranext_controller.command = spectranext_controller.command1 = SPECTRANEXT_CMD_REG_IDLE;
+    spectranext_controller.status = spectranext_controller.status1 = SPECTRANEXT_STATUS_SUCCESS;
     spectranext_state.controller_status = WIFI_CONTROLLER_STATUS_OPERATIONAL;
     spectranext_state.connection_status = WIFI_CONNECT_CONNECT_IP_OBTAINED;
     spectranext_state.ipv4_host = 0x7f000001u;
@@ -455,7 +456,7 @@ void spectranext_controller_init(void)
 
 libspectrum_byte spectranext_controller_read(memory_page *page, libspectrum_word address)
 {
-    update_engine_job_status();
+    update_controller_jobs();
     libspectrum_word offset = address & 0xfff;
     uint8_t *registers = (uint8_t *)&spectranext_controller;
     if (offset >= sizeof(spectranext_controller))
@@ -463,22 +464,42 @@ libspectrum_byte spectranext_controller_read(memory_page *page, libspectrum_word
     return registers[offset];
 }
 
+static void spectranext_controller_process_command(unsigned channel)
+{
+    struct controller_request *request = &requests[channel];
+    volatile spectranext_workspace_t *workspace = channel
+        ? &spectranext_controller.workspace1 : &spectranext_controller.workspace;
+    memcpy(&request->workspace, (const void *)workspace, sizeof(*workspace));
+    request->channel = channel;
+    request->command = channel ? spectranext_controller.command1 : spectranext_controller.command;
+    request->status = SPECTRANEXT_STATUS_IN_PROGRESS;
+    const uint8_t *ram = spectranet_ram_page(0xC0);
+    request->default_mount = ram ? ram[0xF6F] : 0;
+    if (channel) {
+        spectranext_controller.command1 = SPECTRANEXT_CMD_REG_IDLE;
+        spectranext_controller.status1 = SPECTRANEXT_STATUS_IN_PROGRESS;
+    } else {
+        spectranext_controller.command = SPECTRANEXT_CMD_REG_IDLE;
+        spectranext_controller.status = SPECTRANEXT_STATUS_IN_PROGRESS;
+    }
+    if (controller_job_start(channel, execute_request, request) != 0) {
+        if (channel) spectranext_controller.status1 = SPECTRANEXT_STATUS_ERROR;
+        else spectranext_controller.status = SPECTRANEXT_STATUS_ERROR;
+    }
+}
+
 void spectranext_controller_write(memory_page *page, libspectrum_word address, libspectrum_byte b)
 {
-    libspectrum_word offset = address & 0xfff;
-
-    /* The RP2350 exposes the lower 2 KiB as immutable controller code. */
-    if (offset < SPECTRANEXT_CONTROLLER_CODE_SIZE ||
-        offset >= sizeof(spectranext_controller))
-        return;
-
+    update_controller_jobs();
+    const unsigned offset = address & 0xfff;
+    if (offset < SPECTRANEXT_CONTROLLER_CODE_SIZE) return;
+    /* A submitted workspace belongs to its worker until status is published. */
+    const unsigned channel = offset >= 0xC00 && offset < 0xFFE;
+    if (controller_job_is_running(channel)) return;
     uint8_t *registers = (uint8_t *)&spectranext_controller;
-    const uint8_t old_command = registers[SPECTRANEXT_CONTROLLER_COMMAND_OFFSET];
+    const uint8_t old_value = registers[offset];
     registers[offset] = b;
-
-    if (offset == SPECTRANEXT_CONTROLLER_COMMAND_OFFSET &&
-        old_command == SPECTRANEXT_CMD_REG_IDLE && b != SPECTRANEXT_CMD_REG_IDLE)
-    {
-        spectranext_controller_process_command();
-    }
+    if ((offset == 0xFFE || offset == 0xFFC) &&
+        old_value == SPECTRANEXT_CMD_REG_IDLE && b != SPECTRANEXT_CMD_REG_IDLE)
+        spectranext_controller_process_command(offset == 0xFFC);
 }

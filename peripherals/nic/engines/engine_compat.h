@@ -17,8 +17,7 @@
 
 static inline int engine_default_mount_index(void)
 {
-    const uint8_t *ram = spectranet_ram_page(0xC0);
-    return ram ? ram[0xF6F] : -1;
+    return spectranext_controller_default_mount();
 }
 
 static inline const struct xfs_engine_t *engine_ram_destination(void)

@@ -1,4 +1,4 @@
-.PHONY: 3rdparty audiofile libgcrypt FuseGenerator FuseImporter mbedtls libssh2 libspectrum libfusex libfusex-xcode clean-3rdparty list-teams fusex archive dist dmg appcast appcast-push release release-clean release-notarize release-export clean
+.PHONY: fusepb 3rdparty audiofile libgcrypt FuseGenerator FuseImporter mbedtls libssh2 libspectrum libfusex libfusex-xcode clean-3rdparty list-teams fusex archive dist dmg appcast appcast-push release release-clean release-notarize release-export clean
 
 # Signing parameters (can be overridden from command line)
 # By default, use the signing settings already stored in the Xcode projects.
@@ -7,6 +7,10 @@ DEVELOPMENT_TEAM ?=
 CODE_SIGN_IDENTITY ?=
 CODE_SIGN_STYLE ?=
 PROVISIONING_PROFILE_SPECIFIER ?=
+MACOSX_DEPLOYMENT_TARGET ?= 12.0
+ARCHS ?=
+ARCH_FLAGS = -O2 -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET) $(foreach arch,$(ARCHS),-arch $(arch))
+XCODEBUILD_BUILD_ARGS = MACOSX_DEPLOYMENT_TARGET="$(MACOSX_DEPLOYMENT_TARGET)" $(if $(ARCHS),ARCHS="$(ARCHS)" ONLY_ACTIVE_ARCH=NO)
 
 # Archive path (can be overridden from command line)
 # Example: make archive ARCHIVE_PATH=./build/FuseX.xcarchive
@@ -74,6 +78,7 @@ audiofile:
 		SYMROOT=build \
 		BUILD_DIR=build \
 		CONFIGURATION_BUILD_DIR=build/Deployment \
+		$(XCODEBUILD_BUILD_ARGS) \
 		$(XCODEBUILD_SIGN_ARGS)
 
 libgcrypt:
@@ -85,6 +90,7 @@ libgcrypt:
 		SYMROOT=build \
 		BUILD_DIR=build \
 		CONFIGURATION_BUILD_DIR=build/Deployment \
+		$(XCODEBUILD_BUILD_ARGS) \
 		$(XCODEBUILD_SIGN_ARGS)
 
 FuseGenerator:
@@ -101,6 +107,7 @@ FuseGenerator:
 		DEVELOPMENT_TEAM="$(FUSEGENERATOR_DEVELOPMENT_TEAM)" \
 		CODE_SIGN_IDENTITY="$(FUSEGENERATOR_CODE_SIGN_IDENTITY)" \
 		CODE_SIGN_STYLE="$(FUSEGENERATOR_CODE_SIGN_STYLE)" \
+		$(XCODEBUILD_BUILD_ARGS) \
 		$(XCODEBUILD_SIGN_ARGS)
 
 FuseImporter:
@@ -112,6 +119,7 @@ FuseImporter:
 		SYMROOT=build \
 		BUILD_DIR=build \
 		CONFIGURATION_BUILD_DIR=build/Deployment \
+		$(XCODEBUILD_BUILD_ARGS) \
 		$(XCODEBUILD_SIGN_ARGS)
 
 mbedtls:
@@ -123,6 +131,7 @@ mbedtls:
 		SYMROOT=build \
 		BUILD_DIR=build \
 		CONFIGURATION_BUILD_DIR=build/Deployment \
+		$(XCODEBUILD_BUILD_ARGS) \
 		$(XCODEBUILD_SIGN_ARGS)
 
 libssh2: mbedtls
@@ -134,14 +143,16 @@ libssh2: mbedtls
 		SYMROOT=build \
 		BUILD_DIR=build \
 		CONFIGURATION_BUILD_DIR=build/Deployment \
+		$(XCODEBUILD_BUILD_ARGS) \
 		$(XCODEBUILD_SIGN_ARGS)
 
 # Static, so libfusex absorbs it rather than recording the path it was built at.
 libspectrum:
 	@echo "Building libspectrum..."
 	cd $(LIBSPECTRUM_DIR) && \
+	if test -f Makefile; then $(MAKE) distclean; fi && \
 	./autogen.sh && \
-	./configure --without-libgcrypt --without-bzip2 --with-fake-glib \
+	CFLAGS="$(ARCH_FLAGS)" CPPFLAGS= LDFLAGS="$(ARCH_FLAGS)" ./configure --without-libgcrypt --without-bzip2 --with-fake-glib \
 		--disable-shared --with-pic --prefix="$(LIBSPECTRUM_PREFIX)" && \
 	$(MAKE) && \
 	$(MAKE) install
@@ -150,13 +161,16 @@ libspectrum:
 # system library, so the bundle is loadable wherever it is installed.
 libfusex: libspectrum
 	@echo "Building libfusex..."
+	# Autotools VPATH can reuse in-tree Windows objects as macOS dependencies.
+	@find . -path ./3rdparty -prune -o -type d -name build -prune -o -type f -name '*.o' -exec rm -f {} +
 	./autogen.sh
+	@rm -rf "$(LIBFUSEX_BUILD_DIR)"
 	@mkdir -p $(LIBFUSEX_BUILD_DIR)
 	cd $(LIBFUSEX_BUILD_DIR) && \
 	PKG_CONFIG_PATH="$(LIBSPECTRUM_PREFIX)/lib/pkgconfig" \
-	$(CURDIR)/configure --with-null-ui --without-pthread \
+	CFLAGS="$(ARCH_FLAGS)" CPPFLAGS= LDFLAGS="$(ARCH_FLAGS)" $(CURDIR)/configure --with-null-ui --without-pthread \
 		--with-audio-driver=null --without-png && \
-	$(MAKE) libfusex.dylib
+	$(MAKE)
 
 # Xcode calls this phase on every build. Bootstrap the complete autotools build
 # when necessary, then use its generated Makefile for fast incremental rebuilds.
@@ -201,6 +215,7 @@ fusex: 3rdparty fusepb
 		SYMROOT=build \
 		BUILD_DIR=build \
 		CONFIGURATION_BUILD_DIR=build/Deployment \
+		$(XCODEBUILD_BUILD_ARGS) \
 		$(XCODEBUILD_SIGN_ARGS)
 
 release-clean:
@@ -220,7 +235,8 @@ archive: 3rdparty fusepb
 		-scheme FuseX \
 		-configuration Deployment \
 		-archivePath "$(CURDIR)/$(ARCHIVE_PATH)" \
-			$(XCODEBUILD_SIGN_ARGS)
+			$(XCODEBUILD_BUILD_ARGS) \
+		$(XCODEBUILD_SIGN_ARGS)
 	@echo "Archive created at: $(ARCHIVE_PATH)"
 
 release-notarize: archive
@@ -247,7 +263,7 @@ release-export: release-notarize
 	@ditto "$(ARCHIVE_APP_PATH)" "$(DIST_APP_PATH)"
 
 release: release-clean release-export
-	@$(MAKE) dmg
+	@$(MAKE) -f Makefile.darwin dmg
 
 dist:
 	@echo "Checking for dist/FuseX.app..."
