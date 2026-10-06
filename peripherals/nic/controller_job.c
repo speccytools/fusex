@@ -91,12 +91,13 @@ void controller_job_cancel_and_wait(void)
 
 void controller_job_shutdown(void)
 {
+    unsigned channel;
     controller_job_cancel_and_wait();
     pthread_mutex_lock(&lock);
-    for (unsigned channel = 0; channel < 2; ++channel) jobs[channel].stopping = true;
+    for (channel = 0; channel < 2; ++channel) jobs[channel].stopping = true;
     pthread_cond_broadcast(&changed);
     pthread_mutex_unlock(&lock);
-    for (unsigned channel = 0; channel < 2; ++channel) {
+    for (channel = 0; channel < 2; ++channel) {
         if (jobs[channel].created) pthread_join(jobs[channel].thread, NULL);
         jobs[channel] = (struct controller_job){0};
     }
