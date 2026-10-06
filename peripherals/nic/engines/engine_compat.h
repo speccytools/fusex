@@ -2,7 +2,6 @@
 
 #include "../../fs/xfs.h"
 #include "../../fs/xfs_engines.h"
-#include "../../../../common/badapple_lz4.h"
 #include "../../spectranet.h"
 #include "../spectranext.h"
 #include "parson.h"
@@ -45,16 +44,6 @@ static inline uint8_t *engine_cp_input_buffer(void)
 {
     static uint8_t buffer[4096];
     return buffer;
-}
-
-static inline void *engine_lz4_alloc(size_t size)
-{
-    return malloc(size);
-}
-
-static inline void engine_lz4_free(void *ptr)
-{
-    free(ptr);
 }
 
 static inline void engine_json_allocators_begin(void) {}

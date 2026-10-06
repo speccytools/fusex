@@ -1,5 +1,5 @@
 #include "xfs.h"
-#include "engine_job.h"
+#include "peripherals/nic/engines/engine_job.h"
 #include "xfs_engines.h"
 #include <stdio.h>
 #include <string.h>
