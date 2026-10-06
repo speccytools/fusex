@@ -41,7 +41,7 @@ enum spectranext_cmd_t
 #define GETHOSTBYNAME_STATUS_TIMEOUT (-2)
 #define GETHOSTBYNAME_STATUS_SYSTEM_FAILURE (-3)
 
-#include "../../../common/spectranext_controller_layout.h"
+#include "spectranext_controller_layout.h"
 
 typedef struct spectranext_state_t
 {
