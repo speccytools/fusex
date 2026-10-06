@@ -1,5 +1,5 @@
 #include "xfs.h"
-#include "peripherals/nic/engines/engine_job.h"
+#include "peripherals/nic/controller_job.h"
 #include "xfs_engines.h"
 #include <stdio.h>
 #include <string.h>
@@ -354,7 +354,7 @@ void xfs_handle_umount(volatile struct xfs_registers_t* registers)
         return;
     }
 
-    engine_job_cancel_and_wait();
+    controller_job_cancel_and_wait();
     const struct xfs_engine_t* const eng = xfs_mounted_engines[mount_point].engine;
     if (eng->unmount)
         eng->unmount(eng, &xfs_mounted_engines[mount_point]);
@@ -1322,7 +1322,7 @@ void xfs_handle_command(volatile struct xfs_registers_t* registers)
  */
 void xfs_free(void)
 {
-    engine_job_cancel_and_wait();
+    controller_job_cancel_and_wait();
     XFS_DEBUG("xfs: free - cleaning up all mounts and handles\n");
     
     // unmount all engines to clean up engine-specific mount resources

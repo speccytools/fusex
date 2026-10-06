@@ -78,8 +78,9 @@ fuse_SOURCES += \
                 peripherals/nic/dns_processor.c \
                 peripherals/nic/engines/engine_argv.c \
                 peripherals/nic/engines/engine_fs.c \
-                peripherals/nic/engines/engine_job.c \
-                peripherals/nic/engines/engine_job.h \
+                peripherals/nic/controller_job.c \
+                peripherals/nic/controller_job.h \
+                peripherals/nic/spectranext_controller_layout.h \
                 peripherals/nic/engines/cp.c \
                 peripherals/nic/engines/engine_utf8.c \
                 peripherals/nic/engines/json.c \

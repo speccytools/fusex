@@ -20,13 +20,13 @@ dnl Project website: https://speccytools.org/
 
 dnl Package version (user-visible: tarballs, fuse --version, NSIS text).
 dnl Keep README, man/fuse.1 (.TH third field), metainfo.xml, and fusepb MARKETING_VERSION in sync.
-m4_define([fuse_version], [1.10.0-fusex-0.1])
+m4_define([fuse_version], [1.10.0-fusex-0.2])
 
-dnl Win32 FILEVERSION / NSIS VIProductVersion require four integers only; map fusex-0.1 -> fourth field 1.
+dnl Win32 FILEVERSION / NSIS VIProductVersion require four integers only; map fusex-0.2 -> fourth field 2.
 m4_define([fuse_major_version], [1])
 m4_define([fuse_minor_version], [10])
 m4_define([fuse_micro_version], [0])
-m4_define([fuse_nano_version],  [1])
+m4_define([fuse_nano_version],  [2])
 m4_define([fuse_full_version], [fuse_major_version.fuse_minor_version.fuse_micro_version.fuse_nano_version])
 m4_define([fuse_rc_version], [fuse_major_version,fuse_minor_version,fuse_micro_version,fuse_nano_version])
 

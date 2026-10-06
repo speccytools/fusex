@@ -11,7 +11,7 @@
     <category>Emulator</category>
   </categories>
   <releases>
-    <release date="2026-10-01" version="1.10.0-fusex-0.1">
+    <release date="2026-10-01" version="1.10.0-fusex-0.2">
       <description>
         <ul>
           <li>FuseX release (macOS app, CLI options, headless mode, debugger)</li>

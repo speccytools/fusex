@@ -402,7 +402,7 @@
 		D19300010000000000000032 /* tape.c in Sources */ = {isa = PBXBuildFile; fileRef = D19300010000000000000031 /* tape.c */; };
 		D19300010000000000000034 /* monotonic.c in Sources */ = {isa = PBXBuildFile; fileRef = D19300010000000000000033 /* monotonic.c */; };
 		D19300010000000000000036 /* file.c in Sources */ = {isa = PBXBuildFile; fileRef = D19300010000000000000035 /* file.c */; };
-		FE9A0101301F000000000011 /* engine_job.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9A0102301F000000000011 /* engine_job.c */; };
+		FE9A0101301F000000000011 /* controller_job.c in Sources */ = {isa = PBXBuildFile; fileRef = FE9A0102301F000000000011 /* controller_job.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXBuildRule section */
@@ -1071,8 +1071,8 @@
 		D19300010000000000000031 /* tape.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = tape.c; path = tape.c; sourceTree = "<group>"; };
 		D19300010000000000000033 /* monotonic.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = monotonic.c; path = monotonic.c; sourceTree = "<group>"; };
 		D19300010000000000000035 /* file.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = file.c; path = file.c; sourceTree = "<group>"; };
-		FE9A0102301F000000000011 /* engine_job.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = engine_job.c; sourceTree = "<group>"; };
-		FE9A0102301F000000000012 /* engine_job.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = engine_job.h; sourceTree = "<group>"; };
+		FE9A0102301F000000000011 /* controller_job.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = controller_job.c; sourceTree = "<group>"; };
+		FE9A0102301F000000000012 /* controller_job.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = controller_job.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1803,6 +1803,8 @@
 				FEC02C9D2EEF65D5008277BA /* spectranext.h */,
 				FEC02C9E2EEF65D6008277BA /* spectranext_controller.h */,
 				FEC02C9C2EEF65D5008277BA /* spectranext_controller.c */,
+				FE9A0102301F000000000011 /* controller_job.c */,
+				FE9A0102301F000000000012 /* controller_job.h */,
 			);
 			path = nic;
 			sourceTree = "<group>";
@@ -2034,8 +2036,6 @@
 				FE9443B72F881C540059A578 /* engine_argv.c */,
 				FE9443B82F881C540059A578 /* engine_fs.h */,
 				FE9443B92F881C540059A578 /* engine_fs.c */,
-				FE9A0102301F000000000011 /* engine_job.c */,
-				FE9A0102301F000000000012 /* engine_job.h */,
 				FE9443FB2F881C540059A578 /* cp.c */,
 				FE9443BA2F881C540059A578 /* json.c */,
 				FE9443E52F881C540059A578 /* engine_utf8.h */,
@@ -2473,7 +2473,7 @@
 				FE9443BC2F881C540059A578 /* engine_argv.c in Sources */,
 				FE9443BD2F881C540059A578 /* lexer.c in Sources */,
 				FE9443BE2F881C540059A578 /* engine_fs.c in Sources */,
-				FE9A0101301F000000000011 /* engine_job.c in Sources */,
+				FE9A0101301F000000000011 /* controller_job.c in Sources */,
 				FE9443FA2F881C540059A578 /* cp.c in Sources */,
 				FE9443BF2F881C540059A578 /* json.c in Sources */,
 				FE9443E82F881C540059A578 /* engine_utf8.c in Sources */,
@@ -2642,7 +2642,7 @@
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = 48UV5KV3FB;
@@ -2685,7 +2685,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = .;
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = "1.10.0-fusex-0.1";
+				MARKETING_VERSION = "1.10.0-fusex-0.2";
 				OTHER_CFLAGS = "";
 				OTHER_CODE_SIGN_FLAGS = "";
 				OTHER_LDFLAGS = (
@@ -2717,7 +2717,7 @@
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = YES;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = 48UV5KV3FB;
@@ -2759,7 +2759,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = .;
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = "1.10.0-fusex-0.1";
+				MARKETING_VERSION = "1.10.0-fusex-0.2";
 				OTHER_CFLAGS = "";
 				OTHER_CODE_SIGN_FLAGS = "";
 				OTHER_LDFLAGS = (
@@ -2790,7 +2790,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = 48UV5KV3FB;
@@ -2832,7 +2832,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = .;
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = "1.10.0-fusex-0.1";
+				MARKETING_VERSION = "1.10.0-fusex-0.2";
 				OTHER_CFLAGS = "";
 				OTHER_CODE_SIGN_FLAGS = "";
 				OTHER_LDFLAGS = (

@@ -2,6 +2,7 @@
 
 # Build both the Spectranext-ready and stock FuseX macOS distributions.
 # Xcode uses the signing team and identities configured in FuseX.xcodeproj.
+# Set NOTARIZE=0 to package signed local builds without submitting to Apple.
 
 set -euo pipefail
 
@@ -16,6 +17,7 @@ readonly APPCAST_DESTINATION="$APPCAST_REPOSITORY/appcast.xml"
 readonly SPARKLE_APPCAST_TOOL="${SPARKLE_GENERATE_APPCAST:-$(find "$HOME/Library/Developer/Xcode/DerivedData" -path '*/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_appcast' -type f -print -quit 2>/dev/null)}"
 readonly NOTARIZATION_TIMEOUT="${NOTARIZATION_TIMEOUT:-21600}"
 readonly NOTARIZATION_POLL_INTERVAL="${NOTARIZATION_POLL_INTERVAL:-60}"
+readonly NOTARIZE="${NOTARIZE:-1}"
 
 restore_settings() {
   git -C "$SCRIPT_DIR" restore --source=HEAD -- settings.dat
@@ -70,6 +72,11 @@ if ! [[ "$NOTARIZATION_POLL_INTERVAL" =~ ^[1-9][0-9]*$ ]]; then
   exit 1
 fi
 
+if [[ "$NOTARIZE" != "0" && "$NOTARIZE" != "1" ]]; then
+  echo "Error: NOTARIZE must be 0 or 1." >&2
+  exit 1
+fi
+
 make_spectranext_settings() {
   restore_settings
 
@@ -100,7 +107,7 @@ create_archive() {
   local archive_path="$BUILD_DIR/$archive_name.xcarchive"
 
   rm -rf "$archive_path"
-  make -C "$SCRIPT_DIR" archive "ARCHIVE_PATH=build/$archive_name.xcarchive"
+  make -C "$SCRIPT_DIR" -f Makefile.darwin archive ARCHS="arm64 x86_64" "ARCHIVE_PATH=build/$archive_name.xcarchive"
 
   if [[ ! -d "$archive_path" ]]; then
     echo "Error: Xcode did not create $archive_path" >&2
@@ -166,7 +173,7 @@ make_dmg() {
   local output_name="$1"
   local standard_name="FuseX-${FUSEX_VERSION}.dmg"
 
-  make -C "$SCRIPT_DIR" dmg
+  make -C "$SCRIPT_DIR" -f Makefile.darwin dmg
   if [[ ! -f "$SCRIPT_DIR/$standard_name" ]]; then
     echo "Error: make dmg did not create $standard_name" >&2
     exit 1
@@ -178,11 +185,26 @@ make_dmg() {
   echo "==> Created $SCRIPT_DIR/$output_name"
 }
 
+export_distribution_app() {
+  local archive_path="$1"
+  local variant_name="$2"
+
+  if [[ "$NOTARIZE" == "1" ]]; then
+    upload_for_direct_distribution "$archive_path" "$variant_name"
+    wait_and_export_notarized_app "$archive_path" "$variant_name"
+  else
+    echo "==> Exporting signed $variant_name app without notarization"
+    rm -rf "$DIST_APP_PATH"
+    mkdir -p "$SCRIPT_DIR/dist"
+    ditto "$archive_path/Products/Applications/FuseX.app" "$DIST_APP_PATH"
+  fi
+}
+
 generate_appcast() {
   local dmg_name="FuseX-${FUSEX_VERSION}.dmg"
 
   echo "==> Generating macOS Sparkle appcast"
-  make -C "$SCRIPT_DIR" appcast \
+  make -C "$SCRIPT_DIR" -f Makefile.darwin appcast \
     "APPCAST_ARCHIVE=./$dmg_name" \
     "SPARKLE_GENERATE_APPCAST=$SPARKLE_APPCAST_TOOL"
 
@@ -210,8 +232,7 @@ clean_xcode_project
 
 create_archive FuseX-spectranext
 spectranext_archive="$CREATED_ARCHIVE_PATH"
-upload_for_direct_distribution "$spectranext_archive" spectranext
-wait_and_export_notarized_app "$spectranext_archive" spectranext
+export_distribution_app "$spectranext_archive" spectranext
 make_dmg "FuseX-spectranext-${FUSEX_VERSION}.dmg"
 
 echo "==> Restoring stock FuseX settings"
@@ -219,8 +240,7 @@ restore_settings
 
 create_archive FuseX
 stock_archive="$CREATED_ARCHIVE_PATH"
-upload_for_direct_distribution "$stock_archive" stock
-wait_and_export_notarized_app "$stock_archive" stock
+export_distribution_app "$stock_archive" stock
 make_dmg "FuseX-${FUSEX_VERSION}.dmg"
 generate_appcast
 
