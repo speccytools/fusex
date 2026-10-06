@@ -10,12 +10,6 @@
 
 enum { CP_BUFFER_SIZE = 4096 };
 
-struct cp_stream_context
-{
-    struct xfs_engine_mount_t *ram;
-    struct xfs_handle_t *destination;
-};
-
 static int parse_nonnegative(const char *text, uint32_t *value)
 {
     char *end;
@@ -138,52 +132,4 @@ int engine_rm_call(const char *input_file, const char *output_file, int argc, ch
     const int16_t removed = ram.engine->unlink(&ram, input_file);
     ram.engine->unmount(ram.engine, &ram);
     return removed == XFS_ERR_OK || removed == XFS_ERR_NOENT ? 0 : -2;
-}
-
-static int lz4_write(void *context, const uint8_t *data, size_t length)
-{
-    struct cp_stream_context *copy = context;
-    return copy->ram->engine->write(copy->ram, copy->destination, data, (uint32_t)length)
-           == (int32_t)length ? 0 : -1;
-}
-
-int engine_lz4_call(const char *input_file, const char *output_file, int argc, char *argv[])
-{
-    (void)argv;
-    int source_index;
-    const char *source_path;
-    struct xfs_engine_mount_t ram = {0};
-    struct xfs_handle_t source = {0}, destination = {0};
-    struct xfs_engine_mount_t *source_mount = NULL;
-    int result = -2;
-    if (argc != 1 || engine_fs_parse_mount_spec(input_file, &source_index, &source_path) ||
-        !output_file || !*output_file || strchr(output_file, ':')) return -3;
-    if (engine_fs_ram_source_aliases_destination(source_index, source_path, output_file)) return -3;
-    if (engine_fs_open_read(source_index, source_path, &source, &source_mount)) return -2;
-    uint8_t *block = engine_lz4_alloc(BADAPPLE_BLOCK_MAX);
-    uint8_t *frame = engine_lz4_alloc(BADAPPLE_FRAME_BYTES);
-    if (!block || !frame) goto free_buffers;
-    if (engine_fs_ram_mount(&ram) ||
-        engine_fs_ram_open_write(&ram, &destination, output_file)) goto free_buffers;
-    struct cp_stream_context copy = { .ram = &ram, .destination = &destination };
-    struct badapple_lz4_stream stream = {
-        .block = block, .frame = frame, .write = lz4_write, .context = &copy,
-    };
-    uint8_t *input = engine_cp_input_buffer();
-    for (;;)
-    {
-        const int32_t count = source_mount->engine->read(source_mount, &source, input, CP_BUFFER_SIZE);
-        if (count < 0) break;
-        if (count == 0) { result = badapple_lz4_complete(&stream); break; }
-        if (badapple_lz4_feed(&stream, input, (size_t)count) != 0) break;
-    }
-    if (ram.engine->close(&ram, &destination) != XFS_ERR_OK) result = -2;
-    ram.engine->free_handle(&ram, &destination);
-free_buffers:
-    engine_fs_close(source_mount, &source);
-    if (ram.mount_data)
-        ram.engine->unmount(ram.engine, &ram);
-    engine_lz4_free(frame);
-    engine_lz4_free(block);
-    return result;
 }

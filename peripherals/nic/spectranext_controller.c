@@ -179,8 +179,6 @@ int spectranext_enginecall_dispatch(const char *input_file, const char *output_f
         return engine_xpath_call(input_file, output_file, argc, argv);
     if (strcmp(argv[0], "cp") == 0)
         return engine_cp_call(input_file, output_file, argc, argv);
-    if (strcmp(argv[0], "lz4") == 0)
-        return engine_lz4_call(input_file, output_file, argc, argv);
     if (strcmp(argv[0], "rm") == 0)
         return engine_rm_call(input_file, output_file, argc, argv);
     return -1;
@@ -371,8 +369,7 @@ static void spectranext_controller_process_command(void)
         {
             spectranext_enginecall_args_t args;
             read_enginecall_arguments(&args);
-            const enginecall_t engine = strcmp(args.operation, "cp") == 0 ? engine_cp_call
-                : strcmp(args.operation, "lz4") == 0 ? engine_lz4_call : NULL;
+            const enginecall_t engine = strcmp(args.operation, "cp") == 0 ? engine_cp_call : NULL;
             const int result = engine_job_start(engine, args.input_file, args.output_file,
                                                 args.operation);
             uint8_t *registers = (uint8_t *)&spectranext_controller;

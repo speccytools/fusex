@@ -9,9 +9,6 @@ import time
 
 PAYLOAD = bytes(range(256)) * 4096
 started = threading.Event()
-LZ4_FRAME = PAYLOAD[:3456]
-LZ4_BLOCK = b'\xf0' + b'\xff' * 13 + b'\x7e' + LZ4_FRAME
-LZ4_PAYLOAD = b'B4F1' + struct.pack('<I', 3456 * 32) + (struct.pack('<H', len(LZ4_BLOCK)) + LZ4_BLOCK) * 32
 
 
 class Server(http.server.BaseHTTPRequestHandler):
@@ -23,7 +20,7 @@ class Server(http.server.BaseHTTPRequestHandler):
         if self.path == '/missing':
             self.send_error(404)
             return
-        payload = LZ4_PAYLOAD if self.path == '/lz4' else PAYLOAD
+        payload = PAYLOAD
         self.send_response(200)
         self.send_header('Content-Length', str(len(payload)))
         self.end_headers()
@@ -48,6 +45,8 @@ def main():
     lib = ctypes.CDLL(os.environ.get('FUSEX_LIB', '/opt/fusex/lib/libfusex.so'))
     lib.fuse_init.argtypes = (ctypes.c_int, ctypes.POINTER(ctypes.c_char_p))
     lib.fuse_init.restype = ctypes.c_int
+    lib.spectranext_enginecall_dispatch.argtypes = (ctypes.c_char_p,) * 3
+    lib.spectranext_enginecall_dispatch.restype = ctypes.c_int
     lib.spectranext_controller_write.argtypes = (ctypes.c_void_p, ctypes.c_uint16, ctypes.c_uint8)
     lib.spectranext_controller_read.argtypes = (ctypes.c_void_p, ctypes.c_uint16)
     lib.spectranext_controller_read.restype = ctypes.c_uint8
@@ -99,6 +98,12 @@ def main():
             return frames, time.monotonic() - before
 
         mount()
+        # Removed engines must fail through both dispatch paths.
+        assert lib.spectranext_enginecall_dispatch(b'3:slow', b'rejected.bin', b'lz4') == -1
+        assert start('3:slow', 'rejected.bin', operation='lz4') == 1
+        assert state() == 3
+        assert ctypes.c_int8(controller[0xffd]).value == -3
+        assert not os.path.exists(os.path.join(base, 'rejected.bin'))
         assert start('3:slow') == 0
         assert state() == 1
         assert start('3:slow', 'rejected.bin') == 1
@@ -131,9 +136,6 @@ def main():
         assert start('3:slow') == 0
         wait(2)
         assert open(os.path.join(base, 'cp-test.bin'), 'rb').read() == PAYLOAD
-        assert start('3:lz4', operation='lz4') == 0
-        wait(2)
-        assert open(os.path.join(base, 'cp-test.bin'), 'rb').read() == LZ4_FRAME * 32
         started.clear()
         assert start('3:waiting') == 0
         assert started.wait(2)
@@ -143,7 +145,7 @@ def main():
         lib.xfs_handle_umount(xfs)
         assert time.monotonic() - before < .5, 'unmount failed to cancel copy'
         assert state() != 1
-        print('PASS: missing file, default mount, reset cancellation, restart, LZ4, unmount')
+        print('PASS: missing file, default mount, reset cancellation, restart, unmount')
 
         # Optional deployed HTTPS copy using the same engine and command.
         if os.environ.get('FUSEX_CP_HTTPS'):
