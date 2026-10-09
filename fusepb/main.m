@@ -56,6 +56,11 @@ int main(int argc, char *argv[])
   if( settings_current.show_help ||
       settings_current.show_version ) return 0;
 
+  /* fuse_init owns command-line file arguments; keep AppKit from also
+     delivering them to application:openFile:. */
+  [[NSUserDefaults standardUserDefaults]
+    registerDefaults:@{ @"NSTreatUnknownArgumentsAsOpen": @"NO" }];
+
   retval = NSApplicationMain( argc, (const char**)argv );
   
   fuse_end();

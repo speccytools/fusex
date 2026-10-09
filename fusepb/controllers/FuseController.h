@@ -74,6 +74,9 @@
   SaveBinaryController *saveBinaryController;
   TapeBrowserController *tapeBrowserController;
   SPUStandardUpdaterController *sparkleUpdaterController;
+
+  BOOL emulatorConnected;
+  NSMutableArray *pendingOpenFiles;
 }
 + (FuseController *)singleton;
 
@@ -287,6 +290,7 @@
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)theApplication;
 - (BOOL)application:(NSApplication *)theApplication openFile:(NSString *)filename;
+- (void)emulatorDidConnect;
 
 - (void)setAcceptsMouseMovedEvents:(BOOL)flag;
 

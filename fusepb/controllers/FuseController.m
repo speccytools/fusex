@@ -2659,108 +2659,43 @@ save_as_exit:
   return YES;
 }
 
-- (BOOL)application:(NSApplication *)theApplication openFile:(NSString *)filename
+- (void)openDocument:(NSString *)filename
 {
-  utils_file file; libspectrum_id_t type;
-  libspectrum_class_t lsclass;
   char fsrep[PATH_MAX+1];
 
   [filename getFileSystemRepresentation:fsrep maxLength:PATH_MAX];
 
-  if ( display_ui_initialised ) {
-    [[DisplayOpenGLView instance] pause];
-    [self addRecentSnapshot:fsrep];
-    [self openFile:fsrep];
-    [[DisplayOpenGLView instance] unpause];
-  } else {
-    /* AppKit routes stray command-line arguments here on cold launch; an
-       argument that is not a readable, identifiable file must be declined. */
-    if( utils_read_file( fsrep, &file ) ) {
-      fprintf( stderr, "%s: couldn't open `%s'\n", fuse_progname, fsrep );
-      return NO;
-    }
+  [[DisplayOpenGLView instance] pause];
+  [self addRecentSnapshot:fsrep];
+  [self openFile:fsrep];
+  [[DisplayOpenGLView instance] unpause];
+}
 
-    if( libspectrum_identify_file( &type, fsrep, file.buffer, file.length ) ||
-        libspectrum_identify_class( &lsclass, type ) ) {
-      fprintf( stderr, "%s: couldn't identify `%s'\n", fuse_progname, fsrep );
-      utils_close_file( &file );
-      return NO;
-    }
-
-    switch( lsclass ) {
-
-    case LIBSPECTRUM_CLASS_UNKNOWN:
-      fprintf( stderr, "%s: couldn't identify `%s'\n", fuse_progname, fsrep );
-    case LIBSPECTRUM_CLASS_SCREENSHOT:
-      utils_close_file( &file );
-      return NO;
-
-    case LIBSPECTRUM_CLASS_RECORDING:
-      settings_current.playback_file = strdup( fsrep );
-      break;
-
-    case LIBSPECTRUM_CLASS_SNAPSHOT:
-      settings_current.snapshot = strdup( fsrep );
-      break;
-
-    case LIBSPECTRUM_CLASS_TAPE:
-      settings_current.tape_file = strdup( fsrep );
-      break;
-
-    case LIBSPECTRUM_CLASS_DISK_PLUS3:
-      settings_current.plus3disk_file = strdup( fsrep );
-      break;
-
-    case LIBSPECTRUM_CLASS_DISK_TRDOS:
-    case LIBSPECTRUM_CLASS_DISK_GENERIC:
-      settings_current.betadisk_file = strdup( fsrep );
-      break;
-
-    case LIBSPECTRUM_CLASS_DISK_OPUS:
-      settings_current.opusdisk_file = strdup( fsrep );
-      break;
-
-    case LIBSPECTRUM_CLASS_DISK_PLUSD:
-      settings_current.plusddisk_file = strdup( fsrep );
-      break;
-
-    case LIBSPECTRUM_CLASS_CARTRIDGE_TIMEX:
-      settings_current.dck_file = strdup( fsrep );
-      break;
-
-    case LIBSPECTRUM_CLASS_CARTRIDGE_IF2:
-      settings_current.if2_file = strdup( fsrep );
-      break;
-
-    case LIBSPECTRUM_CLASS_HARDDISK:
-      if( settings_current.zxcf_active ) {
-        settings_current.zxcf_pri_file = strdup( fsrep );
-      } else if( settings_current.zxatasp_active ) {
-        settings_current.zxatasp_master_file = strdup( fsrep );
-      } else if( settings_current.simpleide_active ) {
-        settings_current.simpleide_master_file = strdup( fsrep );
-      } else if( settings_current.divmmc_enabled ) {
-        settings_current.divmmc_file = strdup( fsrep );
-      } else if( settings_current.divide_enabled ) {
-        settings_current.divide_master_file = strdup( fsrep );
-      } else if( settings_current.zxmmc_enabled ) {
-        settings_current.zxmmc_file = strdup( fsrep );
-      } else {
-        /* No IDE interface active, so activate the ZXCF */
-        settings_current.zxcf_active = 1;
-        settings_current.zxcf_pri_file = strdup( fsrep );
-      }
-      break;
-
-    default:
-      fprintf( stderr, "%s: loadFile: unknown class %d!\n",
-               fuse_progname, type );
-    }
-
-    utils_close_file( &file );
+- (BOOL)application:(NSApplication *)theApplication openFile:(NSString *)filename
+{
+  /* AppKit can deliver a document before the emulator thread has
+     connected; hold it until -emulatorDidConnect. */
+  if( !emulatorConnected ) {
+    if( !pendingOpenFiles ) pendingOpenFiles = [[NSMutableArray alloc] init];
+    [pendingOpenFiles addObject:filename];
+    return YES;
   }
 
+  [self openDocument:filename];
+
   return YES;
+}
+
+- (void)emulatorDidConnect
+{
+  NSArray *files = pendingOpenFiles;
+
+  emulatorConnected = YES;
+  pendingOpenFiles = nil;
+
+  for( NSString *filename in files ) [self openDocument:filename];
+
+  [files release];
 }
 
 - (void)setAcceptsMouseMovedEvents:(BOOL)flag
