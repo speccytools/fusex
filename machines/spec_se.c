@@ -106,6 +106,9 @@ spec_se_reset( int hard_reset )
 
   periph_clear();
   machines_periph_128();
+
+  /* ULA+ is not implemented for the Timex display */
+  periph_set_present( PERIPH_TYPE_ULAPLUS, PERIPH_PRESENT_NEVER );
   
   /* SE style memory paging present */
   periph_set_present( PERIPH_TYPE_128_MEMORY, PERIPH_PRESENT_NEVER );

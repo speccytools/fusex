@@ -130,6 +130,7 @@
 		B61F468109121DF100C8096C /* zxcf.c in Sources */ = {isa = PBXBuildFile; fileRef = B601847B065A586900B0BE59 /* zxcf.c */; };
 		B61F468209121DF100C8096C /* slt.c in Sources */ = {isa = PBXBuildFile; fileRef = B68C40C106749716009ED517 /* slt.c */; };
 		B61F468309121DF100C8096C /* ula.c in Sources */ = {isa = PBXBuildFile; fileRef = B6AB429D0677466E007C50EF /* ula.c */; };
+		5E1A00012B2C4D5E00A1B2C3 /* ulaplus.c in Sources */ = {isa = PBXBuildFile; fileRef = 5E1A00022B2C4D5E00A1B2C3 /* ulaplus.c */; };
 		B61F468409121DF100C8096C /* JoystickConfigurationController.m in Sources */ = {isa = PBXBuildFile; fileRef = B611190306A1FA12006D2711 /* JoystickConfigurationController.m */; };
 		B61F468509121DF100C8096C /* kempmouse.c in Sources */ = {isa = PBXBuildFile; fileRef = B68C17DC06C8C0DC004981AE /* kempmouse.c */; };
 		B61F468609121DF100C8096C /* if1.c in Sources */ = {isa = PBXBuildFile; fileRef = B6C8B723076D2B1A0007B7B5 /* if1.c */; };
@@ -705,6 +706,8 @@
 		B6AB348F0C3BC91A0005935E /* menu.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = menu.h; sourceTree = "<group>"; };
 		B6AB429D0677466E007C50EF /* ula.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; path = ula.c; sourceTree = "<group>"; };
 		B6AB429E0677466E007C50EF /* ula.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = ula.h; sourceTree = "<group>"; };
+		5E1A00022B2C4D5E00A1B2C3 /* ulaplus.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = ulaplus.c; sourceTree = "<group>"; };
+		5E1A00032B2C4D5E00A1B2C3 /* ulaplus.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ulaplus.h; sourceTree = "<group>"; };
 		B6AD8FEC06221FD500C70D75 /* machines.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = machines.h; sourceTree = "<group>"; };
 		B6AD90140622A66700C70D75 /* specplus3e.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; path = specplus3e.c; sourceTree = "<group>"; };
 		B6AD90550622B59200C70D75 /* simpleide.c */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.c; path = simpleide.c; sourceTree = "<group>"; };
@@ -1781,6 +1784,8 @@
 				D1ECC73C2924069800147252 /* ttx2000s.h */,
 				B6AB429D0677466E007C50EF /* ula.c */,
 				B6AB429E0677466E007C50EF /* ula.h */,
+				5E1A00022B2C4D5E00A1B2C3 /* ulaplus.c */,
+				5E1A00032B2C4D5E00A1B2C3 /* ulaplus.h */,
 				B6D0E1041CFD549200202683 /* usource.c */,
 				B6D0E1051CFD549200202683 /* usource.h */,
 			);
@@ -2415,6 +2420,7 @@
 				B61F468109121DF100C8096C /* zxcf.c in Sources */,
 				B61F468209121DF100C8096C /* slt.c in Sources */,
 				B61F468309121DF100C8096C /* ula.c in Sources */,
+				5E1A00012B2C4D5E00A1B2C3 /* ulaplus.c in Sources */,
 				B61F468409121DF100C8096C /* JoystickConfigurationController.m in Sources */,
 				B61F468509121DF100C8096C /* kempmouse.c in Sources */,
 				B61F468609121DF100C8096C /* if1.c in Sources */,

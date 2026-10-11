@@ -189,6 +189,7 @@ base_peripherals( void )
   periph_set_present( PERIPH_TYPE_SPECCYBOOT, PERIPH_PRESENT_OPTIONAL );
   periph_set_present( PERIPH_TYPE_SPECTRANET, PERIPH_PRESENT_OPTIONAL );
   periph_set_present( PERIPH_TYPE_ULA, PERIPH_PRESENT_ALWAYS );
+  periph_set_present( PERIPH_TYPE_ULAPLUS, PERIPH_PRESENT_OPTIONAL );
   periph_set_present( PERIPH_TYPE_ZXATASP, PERIPH_PRESENT_OPTIONAL );
   periph_set_present( PERIPH_TYPE_ZXCF, PERIPH_PRESENT_OPTIONAL );
 }
@@ -253,6 +254,9 @@ machines_periph_timex( void )
   /* ULA uses full decoding */
   periph_set_present( PERIPH_TYPE_ULA, PERIPH_PRESENT_NEVER );
   periph_set_present( PERIPH_TYPE_ULA_FULL_DECODE, PERIPH_PRESENT_ALWAYS );
+
+  /* ULA+ is not implemented for the Timex display */
+  periph_set_present( PERIPH_TYPE_ULAPLUS, PERIPH_PRESENT_NEVER );
 
   /* SCLD always present */
   periph_set_present( PERIPH_TYPE_SCLD, PERIPH_PRESENT_ALWAYS );

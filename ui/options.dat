@@ -111,6 +111,7 @@ Checkbox, Spe(c)tranet disable, spectranet_disable, INPUT_KEY_c
 Checkbox, TT(X)2000S, ttx2000s, INPUT_KEY_x
 #endif
 Checkbox, uSo(u)rce, usource, INPUT_KEY_u
+Checkbox, UL(A)+, ulaplus, INPUT_KEY_a
 Postcheck, periph_postcheck
 Posthook, periph_posthook
 

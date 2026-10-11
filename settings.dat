@@ -86,6 +86,7 @@ general_sound_ram, string, "2048 KB", option_enumerate_string_peripherals_sound_
 melodik, boolean, 0
 speccyboot, boolean, 0
 specdrum, boolean, 0
+ulaplus, boolean, 0
 spectranet, boolean, 0
 spectranet_disable, boolean, 0
 ttx2000s, boolean, 0

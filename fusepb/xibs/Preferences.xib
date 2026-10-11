@@ -1987,6 +1987,17 @@
                         <binding destination="270" name="value" keyPath="values.paltv2x" id="1743"/>
                     </connections>
                 </button>
+                <button fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Ulp-Ch-001">
+                    <rect key="frame" x="439" y="160" width="218" height="18"/>
+                    <autoresizingMask key="autoresizingMask"/>
+                    <buttonCell key="cell" type="check" title="ULA+" bezelStyle="regularSquare" imagePosition="left" alignment="left" inset="2" id="Ulp-Ce-002">
+                        <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                        <font key="font" metaFont="system"/>
+                    </buttonCell>
+                    <connections>
+                        <binding destination="270" name="value" keyPath="values.ulaplus" id="Ulp-Bi-003"/>
+                    </connections>
+                </button>
                 <button fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="1717">
                     <rect key="frame" x="439" y="140" width="86" height="18"/>
                     <autoresizingMask key="autoresizingMask"/>

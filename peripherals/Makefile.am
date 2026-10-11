@@ -32,6 +32,7 @@ fuse_SOURCES += \
                 peripherals/scld.c \
                 peripherals/speccyboot.c \
                 peripherals/ula.c \
+                peripherals/ulaplus.c \
                 peripherals/usource.c \
                 peripherals/ttx2000s.c \
                 peripherals/sound/ay.c \
@@ -123,6 +124,7 @@ noinst_HEADERS += \
                   peripherals/spectranet.h \
                   peripherals/spectranext_esxdos.h \
                   peripherals/ula.h \
+                  peripherals/ulaplus.h \
                   peripherals/usource.h \
                   peripherals/ttx2000s.h \
                   peripherals/sound/ay.h \

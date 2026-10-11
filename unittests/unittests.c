@@ -44,6 +44,7 @@
 #include "mempool.h"
 #include "periph.h"
 #include "peripherals/scld.h"
+#include "peripherals/ulaplus.h"
 #include "peripherals/disk/beta.h"
 #include "peripherals/disk/disk.h"
 #include "peripherals/disk/didaktik.h"
@@ -1064,6 +1065,157 @@ spec_se_dock_ram_reset_test( void )
   if( machine_select( old_machine ) ) r++;
 
   return r;
+}
+
+static int
+ulaplus_ports_test( void )
+{
+  libspectrum_machine old_machine = machine_current->machine;
+  libspectrum_machine timex_machines[] = {
+    LIBSPECTRUM_MACHINE_TC2048, LIBSPECTRUM_MACHINE_TC2068,
+    LIBSPECTRUM_MACHINE_TS2068, LIBSPECTRUM_MACHINE_SE,
+  };
+  libspectrum_machine sinclair_machines[] = {
+    LIBSPECTRUM_MACHINE_48, LIBSPECTRUM_MACHINE_128,
+    LIBSPECTRUM_MACHINE_PENT, LIBSPECTRUM_MACHINE_SCORP,
+  };
+  size_t i;
+  int r = 0;
+
+  settings_current.ulaplus = 1;
+
+  for( i = 0; i < ARRAY_SIZE( sinclair_machines ); i++ ) {
+    if( machine_select( sinclair_machines[ i ] ) ) { r++; continue; }
+    periph_update();
+
+    TEST_ASSERT( periph_is_active( PERIPH_TYPE_ULAPLUS ) );
+    TEST_ASSERT( !ulaplus_is_enabled() );
+
+    /* The standard colours are loaded: bright magenta ink, normal cyan paper */
+    TEST_ASSERT( ulaplus_get_colour( 3 ) == 0x12 );
+    TEST_ASSERT( ulaplus_get_colour( 16 + 3 ) == 0x1f );
+    TEST_ASSERT( ulaplus_get_colour( 32 + 8 + 5 ) == 0x82 );
+    TEST_ASSERT( ulaplus_get_colour( 48 + 8 + 5 ) == 0xe3 );
+
+    /* Group 0 selects a palette entry */
+    writeport_internal( 0xbf3b, 0x05 );
+    writeport_internal( 0xff3b, 0x42 );
+    TEST_ASSERT( ulaplus_get_colour( 5 ) == 0x42 );
+    TEST_ASSERT( readport_internal( 0xff3b ) == 0x42 );
+    writeport_internal( 0xbf3b, 0x3f );
+    writeport_internal( 0xff3b, 0xa5 );
+    TEST_ASSERT( ulaplus_get_colour( 63 ) == 0xa5 );
+
+    /* Group 1 switches the mode, and only bit 0 matters */
+    writeport_internal( 0xbf3b, 0x40 );
+    writeport_internal( 0xff3b, 0x01 );
+    TEST_ASSERT( ulaplus_is_enabled() );
+    TEST_ASSERT( readport_internal( 0xff3b ) == 0x01 );
+    writeport_internal( 0xff3b, 0xfe );
+    TEST_ASSERT( !ulaplus_is_enabled() );
+    TEST_ASSERT( readport_internal( 0xff3b ) == 0x00 );
+    writeport_internal( 0xff3b, 0x01 );
+
+    /* Other groups are ignored and read back as 0xff */
+    writeport_internal( 0xbf3b, 0x85 );
+    writeport_internal( 0xff3b, 0x00 );
+    TEST_ASSERT( ulaplus_is_enabled() );
+    TEST_ASSERT( ulaplus_get_colour( 5 ) == 0x42 );
+    TEST_ASSERT( readport_internal( 0xff3b ) == 0xff );
+
+    /* Other ports do not select the registers */
+    writeport_internal( 0xbf3a, 0x05 );
+    writeport_internal( 0xff3a, 0x00 );
+    TEST_ASSERT( ulaplus_get_colour( 5 ) == 0x42 );
+
+    /* A reset switches the mode off and restores the standard colours */
+    if( machine_reset( 0 ) ) r++;
+    TEST_ASSERT( !ulaplus_is_enabled() );
+    TEST_ASSERT( ulaplus_get_colour( 5 ) == 0x82 );
+    TEST_ASSERT( ulaplus_get_colour( 63 ) == 0xff );
+
+    /* With the option off the ports do nothing */
+    settings_current.ulaplus = 0;
+    periph_update();
+    TEST_ASSERT( !periph_is_active( PERIPH_TYPE_ULAPLUS ) );
+    writeport_internal( 0xbf3b, 0x40 );
+    writeport_internal( 0xff3b, 0x01 );
+    TEST_ASSERT( !ulaplus_is_enabled() );
+    settings_current.ulaplus = 1;
+  }
+
+  for( i = 0; i < ARRAY_SIZE( timex_machines ); i++ ) {
+    if( machine_select( timex_machines[ i ] ) ) { r++; continue; }
+    periph_update();
+
+    TEST_ASSERT( !periph_is_active( PERIPH_TYPE_ULAPLUS ) );
+    writeport_internal( 0xbf3b, 0x40 );
+    writeport_internal( 0xff3b, 0x01 );
+    TEST_ASSERT( !ulaplus_is_enabled() );
+  }
+
+  settings_current.ulaplus = 0;
+  if( machine_select( old_machine ) ) r++;
+  periph_update();
+
+  if( r ) printf( "ulaplus_ports_test failed\n" );
+  return r;
+}
+
+/* Write the current state to an SZX buffer, then change the ULA+ state, then
+   load the buffer back */
+static int
+ulaplus_snapshot_test( void )
+{
+  libspectrum_machine old_machine = machine_current->machine;
+  libspectrum_snap *snap;
+  libspectrum_byte *buffer = NULL;
+  size_t length = 0;
+  int flags = 0;
+
+  if( machine_select( LIBSPECTRUM_MACHINE_48 ) ) return 1;
+
+  settings_current.ulaplus = 1;
+  periph_update();
+  writeport_internal( 0xbf3b, 0x05 );
+  writeport_internal( 0xff3b, 0x42 );
+  writeport_internal( 0xbf3b, 0x40 );
+  writeport_internal( 0xff3b, 0x01 );
+
+  snap = libspectrum_snap_alloc();
+  TEST_ASSERT( snapshot_copy_to( snap ) == 0 );
+  TEST_ASSERT( libspectrum_snap_ulaplus_active( snap ) );
+  TEST_ASSERT( libspectrum_snap_write( &buffer, &length, &flags, snap,
+                                       LIBSPECTRUM_ID_SNAPSHOT_SZX, NULL,
+                                       0 ) == 0 );
+  TEST_ASSERT( libspectrum_snap_free( snap ) == 0 );
+
+  settings_current.ulaplus = 0;
+  periph_update();
+  TEST_ASSERT( machine_reset( 0 ) == 0 );
+  TEST_ASSERT( !ulaplus_is_enabled() );
+
+  TEST_ASSERT( snapshot_read_buffer( buffer, length,
+                                     LIBSPECTRUM_ID_SNAPSHOT_SZX ) == 0 );
+  TEST_ASSERT( settings_current.ulaplus );
+  TEST_ASSERT( ulaplus_is_enabled() );
+  TEST_ASSERT( ulaplus_get_colour( 5 ) == 0x42 );
+  TEST_ASSERT( readport_internal( 0xff3b ) == 0x01 );
+  libspectrum_free( buffer );
+
+  /* A snapshot taken with the option off turns it off */
+  settings_current.ulaplus = 0;
+  periph_update();
+  snap = libspectrum_snap_alloc();
+  TEST_ASSERT( snapshot_copy_to( snap ) == 0 );
+  TEST_ASSERT( !libspectrum_snap_ulaplus_active( snap ) );
+  TEST_ASSERT( libspectrum_snap_free( snap ) == 0 );
+
+  settings_current.ulaplus = 0;
+  if( machine_select( old_machine ) ) return 1;
+  periph_update();
+
+  return 0;
 }
 
 static int
@@ -2948,6 +3100,8 @@ unittests_run( void )
   r += slt_is_cleared_by_reset_test();
   r += slt_screen_is_cleared_by_reset_test();
   r += spec_se_dock_ram_reset_test();
+  r += ulaplus_ports_test();
+  r += ulaplus_snapshot_test();
   r += keyboard_read_test();
   r += keyboard_synthetic_test();
   r += keyboard_simulate_keypress_test();

@@ -255,7 +255,7 @@ _fuse()
             --no-rzx-autosaves --no-simpleide --no-slt --no-sound
             --no-sound-force-8bit --no-speccyboot --no-specdrum
             --no-spectranet --no-spectranet-disable --no-statusbar
-            --no-traps --no-ttx2000s --no-unittests
+            --no-traps --no-ttx2000s --no-ulaplus --no-unittests
             --no-usource --no-uspeech --no-writable-roms
             --no-zxatasp --no-zxatasp-upload
             --no-zxatasp-write-protect --no-zxcf --no-zxcf-upload --no-zxmmc
@@ -288,7 +288,7 @@ _fuse()
             --teletext-addr-1 --teletext-addr-2 --teletext-addr-3
             --teletext-addr-4 --teletext-port-1 --teletext-port-2
             --teletext-port-3 --teletext-port-4 --textfile --traps --ttx2000s
-            --unittests --usource --uspeech --version --volume-ay
+            --ulaplus --unittests --usource --uspeech --version --volume-ay
             --volume-beeper --volume-covox --volume-specdrum --volume-uspeech
             --writable-roms
             --zxatasp --zxatasp-masterfile --zxatasp-slavefile --zxatasp-upload

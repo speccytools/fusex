@@ -84,6 +84,7 @@
 #include "peripherals/spectranet.h"
 #include "peripherals/ttx2000s.h"
 #include "peripherals/ula.h"
+#include "peripherals/ulaplus.h"
 #include "peripherals/usource.h"
 #include "phantom_typist.h"
 #include "pokefinder/pokemem.h"
@@ -299,6 +300,7 @@ run_startup_manager( int *argc, char ***argv )
   ttx2000s_register_startup();
   timer_register_startup();
   ula_register_startup();
+  ulaplus_register_startup();
   usource_register_startup();
   uspeech_register_startup();
   z80_register_startup();

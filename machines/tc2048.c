@@ -96,6 +96,9 @@ tc2048_reset( int hard_reset )
   periph_clear();
   machines_periph_48();
 
+  /* ULA+ is not implemented for the Timex display */
+  periph_set_present( PERIPH_TYPE_ULAPLUS, PERIPH_PRESENT_NEVER );
+
   /* ULA uses full decoding */
   periph_set_present( PERIPH_TYPE_ULA, PERIPH_PRESENT_NEVER );
   periph_set_present( PERIPH_TYPE_ULA_FULL_DECODE, PERIPH_PRESENT_ALWAYS );
