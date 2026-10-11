@@ -201,6 +201,7 @@ static DisplayOpenGLView *instance = nil;
 -(void)setServer:(id)anObject
 {
   proxy_emulator = [anObject retain];
+  [[FuseController singleton] emulatorDidConnect];
 }
 
 -(id) initWithFrame:(NSRect)frameRect
