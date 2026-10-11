@@ -305,6 +305,9 @@ static BOOL appTerminating = NO;
     [Emulator endROMScopedAccess:romURLs];
   }
 
+  /* Peripherals such as ULA+ change how the screen is drawn when switched */
+  display_refresh_all();
+
   [machineRomsController setContent:nil];
   [machineRoms release];
   machineRoms = nil;

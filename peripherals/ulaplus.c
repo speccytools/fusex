@@ -106,7 +106,9 @@ ulaplus_register_startup( void )
 int
 ulaplus_is_enabled( void )
 {
-  return periph_is_active( PERIPH_TYPE_ULAPLUS ) && mode_enabled;
+  /* Test the mode first: the display code asks before the peripherals have
+     started up, when periph_is_active() cannot be called */
+  return mode_enabled && periph_is_active( PERIPH_TYPE_ULAPLUS );
 }
 
 libspectrum_byte
@@ -138,6 +140,8 @@ ulaplus_reset( int hard_reset GCC_UNUSED )
   data_value = 0;
   mode_enabled = 0;
   load_standard_colours();
+
+  display_border_recheck();
 }
 
 static void
@@ -177,11 +181,13 @@ ulaplus_data_write( libspectrum_word port GCC_UNUSED, libspectrum_byte data )
     if( *entry != data ) {
       if( mode_enabled ) display_palette_changed();
       *entry = data;
+      display_border_recheck();
     }
   } else if( group == ULAPLUS_GROUP_MODE ) {
     if( mode_enabled != ( data & 1 ) ) {
       display_palette_changed();
       mode_enabled = data & 1;
+      display_border_recheck();
     }
   }
 }

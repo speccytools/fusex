@@ -36,6 +36,9 @@ void display_render_frame( void );
 extern libspectrum_dword
 display_last_colours[ DISPLAY_SCREEN_WIDTH_COLS * DISPLAY_SCREEN_HEIGHT ];
 
+/* Is the main screen being drawn in ULA+ colours? */
+int display_ulaplus_active( void );
+
 int display_border_init( void );
 void display_border_frame( void );
 

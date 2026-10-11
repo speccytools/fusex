@@ -151,6 +151,12 @@ void display_refresh_main_screen(void);
    are drawn with the colours in force now, and the other cells are redrawn
    after the change, as is the whole screen in the next frame */
 void display_palette_changed(void);
+
+/* Call after a change to the ULA+ palette or mode, or to the display function
+   in use, that alters the border colour, so that the change shows from the
+   current beam position */
+void display_border_recheck(void);
+
 void display_refresh_all(void);
 
 #define display_get_offset( x, y ) display_line_start[(y)]+(x)

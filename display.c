@@ -176,6 +176,9 @@ display_refresh_all( void )
           DISPLAY_SCREEN_WIDTH_COLS * DISPLAY_SCREEN_HEIGHT
           * sizeof( libspectrum_dword ) );
 
+  /* The ULA+ mode, which may have changed, decides the border colour */
+  display_border_recheck();
+
 #ifndef DISPLAYTEST
   gdbserver_refresh_status();
 #endif
@@ -284,11 +287,15 @@ display_getpixel( int x, int y )
     data = display_last_screen[ index ] & 0xff;
     data2 = ( display_last_screen[ index ] & 0xff00 ) >> 8;
 
-    /* The 16 colour Pentagon display fills the whole word with pixels, so the
-       marker is only meaningful where the cells are drawn by the Sinclair
-       display function */
-    if( display_write_if_dirty == display_write_if_dirty_sinclair &&
-        ( display_last_screen[ index ] & DISPLAY_LAST_SCREEN_ULAPLUS ) ) {
+    /* The 16 colour Pentagon display fills the whole word of the cells it
+       draws, so the marker means nothing in them. Border cells are not drawn
+       by the display function, so their marker always counts. */
+    if( ( display_last_screen[ index ] & DISPLAY_LAST_SCREEN_ULAPLUS ) &&
+        ( display_write_if_dirty == display_write_if_dirty_sinclair ||
+          column < DISPLAY_BORDER_WIDTH_COLS ||
+          column >= DISPLAY_BORDER_WIDTH_COLS + DISPLAY_WIDTH_COLS ||
+          y < DISPLAY_BORDER_HEIGHT ||
+          y >= DISPLAY_BORDER_HEIGHT + DISPLAY_HEIGHT ) ) {
       libspectrum_dword colours = display_last_colours[ index ];
       return ( data & mask ) ? colours >> 16 : colours & 0xffff;
     }

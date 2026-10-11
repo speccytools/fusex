@@ -1346,6 +1346,199 @@ palette_changed_dirties_next_frame( void )
   return 0;
 }
 
+/* The cell of the screen display at ( column, line ), border included */
+#define CELL( column, line ) ( (column) + (line) * DISPLAY_SCREEN_WIDTH_COLS )
+
+/* The colours of a ULA+ cell: the palette entries as colour indexes */
+#define COLOURS( ink_entry, paper_entry ) \
+  ( ( (libspectrum_dword)( DISPLAY_ULAPLUS_BASE + ulaplus_palette[ ink_entry ] ) << 16 ) | \
+    ( DISPLAY_ULAPLUS_BASE + ulaplus_palette[ paper_entry ] ) )
+
+static int
+ulaplus_border_uses_palette( void )
+{
+  /* The change lands in the 5th pixel of the 26th column of the third line */
+  tstates = 2 * LINE_TIME + 100;
+  ulaplus_enabled = 1;
+
+  display_set_lores_border( 3 );
+  display_frame();
+
+  /* Before the change: the standard border colour */
+  if( display_last_screen[ CELL( 0, 0 ) ] & DISPLAY_LAST_SCREEN_ULAPLUS )
+    return 1;
+  if( display_last_screen[ CELL( 24, 2 ) ] & DISPLAY_LAST_SCREEN_ULAPLUS )
+    return 1;
+
+  /* After it: entry 8 + 3 of the palette */
+  if( display_last_screen[ CELL( 26, 2 ) ] != DISPLAY_LAST_SCREEN_ULAPLUS ||
+      display_last_colours[ CELL( 26, 2 ) ] != COLOURS( 11, 11 ) ) return 1;
+  if( display_last_screen[ CELL( 0, 3 ) ] != DISPLAY_LAST_SCREEN_ULAPLUS ||
+      display_last_colours[ CELL( 0, 3 ) ] != COLOURS( 11, 11 ) ) return 1;
+  if( display_getpixel( 26 * 8, 2 ) != DISPLAY_ULAPLUS_BASE + ulaplus_palette[11] )
+    return 1;
+
+  /* The cell the change falls in has the standard colour on its left and the
+     palette colour on its right */
+  if( display_last_screen[ CELL( 25, 2 ) ] !=
+        ( DISPLAY_LAST_SCREEN_ULAPLUS | 0x0f ) ||
+      display_last_colours[ CELL( 25, 2 ) ] !=
+        ( (libspectrum_dword)( DISPLAY_ULAPLUS_BASE + ulaplus_palette[11] ) << 16 ) )
+    return 1;
+  if( display_getpixel( 25 * 8 + 3, 2 ) != 0 ) return 1;
+  if( display_getpixel( 25 * 8 + 4, 2 ) != DISPLAY_ULAPLUS_BASE + ulaplus_palette[11] )
+    return 1;
+
+  return 0;
+}
+
+/* A change within a cell is drawn with the colour on each side of it */
+static int
+ulaplus_border_changes_within_a_cell( void )
+{
+  tstates = 2 * LINE_TIME + 100;
+  ulaplus_enabled = 1;
+
+  display_set_lores_border( 3 );
+  display_frame();
+
+  /* The new change is at pixel 212, the 5th of column 26 */
+  tstates = 2 * LINE_TIME + 104;
+  display_set_lores_border( 5 );
+  display_frame();
+
+  if( display_last_screen[ CELL( 26, 2 ) ] !=
+        ( DISPLAY_LAST_SCREEN_ULAPLUS | 0x0f ) ||
+      display_last_colours[ CELL( 26, 2 ) ] != COLOURS( 13, 11 ) ) return 1;
+  if( display_getpixel( 26 * 8 + 3, 2 ) != DISPLAY_ULAPLUS_BASE + ulaplus_palette[11] ||
+      display_getpixel( 26 * 8 + 4, 2 ) != DISPLAY_ULAPLUS_BASE + ulaplus_palette[13] )
+    return 1;
+  if( display_last_colours[ CELL( 25, 2 ) ] != COLOURS( 11, 11 ) ) return 1;
+  if( display_last_colours[ CELL( 27, 2 ) ] != COLOURS( 13, 13 ) ) return 1;
+
+  return 0;
+}
+
+/* A change to the palette entry of the border colour shows from the beam */
+static int
+ulaplus_border_follows_palette_change( void )
+{
+  libspectrum_byte old_colour;
+
+  tstates = 0;
+  ulaplus_enabled = 1;
+  display_set_lores_border( 3 );
+  old_colour = ulaplus_palette[11];
+
+  /* An unrelated entry changes nothing */
+  tstates = 2 * LINE_TIME + 100;
+  ulaplus_palette[12] = 0x55;
+  display_border_recheck();
+
+  ulaplus_palette[11] = 0x77;
+  display_border_recheck();
+  display_frame();
+
+  if( display_last_colours[ CELL( 1, 0 ) ] !=
+        ( ( (libspectrum_dword)( DISPLAY_ULAPLUS_BASE + old_colour ) << 16 ) |
+          ( DISPLAY_ULAPLUS_BASE + old_colour ) ) ) return 1;
+  if( display_last_colours[ CELL( 25, 2 ) ] !=
+        ( ( (libspectrum_dword)( DISPLAY_ULAPLUS_BASE + 0x77 ) << 16 ) |
+          ( DISPLAY_ULAPLUS_BASE + old_colour ) ) ) return 1;
+  if( display_last_colours[ CELL( 26, 2 ) ] !=
+        ( ( (libspectrum_dword)( DISPLAY_ULAPLUS_BASE + 0x77 ) << 16 ) |
+          ( DISPLAY_ULAPLUS_BASE + 0x77 ) ) ) return 1;
+  if( display_last_colours[ CELL( 39, 10 ) ] !=
+        ( ( (libspectrum_dword)( DISPLAY_ULAPLUS_BASE + 0x77 ) << 16 ) |
+          ( DISPLAY_ULAPLUS_BASE + 0x77 ) ) ) return 1;
+
+  return 0;
+}
+
+static int
+border_standard_when_ulaplus_off( void )
+{
+  tstates = 0;
+  display_set_lores_border( 3 );
+  display_frame();
+
+  if( display_last_screen[ CELL( 0, 3 ) ] & DISPLAY_LAST_SCREEN_ULAPLUS )
+    return 1;
+  if( display_getpixel( 0, 3 ) != 3 ) return 1;
+
+  return 0;
+}
+
+/* The 16 colour Pentagon display does not use the palette, nor does its
+   border */
+static int
+ulaplus_border_not_used_in_16_colour_mode( void )
+{
+  tstates = 0;
+  display_write_if_dirty = display_write_if_dirty_pentagon_16_col;
+  ulaplus_enabled = 1;
+
+  display_set_lores_border( 3 );
+  display_frame();
+
+  if( display_last_screen[ CELL( 0, 3 ) ] & DISPLAY_LAST_SCREEN_ULAPLUS )
+    return 1;
+  if( display_getpixel( 0, 3 ) != 3 ) return 1;
+
+  /* Back in the Sinclair mode the border uses the palette again */
+  display_write_if_dirty = display_write_if_dirty_sinclair;
+  display_border_recheck();
+  display_frame();
+  if( !( display_last_screen[ CELL( 0, 3 ) ] & DISPLAY_LAST_SCREEN_ULAPLUS ) )
+    return 1;
+
+  return 0;
+}
+
+/* Redrawing the screen picks up a change to the mode made outside a port
+   write, such as switching the peripheral off in the preferences */
+static int
+ulaplus_border_follows_refresh_all( void )
+{
+  tstates = 0;
+  display_set_lores_border( 3 );
+  display_frame();
+  if( display_last_screen[ CELL( 0, 3 ) ] & DISPLAY_LAST_SCREEN_ULAPLUS )
+    return 1;
+
+  ulaplus_enabled = 1;
+  display_refresh_all();
+  display_frame();
+  if( !( display_last_screen[ CELL( 0, 3 ) ] & DISPLAY_LAST_SCREEN_ULAPLUS ) )
+    return 1;
+
+  ulaplus_enabled = 0;
+  display_refresh_all();
+  display_frame();
+  if( display_last_screen[ CELL( 0, 3 ) ] & DISPLAY_LAST_SCREEN_ULAPLUS )
+    return 1;
+
+  return 0;
+}
+
+/* Switching to the 16 colour Pentagon display part way through a frame leaves
+   the border cells drawn from the palette readable */
+static int
+ulaplus_border_readable_after_display_switch( void )
+{
+  tstates = 0;
+  ulaplus_enabled = 1;
+  display_set_lores_border( 3 );
+  display_frame();
+
+  display_write_if_dirty = display_write_if_dirty_pentagon_16_col;
+
+  if( display_getpixel( 0, 3 ) != DISPLAY_ULAPLUS_BASE + ulaplus_palette[11] )
+    return 1;
+
+  return 0;
+}
+
 struct test_t {
   const char *name;
   test_fn_t fn;
@@ -1610,6 +1803,13 @@ static const struct test_t tests[] = {
   { "palette_changed_with_beam_behind_critical_region", palette_changed_with_beam_behind_critical_region },
   { "palette_changed_at_end_of_screen_marks_nothing", palette_changed_at_end_of_screen_marks_nothing },
   { "palette_changed_dirties_next_frame", palette_changed_dirties_next_frame },
+  { "ulaplus_border_uses_palette", ulaplus_border_uses_palette },
+  { "ulaplus_border_changes_within_a_cell", ulaplus_border_changes_within_a_cell },
+  { "ulaplus_border_follows_palette_change", ulaplus_border_follows_palette_change },
+  { "border_standard_when_ulaplus_off", border_standard_when_ulaplus_off },
+  { "ulaplus_border_not_used_in_16_colour_mode", ulaplus_border_not_used_in_16_colour_mode },
+  { "ulaplus_border_follows_refresh_all", ulaplus_border_follows_refresh_all },
+  { "ulaplus_border_readable_after_display_switch", ulaplus_border_readable_after_display_switch },
 
   { "parse_attr_ink_only", parse_attr_ink_only },
   { "parse_attr_paper_only", parse_attr_paper_only },

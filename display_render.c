@@ -210,6 +210,14 @@ display_write_if_dirty_pentagon_16_col( int x, int y )
   }
 }
 
+int
+display_ulaplus_active( void )
+{
+  /* Other display modes, such as the Pentagon 16 colour one, ignore ULA+ */
+  return display_write_if_dirty == display_write_if_dirty_sinclair &&
+         ulaplus_is_enabled();
+}
+
 /* Draw a cell in ULA+ mode: the attribute selects a colour lookup table of 16
    palette entries with its flash and bright bits, and ink and paper index into
    it. FLASH does not flash. The palette is read as the cell is drawn, so a

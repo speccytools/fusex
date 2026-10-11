@@ -22,12 +22,16 @@
 #include "machine.h"
 #include "spectrum.h"
 #include "peripherals/scld.h"
+#include "peripherals/ulaplus.h"
 #include "ui/uidisplay.h"
 
 /* The current border colour */
 libspectrum_byte display_lores_border;
 libspectrum_byte display_hires_border;
-libspectrum_byte display_last_border;
+
+/* The colour the border was last changed to: a colour index, which is 0-7 or,
+   when the border is drawn from the ULA+ palette, a ULA+ colour */
+static int display_last_border;
 
 /* The current border colour */
 int current_border[ DISPLAY_SCREEN_HEIGHT ][ DISPLAY_SCREEN_WIDTH_COLS ];
@@ -60,14 +64,27 @@ alloc_change( void )
   return border_changes + border_changes_last++;
 }
 
+/* The colour the border is drawn in now: with ULA+ on, entry 8 + the border
+   colour of the first colour lookup table */
+static int
+current_border_colour( void )
+{
+  int colour = scld_last_dec.name.hires ?
+               display_hires_border : display_lores_border;
+
+  if( display_ulaplus_active() )
+    return DISPLAY_ULAPLUS_BASE + ulaplus_get_colour( 8 + ( colour & 0x07 ) );
+
+  return colour;
+}
+
 static void
 add_border_sentinel( void )
 {
   struct border_change_t *sentinel = alloc_change();
 
   sentinel->t = sentinel->y = 0;
-  sentinel->colour = scld_last_dec.name.hires ?
-                     display_hires_border : display_lores_border;
+  sentinel->colour = current_border_colour();
 }
 
 int
@@ -79,8 +96,7 @@ display_border_init( void )
 
   add_border_sentinel();
 
-  display_last_border = scld_last_dec.name.hires ?
-                        display_hires_border : display_lores_border;
+  display_last_border = current_border_colour();
 
   return 0;
 }
@@ -119,15 +135,18 @@ push_border_change( int colour )
 static void
 check_border_change( void )
 {
-  if( scld_last_dec.name.hires &&
-      display_hires_border != display_last_border ) {
-    push_border_change( display_hires_border );
-    display_last_border = display_hires_border;
-  } else if( !scld_last_dec.name.hires &&
-             display_lores_border != display_last_border ) {
-    push_border_change( display_lores_border );
-    display_last_border = display_lores_border;
+  int colour = current_border_colour();
+
+  if( colour != display_last_border ) {
+    push_border_change( colour );
+    display_last_border = colour;
   }
+}
+
+void
+display_border_recheck( void )
+{
+  check_border_change();
 }
 
 void
@@ -147,6 +166,41 @@ display_set_hires_border( int colour )
 /* Per-line border pixel buffer. Populated from the change list, then flushed
    column-by-column. Sized for the widest display (Timex = 16 px/col). */
 static int border_pixel_buf[ DISPLAY_SCREEN_WIDTH ];
+
+/* Plot a border cell in which either colour is a ULA+ colour. A cell where the
+   mode switched has a standard colour on one side and a ULA+ colour on the
+   other. */
+static void
+flush_ulaplus_border_cell( int c, int y, int colour_left, int colour_right,
+                           int transition_pix, int pix_per_bit )
+{
+  libspectrum_byte data;
+  libspectrum_word ink, paper;
+  libspectrum_dword chunk_detail, colours;
+  int index = c + y * DISPLAY_SCREEN_WIDTH_COLS;
+
+  paper = colour_left;
+
+  if( transition_pix < 0 ) {
+    data = 0x00;
+    ink = paper;
+  } else {
+    data = (libspectrum_byte)
+      ( ( 1 << ( 8 - transition_pix / pix_per_bit ) ) - 1 );
+    ink = colour_right;
+  }
+
+  colours = ( ink << 16 ) | paper;
+  chunk_detail = DISPLAY_LAST_SCREEN_ULAPLUS | data;
+
+  if( display_last_screen[ index ] != chunk_detail ||
+      display_last_colours[ index ] != colours ) {
+    uidisplay_plot8( c, y, data, ink, paper );
+    display_last_screen[ index ] = chunk_detail;
+    display_last_colours[ index ] = colours;
+    display_mark_screen_dirty( c, y );
+  }
+}
 
 /* Plot the accumulated border_pixel_buf for row y, column-by-column. The
    buffer holds one colour per pixel; for each column we detect whether all
@@ -186,6 +240,13 @@ flush_border_line( int y )
         transition_pix = p;
         colour_right = border_pixel_buf[ pix_start + p ];
       }
+    }
+
+    if( colour_left >= DISPLAY_ULAPLUS_BASE ||
+        colour_right >= DISPLAY_ULAPLUS_BASE ) {
+      flush_ulaplus_border_cell( c, y, colour_left, colour_right,
+                                 transition_pix, pix_per_bit );
+      continue;
     }
 
     if( transition_pix < 0 ) {

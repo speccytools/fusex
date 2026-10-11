@@ -139,6 +139,7 @@ pentagon1024_v22_memoryport_write( libspectrum_word port GCC_UNUSED,
   } else {
     spec48_common_display_setup();
   }
+  display_border_recheck();
   machine_current->memory_map();
 }
 
