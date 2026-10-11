@@ -31,8 +31,10 @@
 #include "infrastructure/startup_manager.h"
 #include "machine.h"
 #include "display.h"
+#include "display_internal.h"
 #include "memory_pages.h"
 #include "peripherals/scld.h"
+#include "peripherals/ulaplus.h"
 #include "rectangle.h"
 #include "settings.h"
 
@@ -131,6 +133,23 @@ plot8_assert( int count, int x, int y, libspectrum_byte data,
   }
 
   return 0;
+}
+
+/* ULA+ mocks */
+
+static int ulaplus_enabled;
+static libspectrum_byte ulaplus_palette[ ULAPLUS_PALETTE_SIZE ];
+
+int
+ulaplus_is_enabled( void )
+{
+  return ulaplus_enabled;
+}
+
+libspectrum_byte
+ulaplus_get_colour( int entry )
+{
+  return ulaplus_palette[ entry ];
 }
 
 /* Vector off to the "plot8" implementation for the current test */
@@ -269,6 +288,11 @@ create_fake_machine( void )
 static void
 test_before( void )
 {
+  int i;
+
+  scld_last_dec.byte = 0;
+  memory_current_screen = 0;
+  ulaplus_enabled = 0;
   memset( RAM[0], 0, ARRAY_SIZE( RAM[0] ) );
   memset( display_last_screen, 0, sizeof( display_last_screen ) );
   display_clear_maybe_dirty();
@@ -290,6 +314,10 @@ test_before( void )
   write_if_dirty_count = 0;
   write_if_dirty_last_x = -1;
   write_if_dirty_last_y = -1;
+
+  for( i = 0; i < ULAPLUS_PALETTE_SIZE; i++ )
+    ulaplus_palette[i] = (libspectrum_byte)( i * 3 + 1 );
+  memset( display_last_colours, 0, sizeof( display_last_colours ) );
 }
 
 static void
@@ -1020,6 +1048,196 @@ plot8_wide_colours( void )
   return 0;
 }
 
+/* The attribute selects the colour lookup table with its flash and bright
+   bits, and ink and paper index into it */
+static int
+ulaplus_attribute_selects_clut( void )
+{
+  int clut;
+
+  ulaplus_enabled = 1;
+
+  for( clut = 0; clut < 4; clut++ ) {
+    libspectrum_byte attr = ( clut << 6 ) | ( 5 << 3 ) | 3;
+
+    RAM[0][0] = 0xa5;
+    RAM[0][DISPLAY_PIXEL_BYTES] = attr;
+    display_last_screen[ 964 ] = 0;
+    display_last_colours[ 964 ] = 0;
+    plot8_count = 0;
+
+    display_write_if_dirty_sinclair( 0, 0 );
+
+    if( plot8_assert( 1, 4, 24, 0xa5,
+                      DISPLAY_ULAPLUS_BASE + ulaplus_palette[ clut * 16 + 3 ],
+                      DISPLAY_ULAPLUS_BASE +
+                        ulaplus_palette[ clut * 16 + 8 + 5 ] ) )
+      return 1;
+  }
+
+  return 0;
+}
+
+static int
+ulaplus_no_write_if_unchanged( void )
+{
+  ulaplus_enabled = 1;
+  RAM[0][0] = 0x01;
+  RAM[0][DISPLAY_PIXEL_BYTES] = 0x4a;
+
+  display_write_if_dirty_sinclair( 0, 0 );
+  if( plot8_count != 1 ) return 1;
+
+  display_write_if_dirty_sinclair( 0, 0 );
+  if( plot8_count != 1 ) return 1;
+
+  return 0;
+}
+
+/* Only a change to an entry the cell uses redraws it */
+static int
+ulaplus_write_if_palette_changed( void )
+{
+  ulaplus_enabled = 1;
+  RAM[0][0] = 0x01;
+  RAM[0][DISPLAY_PIXEL_BYTES] = 0x4a;    /* bright, paper 1, ink 2 */
+
+  display_write_if_dirty_sinclair( 0, 0 );
+  if( plot8_count != 1 ) return 1;
+
+  ulaplus_palette[ 16 + 5 ] = 0x77;
+  display_write_if_dirty_sinclair( 0, 0 );
+  if( plot8_count != 1 ) return 1;
+
+  ulaplus_palette[ 16 + 2 ] = 0x77;
+  display_write_if_dirty_sinclair( 0, 0 );
+  if( plot8_assert( 2, 4, 24, 0x01, DISPLAY_ULAPLUS_BASE + 0x77,
+                    DISPLAY_ULAPLUS_BASE + ulaplus_palette[ 16 + 9 ] ) )
+    return 1;
+
+  ulaplus_palette[ 16 + 9 ] = 0x66;
+  display_write_if_dirty_sinclair( 0, 0 );
+  if( plot8_assert( 3, 4, 24, 0x01, DISPLAY_ULAPLUS_BASE + 0x77,
+                    DISPLAY_ULAPLUS_BASE + 0x66 ) ) return 1;
+
+  return 0;
+}
+
+/* Switching the mode redraws a cell drawn in the other mode */
+static int
+ulaplus_write_if_mode_switched( void )
+{
+  RAM[0][0] = 0x01;
+  RAM[0][DISPLAY_PIXEL_BYTES] = 0x02;
+
+  display_write_if_dirty_sinclair( 0, 0 );
+  if( plot8_assert( 1, 4, 24, 0x01, 2, 0 ) ) return 1;
+
+  ulaplus_enabled = 1;
+  display_write_if_dirty_sinclair( 0, 0 );
+  if( plot8_count != 2 ) return 1;
+  if( plot8_last_write.ink < DISPLAY_ULAPLUS_BASE ) return 1;
+
+  ulaplus_enabled = 0;
+  display_write_if_dirty_sinclair( 0, 0 );
+  if( plot8_assert( 3, 4, 24, 0x01, 2, 0 ) ) return 1;
+
+  return 0;
+}
+
+/* The flash attribute bit neither reverses the colours nor dirties cells */
+static int
+ulaplus_flash_does_not_flash( void )
+{
+  libspectrum_byte attr = 0x80 | ( 6 << 3 ) | 1;
+  int y;
+
+  ulaplus_enabled = 1;
+  RAM[0][0] = 0x80;
+  RAM[0][DISPLAY_PIXEL_BYTES] = attr;
+
+  display_set_flash_reversed( 1 );
+  display_write_if_dirty_sinclair( 0, 0 );
+  if( plot8_assert( 1, 4, 24, 0x80,
+                    DISPLAY_ULAPLUS_BASE + ulaplus_palette[ 32 + 1 ],
+                    DISPLAY_ULAPLUS_BASE + ulaplus_palette[ 32 + 8 + 6 ] ) )
+    return 1;
+
+  display_set_flash_reversed( 0 );
+  display_write_if_dirty_sinclair( 0, 0 );
+  if( plot8_count != 1 ) return 1;
+
+  display_clear_maybe_dirty();
+  display_dirty_flashing();
+  for( y = 0; y < DISPLAY_HEIGHT; y++ )
+    if( display_get_maybe_dirty( y ) ) return 1;
+
+  return 0;
+}
+
+static int
+ulaplus_getpixel( void )
+{
+  ulaplus_enabled = 1;
+  RAM[0][0] = 0xa0;
+  RAM[0][DISPLAY_PIXEL_BYTES] = 0x4a;
+
+  display_write_if_dirty_sinclair( 0, 0 );
+
+  /* Column 4 of the display starts at pixel 32 */
+  if( display_getpixel( 32, 24 ) !=
+      DISPLAY_ULAPLUS_BASE + ulaplus_palette[ 16 + 2 ] ) return 1;
+  if( display_getpixel( 33, 24 ) !=
+      DISPLAY_ULAPLUS_BASE + ulaplus_palette[ 16 + 9 ] ) return 1;
+  if( display_getpixel( 34, 24 ) !=
+      DISPLAY_ULAPLUS_BASE + ulaplus_palette[ 16 + 2 ] ) return 1;
+
+  return 0;
+}
+
+/* The colour as the screen shows it */
+static int
+colour_to_tv_rgb( void )
+{
+  libspectrum_byte red, green, blue;
+
+  settings_current.bw_tv = 0;
+  display_colour_to_tv_rgb( 10, &red, &green, &blue );
+  if( red != 255 || green != 0 || blue != 0 ) return 1;
+  display_colour_to_tv_rgb( DISPLAY_ULAPLUS_BASE + 0xe0, &red, &green, &blue );
+  if( red != 0 || green != 255 || blue != 0 ) return 1;
+
+  /* Black and white TV: every channel the same, by luminance */
+  settings_current.bw_tv = 1;
+  display_colour_to_tv_rgb( 15, &red, &green, &blue );
+  if( red != 255 || green != 255 || blue != 255 ) return 1;
+  display_colour_to_tv_rgb( 0, &red, &green, &blue );
+  if( red != 0 || green != 0 || blue != 0 ) return 1;
+  display_colour_to_tv_rgb( DISPLAY_ULAPLUS_BASE + 0xe0, &red, &green, &blue );
+  if( red != green || green != blue || red != 150 ) return 1;
+  display_colour_to_tv_rgb( 2, &red, &green, &blue );
+  if( red != 57 || green != 57 || blue != 57 ) return 1;
+  settings_current.bw_tv = 0;
+
+  return 0;
+}
+
+/* A cell of the 16 colour Pentagon display has pixels in every bit of the
+   word, including the one that marks a ULA+ cell */
+static int
+getpixel_in_16_colour_mode_ignores_marker( void )
+{
+  display_write_if_dirty = display_write_if_dirty_pentagon_16_col;
+  display_last_screen[ 964 ] = 0x02001002;
+  display_last_colours[ 964 ] = 0;
+
+  /* The attribute byte 0x10 has paper 2, and the pixel byte 0x02 is clear in
+     the first bit */
+  if( display_getpixel( 32, 24 ) != 2 ) return 1;
+
+  return 0;
+}
+
 struct test_t {
   const char *name;
   test_fn_t fn;
@@ -1270,6 +1488,15 @@ static const struct test_t tests[] = {
   { "colour_to_rgb", colour_to_rgb },
   { "nearest_standard_colour", nearest_standard_colour },
   { "plot8_wide_colours", plot8_wide_colours },
+
+  { "ulaplus_attribute_selects_clut", ulaplus_attribute_selects_clut },
+  { "ulaplus_no_write_if_unchanged", ulaplus_no_write_if_unchanged },
+  { "ulaplus_write_if_palette_changed", ulaplus_write_if_palette_changed },
+  { "ulaplus_write_if_mode_switched", ulaplus_write_if_mode_switched },
+  { "ulaplus_flash_does_not_flash", ulaplus_flash_does_not_flash },
+  { "ulaplus_getpixel", ulaplus_getpixel },
+  { "colour_to_tv_rgb", colour_to_tv_rgb },
+  { "getpixel_in_16_colour_mode_ignores_marker", getpixel_in_16_colour_mode_ignores_marker },
 
   { "parse_attr_ink_only", parse_attr_ink_only },
   { "parse_attr_paper_only", parse_attr_paper_only },

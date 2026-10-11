@@ -19,6 +19,7 @@
 #include "display_internal.h"
 #include "machine.h"
 #include "peripherals/scld.h"
+#include "peripherals/ulaplus.h"
 #include "spectrum.h"
 #include "ui/uidisplay.h"
 
@@ -209,6 +210,45 @@ display_write_if_dirty_pentagon_16_col( int x, int y )
   }
 }
 
+/* Draw a cell in ULA+ mode: the attribute selects a colour lookup table of 16
+   palette entries with its flash and bright bits, and ink and paper index into
+   it. FLASH does not flash. The palette is read as the cell is drawn, so a
+   change to it affects only the cells drawn afterwards. */
+static void
+display_write_if_dirty_ulaplus( int x, int y )
+{
+  int beam_x, beam_y;
+  int index;
+  libspectrum_byte data, attr, clut_base;
+  libspectrum_word ink, paper;
+  libspectrum_dword last_chunk_detail, colours;
+
+  beam_x = x + DISPLAY_BORDER_WIDTH_COLS;
+  beam_y = y + DISPLAY_BORDER_HEIGHT;
+
+  data = RAM[ memory_current_screen ][ display_get_addr( x, y ) ];
+  attr = display_get_attr_byte( x, y );
+
+  clut_base = ( attr >> 6 ) * 16;
+  ink = DISPLAY_ULAPLUS_BASE + ulaplus_get_colour( clut_base + ( attr & 0x07 ) );
+  paper = DISPLAY_ULAPLUS_BASE +
+          ulaplus_get_colour( clut_base + 8 + ( ( attr >> 3 ) & 0x07 ) );
+  colours = ( ink << 16 ) | paper;
+
+  last_chunk_detail = DISPLAY_LAST_SCREEN_ULAPLUS | ( attr << 8 ) | data;
+  index = beam_x + beam_y * DISPLAY_SCREEN_WIDTH_COLS;
+
+  if( display_last_screen[ index ] != last_chunk_detail ||
+      display_last_colours[ index ] != colours ) {
+    uidisplay_plot8( beam_x, beam_y, data, ink, paper );
+
+    display_last_screen[ index ] = last_chunk_detail;
+    display_last_colours[ index ] = colours;
+
+    display_mark_screen_dirty( beam_x, beam_y );
+  }
+}
+
 void
 display_write_if_dirty_sinclair( int x, int y )
 {
@@ -218,6 +258,11 @@ display_write_if_dirty_sinclair( int x, int y )
   libspectrum_byte *screen;
   libspectrum_byte data, data2;
   libspectrum_dword last_chunk_detail;
+
+  if( ulaplus_is_enabled() ) {
+    display_write_if_dirty_ulaplus( x, y );
+    return;
+  }
 
   beam_x = x + DISPLAY_BORDER_WIDTH_COLS;
   beam_y = y + DISPLAY_BORDER_HEIGHT;
@@ -305,6 +350,9 @@ display_dirty_flashing_sinclair( void )
 {
   libspectrum_word offset;
   libspectrum_byte *screen, attr;
+
+  /* ULA+ uses the flash bit to select a colour lookup table */
+  if( ulaplus_is_enabled() ) return;
 
   screen = RAM[ memory_current_screen ];
 

@@ -47,6 +47,9 @@ int display_ui_initialised = 0;
 libspectrum_dword
   display_last_screen[ DISPLAY_SCREEN_WIDTH_COLS * DISPLAY_SCREEN_HEIGHT ];
 
+libspectrum_dword
+  display_last_colours[ DISPLAY_SCREEN_WIDTH_COLS * DISPLAY_SCREEN_HEIGHT ];
+
 /* Offsets as to where the data and the attributes for each pixel
    line start */
 libspectrum_word display_line_start[ DISPLAY_HEIGHT ];
@@ -204,6 +207,20 @@ display_colour_to_rgb( int colour, libspectrum_byte *red,
   }
 }
 
+void
+display_colour_to_tv_rgb( int colour, libspectrum_byte *red,
+                          libspectrum_byte *green, libspectrum_byte *blue )
+{
+  display_colour_to_rgb( colour, red, green, blue );
+
+  if( settings_current.bw_tv ) {
+    /* Addition of 0.5 is to avoid rounding errors */
+    libspectrum_byte grey =
+      ( 0.299 * *red + 0.587 * *green + 0.114 * *blue ) + 0.5;
+    *red = *green = *blue = grey;
+  }
+}
+
 int
 display_nearest_standard_colour( int colour )
 {
@@ -266,6 +283,15 @@ display_getpixel( int x, int y )
 
     data = display_last_screen[ index ] & 0xff;
     data2 = ( display_last_screen[ index ] & 0xff00 ) >> 8;
+
+    /* The 16 colour Pentagon display fills the whole word with pixels, so the
+       marker is only meaningful where the cells are drawn by the Sinclair
+       display function */
+    if( display_write_if_dirty == display_write_if_dirty_sinclair &&
+        ( display_last_screen[ index ] & DISPLAY_LAST_SCREEN_ULAPLUS ) ) {
+      libspectrum_dword colours = display_last_colours[ index ];
+      return ( data & mask ) ? colours >> 16 : colours & 0xffff;
+    }
 
     display_parse_attr( data2, &ink, &paper );
   }

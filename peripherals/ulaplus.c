@@ -24,6 +24,7 @@
 #include "libspectrum.h"
 
 #include "compat.h"
+#include "display.h"
 #include "infrastructure/startup_manager.h"
 #include "module.h"
 #include "periph.h"
@@ -170,9 +171,18 @@ ulaplus_data_write( libspectrum_word port GCC_UNUSED, libspectrum_byte data )
   data_value = data;
 
   if( group == ULAPLUS_GROUP_PALETTE ) {
-    palette[ register_value & ( ULAPLUS_PALETTE_SIZE - 1 ) ] = data;
+    libspectrum_byte *entry =
+      &palette[ register_value & ( ULAPLUS_PALETTE_SIZE - 1 ) ];
+
+    if( *entry != data ) {
+      *entry = data;
+      if( mode_enabled ) display_refresh_main_screen();
+    }
   } else if( group == ULAPLUS_GROUP_MODE ) {
-    mode_enabled = data & 1;
+    if( mode_enabled != ( data & 1 ) ) {
+      mode_enabled = data & 1;
+      display_refresh_main_screen();
+    }
   }
 }
 
@@ -195,6 +205,8 @@ ulaplus_from_snapshot( libspectrum_snap *snap )
   mode_enabled = libspectrum_snap_ulaplus_palette_enabled( snap );
   register_value = libspectrum_snap_ulaplus_current_register( snap );
   data_value = libspectrum_snap_ulaplus_ff_register( snap );
+
+  display_refresh_all();
 }
 
 static void

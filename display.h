@@ -153,7 +153,14 @@ void display_refresh_all(void);
 #define display_get_addr( x, y ) \
   scld_last_dec.name.altdfile ? display_get_offset( (x), (y) )+ALTDFILE_OFFSET : \
   display_get_offset( (x), (y) )
+/* The colour index of the pixel, 0 to DISPLAY_COLOURS - 1 */
 int display_getpixel( int x, int y );
+
+/* The colour as the screen shows it in 8 bits per channel: grey if the black
+   and white TV option is set */
+void display_colour_to_tv_rgb( int colour, libspectrum_byte *red,
+                               libspectrum_byte *green,
+                               libspectrum_byte *blue );
 
 void display_update_critical( int x, int y );
 
