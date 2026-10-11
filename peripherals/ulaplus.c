@@ -175,13 +175,13 @@ ulaplus_data_write( libspectrum_word port GCC_UNUSED, libspectrum_byte data )
       &palette[ register_value & ( ULAPLUS_PALETTE_SIZE - 1 ) ];
 
     if( *entry != data ) {
+      if( mode_enabled ) display_palette_changed();
       *entry = data;
-      if( mode_enabled ) display_refresh_main_screen();
     }
   } else if( group == ULAPLUS_GROUP_MODE ) {
     if( mode_enabled != ( data & 1 ) ) {
+      display_palette_changed();
       mode_enabled = data & 1;
-      display_refresh_main_screen();
     }
   }
 }

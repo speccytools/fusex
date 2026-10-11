@@ -146,6 +146,11 @@ void display_set_hires_border(int colour);
 
 int display_frame(void);
 void display_refresh_main_screen(void);
+
+/* Call before changing the ULA+ palette or mode. The cells the beam has passed
+   are drawn with the colours in force now, and the other cells are redrawn
+   after the change, as is the whole screen in the next frame */
+void display_palette_changed(void);
 void display_refresh_all(void);
 
 #define display_get_offset( x, y ) display_line_start[(y)]+(x)

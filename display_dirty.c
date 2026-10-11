@@ -36,6 +36,9 @@ static libspectrum_dword display_maybe_dirty[ DISPLAY_HEIGHT ];
 /* This value signifies that the entire line must be redisplayed */
 static libspectrum_qword display_all_dirty;
 
+/* Has the palette changed since the start of this frame? */
+static int display_palette_changed_this_frame;
+
 /* The last point at which we updated the screen display */
 static int critical_region_x = 0, critical_region_y = 0;
 
@@ -280,8 +283,9 @@ display_get_beam_position( int *x, int *y )
   else *x = 0;
 }
 
-void
-display_update_critical( int x, int y )
+/* Work out where the beam is, as a position on the main screen */
+static void
+update_cached_beam( void )
 {
   int beam_x, beam_y;
 
@@ -308,6 +312,12 @@ display_update_critical( int x, int y )
     display_cached_screen_x = beam_x;
     display_cached_screen_y = beam_y;
   }
+}
+
+void
+display_update_critical( int x, int y )
+{
+  update_cached_beam();
 
   if(   y <  display_cached_screen_y                              ||
         ( y == display_cached_screen_y && x < display_cached_screen_x ) )
@@ -367,6 +377,33 @@ display_dirty64( libspectrum_word offset )
 }
 
 void
+display_palette_changed( void )
+{
+  int x, y;
+
+  /* Drawing is deferred until the beam passes a cell, so draw what it has
+     passed now, with the old palette. The critical region only moves forward,
+     so if the beam is behind it, as it is after a snapshot has set the T-state
+     back, there is nothing to draw. */
+  update_cached_beam();
+  x = display_cached_screen_x;
+  y = display_cached_screen_y;
+
+  if( y > critical_region_y || ( y == critical_region_y && x > critical_region_x ) )
+    copy_critical_region( x, y );
+
+  /* The beam has not yet drawn the cell it is in, or those after it */
+  if( x < DISPLAY_WIDTH_COLS )
+    display_maybe_dirty[y] |= (libspectrum_dword)display_all_dirty << x;
+  for( y++; y < DISPLAY_HEIGHT; y++ )
+    display_maybe_dirty[y] = display_all_dirty;
+
+  /* Cells drawn earlier in this frame used the old palette, so the next frame
+     redraws them */
+  display_palette_changed_this_frame = 1;
+}
+
+void
 display_refresh_main_screen( void )
 {
   size_t i;
@@ -391,6 +428,12 @@ display_dirty_frame_begin( void )
   display_cached_beam_tstates = ( libspectrum_dword ) - 1;
   copy_critical_region( DISPLAY_WIDTH_COLS, DISPLAY_HEIGHT - 1 );
   critical_region_x = critical_region_y = 0;
+
+  /* Every cell may need redrawing with the palette now in force */
+  if( display_palette_changed_this_frame ) {
+    display_refresh_main_screen();
+    display_palette_changed_this_frame = 0;
+  }
 }
 
 void

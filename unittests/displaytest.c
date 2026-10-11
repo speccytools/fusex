@@ -1238,6 +1238,114 @@ getpixel_in_16_colour_mode_ignores_marker( void )
   return 0;
 }
 
+/* A palette change draws the cells the beam has passed with the old palette
+   and leaves the ones it has not reached to be drawn with the new */
+static int
+palette_changed_draws_passed_cells_first( void )
+{
+  /* The beam is at the start of the second line */
+  tstates = (TOP_BORDER + 1) * LINE_TIME;
+  ulaplus_enabled = 1;
+  RAM[0][0] = 0x80;
+  RAM[0][DISPLAY_PIXEL_BYTES] = 0x0a;    /* paper 1, ink 2 */
+  display_set_maybe_dirty( 0, 0x01 );
+
+  display_palette_changed();
+
+  if( plot8_assert( 1, 4, 24, 0x80, DISPLAY_ULAPLUS_BASE + ulaplus_palette[2],
+                    DISPLAY_ULAPLUS_BASE + ulaplus_palette[9] ) )
+    return 1;
+  if( display_get_maybe_dirty( 0 ) ) return 1;
+
+  return 0;
+}
+
+static int
+palette_changed_marks_cells_from_beam( void )
+{
+  int y;
+
+  /* The beam is in column 10 of the second line */
+  tstates = (TOP_BORDER + 1) * LINE_TIME + ( DISPLAY_BORDER_WIDTH_COLS + 10 ) * 4;
+  ulaplus_enabled = 1;
+
+  display_palette_changed();
+
+  if( display_get_maybe_dirty( 0 ) ) return 1;
+  if( display_get_maybe_dirty( 1 ) != 0xfffffc00 ) {
+    fprintf( stderr, "maybe_dirty(1): expected 0xfffffc00, got 0x%x\n",
+             display_get_maybe_dirty( 1 ) );
+    return 1;
+  }
+  for( y = 2; y < DISPLAY_HEIGHT; y++ )
+    if( display_get_maybe_dirty( y ) != 0xffffffff ) return 1;
+
+  return 0;
+}
+
+/* The drawing of passed cells only moves forwards: when the T-state has been
+   set back, as when a snapshot is loaded, a palette change draws nothing */
+static int
+palette_changed_with_beam_behind_critical_region( void )
+{
+  /* Advance the critical region to line 100 */
+  tstates = ( TOP_BORDER + 100 ) * LINE_TIME;
+  display_dirty_sinclair( 0x0000 );
+
+  display_set_maybe_dirty( 100, 1 << 5 );
+  ulaplus_enabled = 1;
+
+  tstates = ( TOP_BORDER + 10 ) * LINE_TIME;
+  display_palette_changed();
+
+  if( plot8_count || plot8_count ) return 1;
+
+  return 0;
+}
+
+static int
+palette_changed_at_end_of_screen_marks_nothing( void )
+{
+  int y;
+
+  tstates = ( TOP_BORDER + DISPLAY_HEIGHT + 1 ) * LINE_TIME;
+  ulaplus_enabled = 1;
+
+  display_palette_changed();
+
+  for( y = 0; y < DISPLAY_HEIGHT; y++ )
+    if( display_get_maybe_dirty( y ) ) return 1;
+
+  return 0;
+}
+
+/* The next frame compares every cell with the palette then in force */
+static int
+palette_changed_dirties_next_frame( void )
+{
+  int y;
+
+  tstates = ( TOP_BORDER + DISPLAY_HEIGHT + 1 ) * LINE_TIME;
+  ulaplus_enabled = 1;
+
+  display_frame();
+  for( y = 0; y < DISPLAY_HEIGHT; y++ )
+    if( display_get_maybe_dirty( y ) ) return 1;
+
+  display_palette_changed();
+  display_frame();
+  for( y = 0; y < DISPLAY_HEIGHT; y++ )
+    if( display_get_maybe_dirty( y ) != 0xffffffff ) return 1;
+
+  /* The refresh happens once */
+  display_clear_maybe_dirty();
+  display_frame();
+  for( y = 0; y < DISPLAY_HEIGHT; y++ )
+    if( display_get_maybe_dirty( y ) ) return 1;
+
+  return 0;
+}
+
 struct test_t {
   const char *name;
   test_fn_t fn;
@@ -1497,6 +1605,11 @@ static const struct test_t tests[] = {
   { "ulaplus_getpixel", ulaplus_getpixel },
   { "colour_to_tv_rgb", colour_to_tv_rgb },
   { "getpixel_in_16_colour_mode_ignores_marker", getpixel_in_16_colour_mode_ignores_marker },
+  { "palette_changed_draws_passed_cells_first", palette_changed_draws_passed_cells_first },
+  { "palette_changed_marks_cells_from_beam", palette_changed_marks_cells_from_beam },
+  { "palette_changed_with_beam_behind_critical_region", palette_changed_with_beam_behind_critical_region },
+  { "palette_changed_at_end_of_screen_marks_nothing", palette_changed_at_end_of_screen_marks_nothing },
+  { "palette_changed_dirties_next_frame", palette_changed_dirties_next_frame },
 
   { "parse_attr_ink_only", parse_attr_ink_only },
   { "parse_attr_paper_only", parse_attr_paper_only },
