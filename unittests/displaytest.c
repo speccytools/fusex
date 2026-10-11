@@ -60,13 +60,13 @@ libspectrum_dword display_get_maybe_dirty( int y );
 /* Various "mocks" for the UI code */
 
 typedef void (*plot8_fn_t)( int x, int y, libspectrum_byte data,
-                            libspectrum_byte ink, libspectrum_byte paper );
+                            libspectrum_word ink, libspectrum_word paper );
 
 static plot8_fn_t plot8_fn;
 
 static void
-plot8_null( int x, int y, libspectrum_byte data, libspectrum_byte ink,
-            libspectrum_byte paper )
+plot8_null( int x, int y, libspectrum_byte data, libspectrum_word ink,
+            libspectrum_word paper )
 {
   /* Do nothing */
 }
@@ -77,15 +77,15 @@ struct plot8_record_t {
   int x;
   int y;
   libspectrum_byte data;
-  libspectrum_byte ink;
-  libspectrum_byte paper;
+  libspectrum_word ink;
+  libspectrum_word paper;
 };
 
 static struct plot8_record_t plot8_last_write;
 
 static void
-plot8_count_fn( int x, int y, libspectrum_byte data, libspectrum_byte ink,
-                libspectrum_byte paper )
+plot8_count_fn( int x, int y, libspectrum_byte data, libspectrum_word ink,
+                libspectrum_word paper )
 {
   plot8_count++;
   plot8_last_write.x = x;
@@ -97,7 +97,7 @@ plot8_count_fn( int x, int y, libspectrum_byte data, libspectrum_byte ink,
 
 static int
 plot8_assert( int count, int x, int y, libspectrum_byte data,
-              libspectrum_byte ink, libspectrum_byte paper )
+              libspectrum_word ink, libspectrum_word paper )
 {
   if( plot8_count != count ) {
     fprintf( stderr, "plot8_count: expected %d, got %d\n",
@@ -135,8 +135,8 @@ plot8_assert( int count, int x, int y, libspectrum_byte data,
 
 /* Vector off to the "plot8" implementation for the current test */
 void
-uidisplay_plot8( int x, int y, libspectrum_byte data, libspectrum_byte ink,
-                 libspectrum_byte paper )
+uidisplay_plot8( int x, int y, libspectrum_byte data, libspectrum_word ink,
+                 libspectrum_word paper )
 {
   plot8_fn( x, y, data, ink, paper );
 }
@@ -940,6 +940,86 @@ timex_hires_plot16_called_with_correct_data( void )
 
 typedef int (*test_fn_t)( void );
 
+static int
+colour_to_rgb( void )
+{
+  libspectrum_byte red, green, blue;
+
+  /* The standard colours */
+  display_colour_to_rgb( 0, &red, &green, &blue );
+  if( red != 0 || green != 0 || blue != 0 ) return 1;
+  display_colour_to_rgb( 2, &red, &green, &blue );
+  if( red != 192 || green != 0 || blue != 0 ) return 1;
+  display_colour_to_rgb( 15, &red, &green, &blue );
+  if( red != 255 || green != 255 || blue != 255 ) return 1;
+
+  /* ULA+ colours: black, white, and each channel on its own */
+  display_colour_to_rgb( DISPLAY_ULAPLUS_BASE + 0x00, &red, &green, &blue );
+  if( red != 0 || green != 0 || blue != 0 ) return 1;
+  display_colour_to_rgb( DISPLAY_ULAPLUS_BASE + 0xff, &red, &green, &blue );
+  if( red != 255 || green != 255 || blue != 255 ) return 1;
+  display_colour_to_rgb( DISPLAY_ULAPLUS_BASE + 0x1c, &red, &green, &blue );
+  if( red != 255 || green != 0 || blue != 0 ) return 1;
+  display_colour_to_rgb( DISPLAY_ULAPLUS_BASE + 0xe0, &red, &green, &blue );
+  if( red != 0 || green != 255 || blue != 0 ) return 1;
+  display_colour_to_rgb( DISPLAY_ULAPLUS_BASE + 0x03, &red, &green, &blue );
+  if( red != 0 || green != 0 || blue != 255 ) return 1;
+
+  /* Intermediate levels of 3 bit and 2 bit channels */
+  display_colour_to_rgb( DISPLAY_ULAPLUS_BASE + 0x92, &red, &green, &blue );
+  if( red != 145 || green != 145 || blue != 170 ) return 1;
+
+  if( DISPLAY_COLOURS != 272 ) return 1;
+
+  return 0;
+}
+
+static int
+nearest_standard_colour( void )
+{
+  int colour;
+
+  /* A standard colour is its own nearest */
+  for( colour = 0; colour < DISPLAY_STANDARD_COLOURS; colour++ )
+    if( display_nearest_standard_colour( colour ) != colour ) return 1;
+
+  /* Black is nearer to the normal black than to the bright black */
+  if( display_nearest_standard_colour( DISPLAY_ULAPLUS_BASE + 0x00 ) != 0 )
+    return 1;
+  if( display_nearest_standard_colour( DISPLAY_ULAPLUS_BASE + 0xff ) != 15 )
+    return 1;
+  if( display_nearest_standard_colour( DISPLAY_ULAPLUS_BASE + 0x1c ) != 10 )
+    return 1;
+  if( display_nearest_standard_colour( DISPLAY_ULAPLUS_BASE + 0xe0 ) != 12 )
+    return 1;
+  if( display_nearest_standard_colour( DISPLAY_ULAPLUS_BASE + 0x03 ) != 9 )
+    return 1;
+  if( display_nearest_standard_colour( DISPLAY_ULAPLUS_BASE + 0x92 ) != 7 )
+    return 1;
+
+  /* Every colour has a standard colour for an answer */
+  for( colour = 0; colour < DISPLAY_COLOURS; colour++ ) {
+    int nearest = display_nearest_standard_colour( colour );
+    if( nearest < 0 || nearest >= DISPLAY_STANDARD_COLOURS ) return 1;
+  }
+
+  return 0;
+}
+
+/* The plot call carries colours of 256 and more without truncating them */
+static int
+plot8_wide_colours( void )
+{
+  uidisplay_plot8( 3, 4, 0x5a, 255, 256 );
+  if( plot8_assert( 1, 3, 4, 0x5a, 255, 256 ) ) return 1;
+
+  uidisplay_plot8( 3, 4, 0xa5, DISPLAY_COLOURS - 1, DISPLAY_ULAPLUS_BASE );
+  if( plot8_assert( 2, 3, 4, 0xa5, DISPLAY_COLOURS - 1,
+                    DISPLAY_ULAPLUS_BASE ) ) return 1;
+
+  return 0;
+}
+
 struct test_t {
   const char *name;
   test_fn_t fn;
@@ -1187,6 +1267,10 @@ static const struct test_t tests[] = {
     pentagon_page7_reads_correct_pages },
 
   /* display_parse_attr() tests */
+  { "colour_to_rgb", colour_to_rgb },
+  { "nearest_standard_colour", nearest_standard_colour },
+  { "plot8_wide_colours", plot8_wide_colours },
+
   { "parse_attr_ink_only", parse_attr_ink_only },
   { "parse_attr_paper_only", parse_attr_paper_only },
   { "parse_attr_bright", parse_attr_bright },

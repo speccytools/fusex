@@ -94,8 +94,8 @@ static const guchar rgb_colours[16][3] = {
 };
 
 /* And the colours (and black and white 'colours') in 32-bit format */
-libspectrum_dword gtkdisplay_colours[16];
-static libspectrum_dword bw_colours[16];
+libspectrum_dword gtkdisplay_colours[ DISPLAY_COLOURS ];
+static libspectrum_dword bw_colours[ DISPLAY_COLOURS ];
 
 /* Colour format for the back buffer in endianess-order */
 typedef enum {
@@ -153,14 +153,18 @@ init_colours( colour_format_t format )
 {
   size_t i;
 
-  for( i = 0; i < 16; i++ ) {
+  for( i = 0; i < DISPLAY_COLOURS; i++ ) {
 
 
     guchar red, green, blue, grey;
 
-    red   = rgb_colours[i][0];
-    green = rgb_colours[i][1];
-    blue  = rgb_colours[i][2];
+    if( i < DISPLAY_STANDARD_COLOURS ) {
+      red   = rgb_colours[i][0];
+      green = rgb_colours[i][1];
+      blue  = rgb_colours[i][2];
+    } else {
+      display_colour_to_rgb( i, &red, &green, &blue );
+    }
 
     /* Addition of 0.5 is to avoid rounding errors */
     grey = ( 0.299 * red + 0.587 * green + 0.114 * blue ) + 0.5;
@@ -591,7 +595,7 @@ uidisplay_putpixel( int x, int y, int colour )
    colour `paper' to the screen at ( (8*x) , y ) */
 void
 uidisplay_plot8( int x, int y, libspectrum_byte data,
-                 libspectrum_byte ink, libspectrum_byte paper )
+                 libspectrum_word ink, libspectrum_word paper )
 {
   x <<= 3;
 

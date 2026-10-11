@@ -46,8 +46,8 @@ static SDL_Surface *red_disk[ 2 ], *green_disk[ 2 ];
 static ui_statusbar_state sdl2_disk_state, sdl2_mdr_state, sdl2_tape_state;
 static int sdl2_status_updated;
 
-static Uint32 colour_values[ 16 ];
-static Uint32 bw_values[ 16 ];
+static Uint32 colour_values[ DISPLAY_COLOURS ];
+static Uint32 bw_values[ DISPLAY_COLOURS ];
 
 static SDL_Rect updated_rects[ 300 ];
 static int num_rects;
@@ -130,11 +130,18 @@ sdl2display_allocate_colours( void )
 {
   int i;
 
-  for( i = 0; i < 16; i++ ) {
-    Uint8 red = colour_palette[i].r;
-    Uint8 green = colour_palette[i].g;
-    Uint8 blue = colour_palette[i].b;
-    Uint8 grey = ( 0.299 * red + 0.587 * green + 0.114 * blue ) + 0.5;
+  for( i = 0; i < DISPLAY_COLOURS; i++ ) {
+    Uint8 red, green, blue, grey;
+
+    if( i < DISPLAY_STANDARD_COLOURS ) {
+      red = colour_palette[i].r;
+      green = colour_palette[i].g;
+      blue = colour_palette[i].b;
+    } else {
+      display_colour_to_rgb( i, &red, &green, &blue );
+    }
+
+    grey = ( 0.299 * red + 0.587 * green + 0.114 * blue ) + 0.5;
 
     colour_values[i] = SDL_MapRGB( tmp_screen->format, red, green, blue );
     bw_values[i] = SDL_MapRGB( tmp_screen->format, grey, grey, grey );
@@ -746,7 +753,7 @@ uidisplay_putpixel( int x, int y, int colour )
 
 void
 uidisplay_plot8( int x, int y, libspectrum_byte data,
-                 libspectrum_byte ink, libspectrum_byte paper )
+                 libspectrum_word ink, libspectrum_word paper )
 {
   libspectrum_word *dest;
   Uint32 *palette_values = settings_current.bw_tv ? bw_values : colour_values;

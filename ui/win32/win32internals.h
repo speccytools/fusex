@@ -35,6 +35,8 @@
 
 #include "libspectrum.h"
 
+#include "display.h"
+
 #define ID_STATUSBAR 900
 
 /* Reduce listview flickering. Defined from WINVER >= 6.00 */
@@ -70,7 +72,7 @@ extern HWND fuse_hABOWnd;
 #define MAX_SCALE 4
 
 /* The colour palette in use */
-extern libspectrum_dword win32display_colours[16];
+extern libspectrum_dword win32display_colours[ DISPLAY_COLOURS ];
 
 int win32display_init( void );
 int win32display_end( void );

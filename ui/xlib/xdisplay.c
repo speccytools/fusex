@@ -161,12 +161,12 @@ static xdisplay_putpixel_t xdisplay_putpixel_24;
 
 #include "ui/xlib/xpixmaps.c"
 
-static libspectrum_word pal_colour[16] = {
+static libspectrum_word pal_colour[ DISPLAY_COLOURS ] = {
   0x0000, 0x0017, 0xb800, 0xb817, 0x05e0, 0x05f7, 0xbde0, 0xbdf7,
   0x0000, 0x001f, 0xf800, 0xf81f, 0x07e0, 0x07ff, 0xffe0, 0xffff,
 };
 
-static libspectrum_word pal_grey[16] = {
+static libspectrum_word pal_grey[ DISPLAY_COLOURS ] = {
   0x0000, 0x39c7, 0x18a3, 0x526a, 0x738e, 0xad55, 0x8430, 0xbdf7,
   0x0000, 0x4a69, 0x20e4, 0x6b4d, 0x94b2, 0xdf1b, 0xb596, 0xffff,
 };
@@ -190,12 +190,39 @@ static  int rgb_for_4[] = {
   0xFF, 0xFF, 0xFF
 };
 
+/* Fill the entries of pal_colour and pal_grey after the standard colours. They
+   hold RGB565 values, except at depth 4, where they hold allocated pixels and
+   each entry takes the pixel of the nearest standard colour. */
+static void
+xdisplay_fill_ulaplus_colours( void )
+{
+  int i;
+
+  for( i = DISPLAY_STANDARD_COLOURS; i < DISPLAY_COLOURS; i++ ) {
+    if( xdisplay_depth == 4 ) {
+      int nearest = display_nearest_standard_colour( i );
+
+      pal_colour[i] = pal_colour[ nearest ];
+      pal_grey[i] = pal_grey[ nearest ];
+    } else {
+      libspectrum_byte red, green, blue, grey;
+
+      display_colour_to_rgb( i, &red, &green, &blue );
+      grey = ( 0.299 * red + 0.587 * green + 0.114 * blue ) + 0.5;
+
+      pal_colour[i] = ( red >> 3 ) << 11 | ( green >> 2 ) << 5 | ( blue >> 3 );
+      pal_grey[i] = ( grey >> 3 ) << 11 | ( grey >> 2 ) << 5 | ( grey >> 3 );
+    }
+  }
+}
+
 int
 xdisplay_init( void )
 {
   if( xdisplay_find_visual() ) return 1;
   if( xdisplay_depth == 4 && xdisplay_allocate_colours4() ) return 1;
   if( xdisplay_depth == 8 && xdisplay_allocate_colours8() ) return 1;
+  xdisplay_fill_ulaplus_colours();
   if( xdisplay_allocate_gc( xui_mainWindow,&gc ) ) return 1;
   if( xdisplay_allocate_image() ) return 1;
   ui_statusbar_update( UI_STATUSBAR_ITEM_TAPE, UI_STATUSBAR_STATE_INACTIVE );
@@ -1026,6 +1053,7 @@ uidisplay_hotswap_gfx_mode( void )
       xdisplay_allocate_colours4();
     else if( xdisplay_depth == 8 )
       xdisplay_allocate_colours8();
+    xdisplay_fill_ulaplus_colours();
   }
   xdisplay_setup_rgb_putpixel();
   xstatusbar_init( xdisplay_current_size );
@@ -1083,7 +1111,7 @@ uidisplay_putpixel( int x, int y, int colour )
    colour `paper' to the screen at ( (8*x) , y ) */
 void
 uidisplay_plot8( int x, int y, libspectrum_byte data,
-	         libspectrum_byte ink, libspectrum_byte paper )
+	         libspectrum_word ink, libspectrum_word paper )
 {
   libspectrum_word *dest;
   libspectrum_word pi = settings_current.bw_tv ? pal_grey[ ink ] :

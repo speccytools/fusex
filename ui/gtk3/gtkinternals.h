@@ -27,12 +27,14 @@
 #include <gtk/gtk.h>
 #include "libspectrum.h"
 
+#include "display.h"
+
 /*
  * Display routines (gtkdisplay.c)
  */
 
 /* The colour palette in use */
-extern libspectrum_dword gtkdisplay_colours[ 16 ];
+extern libspectrum_dword gtkdisplay_colours[ DISPLAY_COLOURS ];
 
 void gtkdisplay_update_geometry( void );
 void gtkdisplay_get_window_size( int *width, int *height );

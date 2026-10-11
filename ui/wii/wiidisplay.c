@@ -96,8 +96,8 @@ rgb_t rgb_colours[16] = {
   {255, 255, 255}, /* WHITE */
 };
   
-static u32 wiidisplay_colours[16];
-static u32 bw_colours[16];
+static u32 wiidisplay_colours[ DISPLAY_COLOURS ];
+static u32 bw_colours[ DISPLAY_COLOURS ];
 
 #define MOUSESIZEX 9
 #define MOUSESIZEY 9
@@ -162,11 +162,15 @@ init_colours( void )
 {
   size_t i;
 
-  for( i = 0; i < 16; i++ ) {
+  for( i = 0; i < DISPLAY_COLOURS; i++ ) {
 
     rgb_t colour, grey;
 
-    colour = rgb_colours[i];
+    if( i < DISPLAY_STANDARD_COLOURS ) {
+      colour = rgb_colours[i];
+    } else {
+      display_colour_to_rgb( i, &colour.r, &colour.g, &colour.b );
+    }
 
     /* Addition of 0.5 is to avoid rounding errors */
     grey.r = grey.g = grey.b =
@@ -475,7 +479,7 @@ uidisplay_putpixel( int x, int y, int colour )
    colour `paper' to the screen at ( (8*x) , y ) */
 void
 uidisplay_plot8( int x, int y, libspectrum_byte data,
-                 libspectrum_byte ink, libspectrum_byte paper )
+                 libspectrum_word ink, libspectrum_word paper )
 {
   x <<= 3;
 

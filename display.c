@@ -178,6 +178,57 @@ display_refresh_all( void )
 #endif
 }
 
+/* The standard colours as 8 bits per channel: black, then the normal colours,
+   black, then the bright colours */
+static const libspectrum_byte standard_rgb[ DISPLAY_STANDARD_COLOURS ][3] = {
+  {   0,   0,   0 }, {   0,   0, 192 }, { 192,   0,   0 }, { 192,   0, 192 },
+  {   0, 192,   0 }, {   0, 192, 192 }, { 192, 192,   0 }, { 192, 192, 192 },
+  {   0,   0,   0 }, {   0,   0, 255 }, { 255,   0,   0 }, { 255,   0, 255 },
+  {   0, 255,   0 }, {   0, 255, 255 }, { 255, 255,   0 }, { 255, 255, 255 },
+};
+
+void
+display_colour_to_rgb( int colour, libspectrum_byte *red,
+                       libspectrum_byte *green, libspectrum_byte *blue )
+{
+  if( colour < DISPLAY_ULAPLUS_BASE ) {
+    *red = standard_rgb[ colour ][0];
+    *green = standard_rgb[ colour ][1];
+    *blue = standard_rgb[ colour ][2];
+  } else {
+    int grb = colour - DISPLAY_ULAPLUS_BASE;
+
+    *red = ( ( grb >> 2 ) & 0x07 ) * 255 / 7;
+    *green = ( ( grb >> 5 ) & 0x07 ) * 255 / 7;
+    *blue = ( grb & 0x03 ) * 255 / 3;
+  }
+}
+
+int
+display_nearest_standard_colour( int colour )
+{
+  libspectrum_byte red, green, blue;
+  int i, nearest = 0, nearest_distance = -1;
+
+  if( colour < DISPLAY_ULAPLUS_BASE ) return colour;
+
+  display_colour_to_rgb( colour, &red, &green, &blue );
+
+  for( i = 0; i < DISPLAY_STANDARD_COLOURS; i++ ) {
+    int dr = red - standard_rgb[i][0];
+    int dg = green - standard_rgb[i][1];
+    int db = blue - standard_rgb[i][2];
+    int distance = dr * dr + dg * dg + db * db;
+
+    if( nearest_distance < 0 || distance < nearest_distance ) {
+      nearest = i;
+      nearest_distance = distance;
+    }
+  }
+
+  return nearest;
+}
+
 /* Fetch pixel (x, y). On a Timex this will be a point on a 640x480 canvas,
    on a Sinclair/Amstrad/Russian clone this will be a point on a 320x240
    canvas */

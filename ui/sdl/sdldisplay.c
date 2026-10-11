@@ -54,7 +54,7 @@ static int sdl_status_updated;
 
 static int tmp_screen_width;
 
-static Uint32 colour_values[16];
+static Uint32 colour_values[ DISPLAY_COLOURS ];
 
 static SDL_Color colour_palette[] = {
   {   0,   0,   0,   0 }, 
@@ -75,7 +75,7 @@ static SDL_Color colour_palette[] = {
   { 255, 255, 255,   0 }
 };
 
-static Uint32 bw_values[16];
+static Uint32 bw_values[ DISPLAY_COLOURS ];
 
 /* This is a rule of thumb for the maximum number of rects that can be updated
    each frame. If more are generated we just update the whole screen */
@@ -323,9 +323,13 @@ sdldisplay_allocate_colours( int numColours, Uint32 *colour_values,
 
   for( i = 0; i < numColours; i++ ) {
 
-      red = colour_palette[i].r;
-    green = colour_palette[i].g;
-     blue = colour_palette[i].b;
+    if( i < DISPLAY_STANDARD_COLOURS ) {
+        red = colour_palette[i].r;
+      green = colour_palette[i].g;
+       blue = colour_palette[i].b;
+    } else {
+      display_colour_to_rgb( i, &red, &green, &blue );
+    }
 
     /* Addition of 0.5 is to avoid rounding errors */
     grey = ( 0.299 * red + 0.587 * green + 0.114 * blue ) + 0.5;
@@ -444,7 +448,7 @@ sdldisplay_load_gfx_mode( void )
   fullscreen_y_off = ( sdldisplay_gc->h - image_height * sdldisplay_current_size ) *
                      sdldisplay_is_full_screen / 2;
 
-  sdldisplay_allocate_colours( 16, colour_values, bw_values );
+  sdldisplay_allocate_colours( DISPLAY_COLOURS, colour_values, bw_values );
 
   /* Redraw the entire screen... */
   display_refresh_all();
@@ -650,7 +654,7 @@ uidisplay_putpixel( int x, int y, int colour )
    colour `paper' to the screen at ( (8*x) , y ) */
 void
 uidisplay_plot8( int x, int y, libspectrum_byte data,
-	         libspectrum_byte ink, libspectrum_byte paper )
+	         libspectrum_word ink, libspectrum_word paper )
 {
   libspectrum_word *dest;
   Uint32 *palette_values = settings_current.bw_tv ? bw_values :

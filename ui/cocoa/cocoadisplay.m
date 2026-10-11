@@ -69,7 +69,7 @@ Cocoa_Texture buffered_screen;
 NSLock *buffered_screen_lock = nil;
 
 /* Colours are in 1A 5R 5G 5B format */
-static uint16_t colour_values[] = {
+static uint16_t colour_values[ DISPLAY_COLOURS ] = {
   0x0000,
   0x0017,
   0x5c00,
@@ -88,7 +88,7 @@ static uint16_t colour_values[] = {
   0x7fff
 };
 
-static uint16_t bw_values[16];
+static uint16_t bw_values[ DISPLAY_COLOURS ];
 
 static int display_updated = 0;
 static int window_resize_enabled = 0;
@@ -213,6 +213,21 @@ cocoadisplay_load_gfx_mode( void )
   return 0;
 }
 
+/* Fill the entries of colour_values after the standard colours */
+static void
+cocoadisplay_fill_ulaplus_colours( void )
+{
+  int i;
+
+  for( i = DISPLAY_STANDARD_COLOURS; i < DISPLAY_COLOURS; i++ ) {
+    uint8_t red, green, blue;
+
+    display_colour_to_rgb( i, &red, &green, &blue );
+    colour_values[i] = ( ( red >> 3 ) << 10 ) | ( ( green >> 3 ) << 5 ) |
+                       ( blue >> 3 );
+  }
+}
+
 static void
 cocoadisplay_allocate_colours( int numColours, uint16_t *colour_values,
                                uint16_t *bw_values )
@@ -316,8 +331,8 @@ cocoadisplay_resize_window( void )
 int
 uidisplay_init( int width, int height )
 {
-  cocoadisplay_allocate_colours( sizeof(colour_values) / sizeof(uint16_t),
-                                 colour_values, bw_values );
+  cocoadisplay_fill_ulaplus_colours();
+  cocoadisplay_allocate_colours( DISPLAY_COLOURS, colour_values, bw_values );
 
   image_width = width;
   image_height = height;
@@ -459,7 +474,7 @@ uidisplay_putpixel( int x, int y, int colour )
    colour `paper' to the screen at ( (8*x) , y ) */
 void
 uidisplay_plot8( int x, int y, libspectrum_byte data,
-	         libspectrum_byte ink, libspectrum_byte paper )
+	         libspectrum_word ink, libspectrum_word paper )
 {
   uint16_t *dest;
   uint16_t *palette_values = settings_current.bw_tv ? bw_values : colour_values;

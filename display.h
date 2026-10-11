@@ -77,6 +77,21 @@
 #define DISPLAY_ATTR_BYTES  ( DISPLAY_HEIGHT_ROWS * DISPLAY_WIDTH_COLS )
 #define DISPLAY_FILE_SIZE   ( DISPLAY_PIXEL_BYTES + DISPLAY_ATTR_BYTES )
 
+/* A colour is an index into the lookup table of a UI. Indexes 0-15 are the
+   standard colours. A ULA+ colour GGGRRRBB has the index
+   DISPLAY_ULAPLUS_BASE + GGGRRRBB. */
+#define DISPLAY_STANDARD_COLOURS 16
+#define DISPLAY_ULAPLUS_BASE DISPLAY_STANDARD_COLOURS
+#define DISPLAY_COLOURS ( DISPLAY_ULAPLUS_BASE + 256 )
+
+/* The colour as 8 bits per channel */
+void display_colour_to_rgb( int colour, libspectrum_byte *red,
+                            libspectrum_byte *green, libspectrum_byte *blue );
+
+/* The standard colour closest to the colour, for a UI that cannot show all of
+   DISPLAY_COLOURS */
+int display_nearest_standard_colour( int colour );
+
 extern int display_ui_initialised;
 
 extern libspectrum_byte display_lores_border;

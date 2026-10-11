@@ -68,7 +68,7 @@ null_display_pixel( int x, int y, int colour )
 
 static void
 null_display_plot8( int x, int y, libspectrum_byte data,
-                    libspectrum_byte ink, libspectrum_byte paper )
+                    libspectrum_word ink, libspectrum_word paper )
 {
   int i;
   int pixel_x = machine_current->timex ? x << 4 : x << 3;
@@ -77,7 +77,9 @@ null_display_plot8( int x, int y, libspectrum_byte data,
   int repeat_y = machine_current->timex ? 2 : 1;
 
   for( i = 0; i < 8; i++ ) {
-    int colour = ( data & ( 0x80 >> i ) ) ? ink : paper;
+    /* The buffer holds one of the standard colours per pixel */
+    int colour = display_nearest_standard_colour(
+                   ( data & ( 0x80 >> i ) ) ? ink : paper );
     int rx, ry;
     for( ry = 0; ry < repeat_y; ry++ )
       for( rx = 0; rx < repeat_x; rx++ )
@@ -358,7 +360,7 @@ uidisplay_plot16( int x, int y, libspectrum_word data,
 
 void
 uidisplay_plot8( int x, int y, libspectrum_byte data,
-                 libspectrum_byte ink, libspectrum_byte paper )
+                 libspectrum_word ink, libspectrum_word paper )
 {
   null_display_plot8( x, y, data, ink, paper );
 }

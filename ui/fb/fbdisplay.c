@@ -69,7 +69,7 @@ static int hires;
 static void register_scalers( void );
 
 /* probably 0rrrrrgggggbbbbb */
-static short rgbs[16], greys[16];
+static short rgbs[ DISPLAY_COLOURS ], greys[ DISPLAY_COLOURS ];
 
 static int fb_fd = -1;		/* The framebuffer's file descriptor */
 static libspectrum_word *gm = 0;
@@ -230,6 +230,20 @@ int fbdisplay_init(void)
      greys[i] = (c >> (8 - display.red.length) << display.red.offset)
      | (c >> (8 - display.green.length) << display.green.offset)
      | (c >> (8 - display.blue.length) << display.blue.offset);
+  }
+  for( ; i < DISPLAY_COLOURS; i++ ) {
+    libspectrum_byte red, green, blue;
+    int grey;
+
+    display_colour_to_rgb( i, &red, &green, &blue );
+    rgbs[i] = ( ( red >> (8 - display.red.length) ) << display.red.offset )
+            | ( ( green >> (8 - display.green.length) ) << display.green.offset )
+            | ( ( blue >> (8 - display.blue.length) ) << display.blue.offset );
+
+    grey = 0.299 * red + 0.587 * green + 0.114 * blue + 0.5;
+    greys[i] = ( ( grey >> (8 - display.red.length) ) << display.red.offset )
+             | ( ( grey >> (8 - display.green.length) ) << display.green.offset )
+             | ( ( grey >> (8 - display.blue.length) ) << display.blue.offset );
   }
   linear_palette(&fb_cmap);
 
@@ -467,7 +481,7 @@ uidisplay_putpixel( int x, int y, int colour )
    colour `paper' to the screen at ( (8*x) , y ) */
 void
 uidisplay_plot8( int x, int y, libspectrum_byte data,
-                libspectrum_byte ink, libspectrum_byte paper )
+                libspectrum_word ink, libspectrum_word paper )
 {
   x <<= 3;
 
