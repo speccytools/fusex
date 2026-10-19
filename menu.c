@@ -28,9 +28,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#ifdef WIN32
+#include <direct.h>
+#endif
 #ifdef UI_WIN32
 #include <windows.h>
-#include <direct.h>
 #include <shellapi.h>
 #endif
 
@@ -88,7 +90,7 @@ menu_get_extra_folder_path( const char *folder, char *path, size_t length )
 
   if( bytes_written < 0 || bytes_written >= (int)length ) return 1;
 
-#ifdef UI_WIN32
+#ifdef WIN32
   if( _mkdir( path ) != 0 && errno != EEXIST ) return 1;
 #else
   if( mkdir( path, 0755 ) != 0 && errno != EEXIST ) return 1;
