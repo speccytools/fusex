@@ -103,13 +103,8 @@ BUILT_SOURCES = options.h settings.c settings.h \
 		debugger/commandy.tab.h \
 		debugger/commandl.c
 
-if COMPAT_WIN32
-settings.c: settings-win32.pl settings.dat
-	$(AM_V_GEN)$(PERL) -I$(srcdir)/perl $(srcdir)/settings-win32.pl $(srcdir)/settings.dat > $@.tmp && mv $@.tmp $@
-else
 settings.c: settings.pl settings.dat
 	$(AM_V_GEN)$(PERL) -I$(srcdir)/perl $(srcdir)/settings.pl $(srcdir)/settings.dat > $@.tmp && mv $@.tmp $@
-endif
 
 settings.h: settings-header.pl settings.dat
 	$(AM_V_GEN)$(PERL) -I$(srcdir)/perl $(srcdir)/settings-header.pl $(srcdir)/settings.dat > $@.tmp && mv $@.tmp $@
@@ -194,7 +189,6 @@ EXTRA_DIST = AUTHORS \
 	     menu_data.pl \
 	     settings.dat \
 	     settings.pl \
-	     settings-win32.pl \
 	     settings-header.pl \
 	     update-release.py \
 	     tools/metrics \

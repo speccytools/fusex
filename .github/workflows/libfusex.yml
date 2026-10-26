@@ -86,3 +86,101 @@ jobs:
 
       - name: Test libfusex
         run: python3 .github/scripts/libfusex_boot_test.py ${{ matrix.libfusex }} roms
+
+  windows-build:
+    name: windows (build)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Fetch libspectrum source
+        run: git submodule update --init 3rdparty/libspectrum
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            autoconf automake binutils-mingw-w64-x86-64 bison build-essential \
+            ca-certificates cmake curl flex g++-mingw-w64-x86-64-posix \
+            gcc-mingw-w64-x86-64-posix git libtool libtool-bin make \
+            mingw-w64-x86-64-dev perl pkg-config unzip zip
+
+      - name: Set up vcpkg
+        run: |
+          git clone --depth 1 --branch 2026.07.29 https://github.com/microsoft/vcpkg.git "$RUNNER_TEMP/vcpkg"
+          "$RUNNER_TEMP/vcpkg/bootstrap-vcpkg.sh" -disableMetrics
+
+      - uses: actions/cache@v6
+        name: Restore vcpkg package cache
+        with:
+          path: .github/builds/windows/vcpkg_installed
+          key: windows-x64-vcpkg-2026.07.29-${{ hashFiles('.github/builds/windows/vcpkg.json') }}
+
+      - name: Install Windows libraries
+        run: |
+          cd .github/builds/windows
+          VCPKG_ROOT="$RUNNER_TEMP/vcpkg" \
+            "$RUNNER_TEMP/vcpkg/vcpkg" install --triplet x64-mingw-dynamic
+
+      - name: Build
+        env:
+          CC: x86_64-w64-mingw32-gcc-posix
+          AR: x86_64-w64-mingw32-ar
+          RANLIB: x86_64-w64-mingw32-ranlib
+        run: |
+          set -euo pipefail
+          vcpkg_installed="$GITHUB_WORKSPACE/.github/builds/windows/vcpkg_installed/x64-mingw-dynamic"
+          export VCPKG_INSTALLED_DIR="$vcpkg_installed"
+          export PKG_CONFIG_LIBDIR="$vcpkg_installed/lib/pkgconfig:$GITHUB_WORKSPACE/3rdparty/dist/lib/pkgconfig"
+          export PKG_CONFIG_PATH=
+          export CPPFLAGS="-I$vcpkg_installed/include"
+          export LDFLAGS="-L$vcpkg_installed/lib"
+          LIBS="$(pkg-config --libs zlib)"
+          export LIBS
+
+          ./autogen.sh
+          make -C 3rdparty libspectrum \
+            LIBSPECTRUM_CONFIGURE_ARGS="--host=x86_64-w64-mingw32 --with-fake-glib --without-libaudiofile --without-libgcrypt --with-zlib --with-bzip2"
+
+          ./configure \
+            --host=x86_64-w64-mingw32 \
+            --without-win32 \
+            --with-null-ui \
+            --without-pthread \
+            --with-audio-driver=null
+          make -j"$(nproc)"
+
+          mkdir libfusex
+          cp libfusex.dll 3rdparty/dist/bin/*.dll "$vcpkg_installed"/bin/*.dll libfusex/
+          for name in libwinpthread-1.dll libgcc_s_seh-1.dll; do
+            cp "$("$CC" -print-file-name="$name")" libfusex/
+          done
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: libfusex-windows-x64
+          path: libfusex
+          if-no-files-found: error
+
+  windows-test:
+    name: windows-latest
+    needs: windows-build
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: libfusex-windows-x64
+          path: libfusex
+
+      - name: Test libfusex
+        run: python .github/scripts/libfusex_boot_test.py libfusex/libfusex.dll roms
