@@ -977,12 +977,21 @@ case "$host_os" in
     FUSEX_LDFLAGS='-shared -Wl,-soname,libfusex.so -Wl,--no-undefined'
     CFLAGS="$CFLAGS -fPIC"
     ;;
+  mingw32*)
+    dnl Windows resolves a DLL's dependencies by name, and the libspectrum
+    dnl DLL ships beside libfusex, so link it shared.
+    FUSEX_LIB=libfusex.dll
+    FUSEX_LDFLAGS='-shared'
+    LIBSPECTRUM_ARCHIVE=-lspectrum
+    ;;
   *)
     AC_MSG_RESULT(unknown)
     AC_MSG_ERROR([libfusex has not been built for $host_os])
     ;;
 esac
 AC_MSG_RESULT($FUSEX_LIB)
+
+AS_IF([test -z "$LIBSPECTRUM_ARCHIVE"], [
 
 dnl A shared libspectrum records the path it was installed at, which a host
 dnl loading libfusex from elsewhere cannot resolve. -lspectrum leaves the
@@ -1016,6 +1025,8 @@ if test -f "$LIBSPECTRUM_ARCHIVE" &&
 else
   AC_MSG_RESULT(no)
 fi
+
+])
 
 ])
 
