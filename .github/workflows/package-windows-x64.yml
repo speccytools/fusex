@@ -101,6 +101,20 @@ jobs:
           cp "$vcpkg_installed"/bin/*.dll 3rdparty/dist/bin/
 
           ./autogen.sh
+
+          mkdir -p build/libfusex
+          (
+            cd build/libfusex
+            ../../configure \
+              --host=x86_64-w64-mingw32 \
+              --without-win32 \
+              --with-null-ui \
+              --without-pthread \
+              --with-audio-driver=null
+            make -j"$(nproc)"
+          )
+          "$STRIP" -o 3rdparty/dist/bin/libfusex.dll build/libfusex/libfusex.dll
+
           ./configure \
             --host=x86_64-w64-mingw32 \
             --with-win32 \
