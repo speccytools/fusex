@@ -130,7 +130,7 @@ slt_from_snapshot( libspectrum_snap *snap )
 
   if( libspectrum_snap_slt_screen( snap ) ) {
 
-    slt_screen = libspectrum_new( libspectrum_byte, DISPLAY_FILE_SIZE );
+    slt_screen = memory_pool_allocate( DISPLAY_FILE_SIZE );
 
     memcpy( slt_screen, libspectrum_snap_slt_screen( snap ), DISPLAY_FILE_SIZE );
     slt_screen_level = libspectrum_snap_slt_screen_level( snap );

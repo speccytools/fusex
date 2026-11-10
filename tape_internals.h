@@ -17,6 +17,8 @@ extern int tape_autoplay;
 extern int tape_autoplay_blocked;
 extern int tape_stop_pending;
 extern int trap_resume_pending;
+extern int trap_pzx_ready;
+int tape_trap_pzx_data( libspectrum_tape_block *block );
 
 int tape_autoload( libspectrum_machine hardware );
 int tape_play( int autoplay );
@@ -33,10 +35,7 @@ void tape_update_microphone( const libspectrum_tape_edge *edge );
 
 void tape_record_init( libspectrum_tape *current_tape );
 void tape_record_set_tape( libspectrum_tape *current_tape );
-int tape_record_encode( libspectrum_byte *buffer, libspectrum_dword used,
-                        int count );
-void tape_record_ensure_capacity( libspectrum_byte **buffer,
-                                  libspectrum_dword *size,
-                                  libspectrum_dword used );
+void tape_record_edge( int level );
+void tape_record_frame( libspectrum_dword frame_length );
 
 #endif

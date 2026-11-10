@@ -13,28 +13,27 @@ A supported 32-bit or 64-bit Windows system for the bundled 32-bit build.
 Libraries
 ---------
 
-These binaries are built with the MinGW/Cygwin packages used by the current
-Windows CI workflow. Depending on the selected UI and enabled features, the
-package may include DLLs from these components:
+The package includes the runtime DLLs needed to run Fuse. No separate MSYS2
+installation is required. Use the bundled DLLs rather than replacing them
+with libraries from another installation.
+Depending on the selected UI and enabled features, the package may include
+DLLs from these components:
 
-    audiofile
     bzip2
-    libFLAC
     libgcrypt
     libgpg-error
-    libOGG
     libpng
     libspectrum
     libstdc++
     libxml2
-    win-iconv
+    libiconv
+    gettext runtime / libintl
     winpthreads
     xz / liblzma
     zlib
-    SDL
     SDL2
 
 See LICENSES.txt for copyright and license details.
 
-For more detailed documentation, browse:
-https://sourceforge.net/p/fuse-emulator/wiki/Building%20Fuse%20on%20Windows%20with%20Cygwin/
+For build and packaging instructions, see INSTALL in the Fuse source tree.
+MSYS2 installation and environment documentation: https://www.msys2.org/

@@ -16,6 +16,7 @@
 #include "periph.h"
 #include "peripherals/sound/ay.h"
 #include "sound.h"
+#include "sound/audio_timeline.h"
 #include "sound/ay_engine.h"
 
 /* A frame cannot normally contain this many AY writes, but retaining a large
@@ -42,7 +43,10 @@ struct ay_change {
 };
 
 static struct ay_change changes[AY_CHANGE_MAX];
-static int change_count;
+static int change_count, change_position;
+/* Next tick in the current frame; carry its phase across video boundaries. */
+static libspectrum_dword next_tick;
+static int previous[AY_CHANNELS];
 static libspectrum_byte registers[AY_REGISTERS];
 static unsigned int levels[AY_ENV_STEPS];
 static unsigned int tone_tick[AY_CHANNELS], tone_high[AY_CHANNELS];
@@ -66,7 +70,9 @@ ay_state_reset( void )
     tone_tick[i] = tone_high[i] = 0;
     tone_period[i] = 1;
   }
-  change_count = 0;
+  change_count = change_position = 0;
+  next_tick = 0;
+  memset( previous, 0, sizeof( previous ) );
 }
 
 static void
@@ -92,6 +98,9 @@ ay_engine_init( int volume, int stereo, int output_stereo )
   int i;
   double gain = volume < 0 ? 0.0 : volume > 100 ? 1.0 : volume / 100.0;
 
+  change_position = 0;
+  next_tick = 0;
+  memset( previous, 0, sizeof( previous ) );
   ay_levels_init();
   for( i = 0; i < AY_CHANNELS; i++ ) {
     synths[i] = new_Blip_Synth();
@@ -282,11 +291,8 @@ ay_clock_noise( int count )
 }
 
 void
-ay_engine_render( libspectrum_dword tstates_per_frame )
+ay_engine_render( libspectrum_dword endpoint )
 {
-  struct ay_change *change = changes;
-  int changes_left = change_count;
-  int previous[AY_CHANNELS] = { 0, 0, 0 };
   libspectrum_dword f;
 
   if( !( periph_is_active( PERIPH_TYPE_FULLER ) ||
@@ -294,16 +300,15 @@ ay_engine_render( libspectrum_dword tstates_per_frame )
          machine_current->capabilities & LIBSPECTRUM_MACHINE_CAPABILITY_AY ) )
     return;
 
-  for( f = 0; f < tstates_per_frame;
+  for( f = next_tick; f < endpoint;
        f += AY_CLOCK_DIVISOR * AY_CLOCK_RATIO ) {
     unsigned int tone_count;
     int noise_count, channel;
     int envelope_level;
 
-    while( changes_left && f >= change->tstates ) {
-      ay_apply_change( change++ );
-      changes_left--;
-    }
+    while( change_position < change_count &&
+           f >= changes[change_position].tstates )
+      ay_apply_change( &changes[change_position++] );
 
     envelope_level = levels[env_counter];
     noise_count = ay_clock_envelope( registers[13] );
@@ -313,10 +318,12 @@ ay_engine_render( libspectrum_dword tstates_per_frame )
 
     for( channel = 0; channel < AY_CHANNELS; channel++ )
       ay_emit_channel(
-        channel, f, ay_channel_output( channel, envelope_level, tone_count ),
+        channel, sound_interval_time( f ),
+        ay_channel_output( channel, envelope_level, tone_count ),
         &previous[channel] );
     ay_clock_noise( noise_count );
   }
+  next_tick = f;
 }
 
 void
@@ -336,12 +343,47 @@ ay_engine_reset( void )
 {
   int i;
   ay_state_reset();
+  /* A reset must not replay time whose PCM has already been extracted.
+     Retain the legacy frame-local tick lattice, not a lattice at the cut. */
+  next_tick = ( ( sound_audio_position() +
+                 AY_CLOCK_DIVISOR * AY_CLOCK_RATIO - 1 ) /
+               ( AY_CLOCK_DIVISOR * AY_CLOCK_RATIO ) ) *
+             ( AY_CLOCK_DIVISOR * AY_CLOCK_RATIO );
   memset( registers, 0, sizeof( registers ) );
   for( i = 0; i < AY_REGISTERS; i++ ) ay_engine_write( i, 0, 0 );
+}
+
+/* Test-support accessors used by the regression tests in
+ * unittests/unittests.c: the frame-relative offset of the next AY
+ * rendering tick and the engine's register copy. */
+libspectrum_dword
+ay_engine_next_tick_offset( void )
+{
+  return next_tick;
+}
+
+libspectrum_byte
+ay_engine_register_value( int reg )
+{
+  return registers[ reg & 15 ];
 }
 
 void
 ay_engine_end_frame( void )
 {
-  change_count = 0;
+  libspectrum_dword frame = machine_current->timings.tstates_per_frame;
+  int i;
+  /* Preserve master's continuous AY grid and unconsumed tail writes while
+     rebasing the resumable renderer to the following video frame. */
+  next_tick = next_tick >= frame ? next_tick - frame : 0;
+  change_count -= change_position;
+  if( change_count ) {
+    memmove( changes, changes + change_position,
+             change_count * sizeof( changes[0] ) );
+    for( i = 0; i < change_count; i++ )
+      changes[i].tstates = changes[i].tstates > frame ?
+                          changes[i].tstates - frame : 0;
+  }
+  change_position = 0;
+  memset( previous, 0, sizeof( previous ) );
 }

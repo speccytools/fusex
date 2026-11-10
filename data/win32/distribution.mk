@@ -29,7 +29,7 @@ install-win32: all
 	$(MKDIR_P) $(DESTDIR)/roms/ || exit 1
 	$(MKDIR_P) $(DESTDIR)/lib/ || exit 1
 	$(MKDIR_P) $(DESTDIR)/3rd-party/ || exit 1
-	test "$(UI)" != "sdl" -a "$(UI)" != "sdl2" || $(MKDIR_P) $(DESTDIR)/ui/widget/ || exit 1
+	test "$(UI)" != "sdl2" || $(MKDIR_P) $(DESTDIR)/ui/widget/ || exit 1
 	cp $(top_srcdir)/roms/*.rom $(DESTDIR)/roms
 	cp $(top_srcdir)/roms/spxcontroller.bin $(DESTDIR)/roms
 	cp $(top_srcdir)/roms/spxromfs.bin $(DESTDIR)/roms
@@ -41,7 +41,7 @@ install-win32: all
 	cp $(top_srcdir)/lib/*.bmp $(DESTDIR)/lib
 	cp $(top_srcdir)/lib/*.png $(DESTDIR)/lib
 	cp $(top_srcdir)/lib/*.scr $(DESTDIR)/lib
-	test "$(UI)" != "sdl" -a "$(UI)" != "sdl2" || cp $(top_builddir)/ui/widget/fuse.font $(DESTDIR)/ui/widget
+	test "$(UI)" != "sdl2" || cp $(top_builddir)/ui/widget/fuse.font $(DESTDIR)/ui/widget
 #	Copy fuse executable (we should manually copy the required libraries)
 	cp $(top_builddir)/.libs/fuse$(EXEEXT) $(DESTDIR) || \
 	cp $(top_builddir)/fuse$(EXEEXT) $(DESTDIR)
@@ -51,14 +51,11 @@ install-win32: all
 	done
 	cp "$(top_srcdir)/data/win32/README-win32.txt" "$(DESTDIR)/README-win32.txt"
 	cp "$(top_srcdir)/data/win32/LICENSES.txt" "$(DESTDIR)/LICENSES.txt"
-	@has_sdl=no; \
-	has_sdl2=no; \
-	test -f "$(DESTDIR)/SDL.dll" && has_sdl=yes; \
+	@has_sdl2=no; \
 	test -f "$(DESTDIR)/SDL2.dll" && has_sdl2=yes; \
-	awk -v has_sdl="$$has_sdl" -v has_sdl2="$$has_sdl2" '\
-	  /^Files: SDL\.dll$$/ { skip = ( has_sdl != "yes" ); } \
+	awk -v has_sdl2="$$has_sdl2" '\
 	  /^Files: SDL2\.dll$$/ { skip = ( has_sdl2 != "yes" ); } \
-	  /^Files: / && $$0 != "Files: SDL.dll" && $$0 != "Files: SDL2.dll" { skip = 0; } \
+	  /^Files: / && $$0 != "Files: SDL2.dll" { skip = 0; } \
 	  !skip { print }' \
 	  "$(DESTDIR)/LICENSES.txt" > "$(DESTDIR)/LICENSES.txt.tmp" && \
 	mv "$(DESTDIR)/LICENSES.txt.tmp" "$(DESTDIR)/LICENSES.txt"
@@ -214,7 +211,3 @@ distclean-win32:
 	rm -f -- $(top_builddir)/$(package_win32).7z.sha1
 	rm -f -- $(top_builddir)/$(package_win32)-setup.exe
 	rm -f -- $(top_builddir)/$(package_win32)-setup.exe.sha1
-
-.PHONY: install-win32 install-win32-strip dist-win32 dist-win32-dir \
-	dist-win32-dir-debug dist-win32-zip dist-win32-7z dist-win32-exe \
-	distclean-win32 3rdparty-dist

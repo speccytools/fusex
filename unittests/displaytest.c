@@ -293,6 +293,7 @@ test_before( void )
   scld_last_dec.byte = 0;
   memory_current_screen = 0;
   ulaplus_enabled = 0;
+  memset( display_force_redraw, 0, sizeof( display_force_redraw ) );
   memset( RAM[0], 0, ARRAY_SIZE( RAM[0] ) );
   memset( display_last_screen, 0, sizeof( display_last_screen ) );
   display_clear_maybe_dirty();
@@ -323,6 +324,12 @@ test_before( void )
 static void
 timex_test_before( libspectrum_byte scld_byte )
 {
+  /* The Sinclair tests read RAM[0] through display_write_if_dirty_sinclair(),
+     so they require memory_current_screen to be 0. It may have been left at 5
+     (or 7) by the timex/pentagon test_before helpers used in earlier tests
+     (e.g. refresh_redraws_unchanged_cells), so reset it here. */
+  memory_current_screen = 0;
+  memset( display_force_redraw, 0, sizeof( display_force_redraw ) );
   memset( RAM[0], 0, ARRAY_SIZE( RAM[0] ) );
   memset( display_last_screen, 0, sizeof( display_last_screen ) );
   display_clear_maybe_dirty();
@@ -1549,6 +1556,7 @@ struct test_t {
 static void
 pentagon_test_before( void )
 {
+  memset( display_force_redraw, 0, sizeof( display_force_redraw ) );
   memset( RAM[4], 0, sizeof( RAM[4] ) );
   memset( RAM[5], 0, sizeof( RAM[5] ) );
   memset( RAM[6], 0, sizeof( RAM[6] ) );
@@ -1726,7 +1734,61 @@ parse_attr_flash_reversed_symmetric( void )
   return r;
 }
 
+/* Refreshing the UI must not put invalidation sentinels in movie data. */
+static int
+refresh_preserves_image( void )
+{
+  libspectrum_dword saved[ ARRAY_SIZE( display_last_screen ) ];
+  size_t i;
+
+  for( i = 0; i < ARRAY_SIZE( display_last_screen ); i++ )
+    display_last_screen[i] = i * 0x01010101u;
+  memcpy( saved, display_last_screen, sizeof( saved ) );
+
+  display_refresh_all();
+
+  if( memcmp( saved, display_last_screen, sizeof( saved ) ) ) return 1;
+  for( i = 0; i < ARRAY_SIZE( display_force_redraw ); i++ )
+    if( !display_force_redraw[i] ) return 1;
+  return 0;
+}
+
+static int
+refresh_redraws_unchanged_cells( void )
+{
+  /* Sinclair: unchanged data must redraw once, then become cached again. */
+  display_write_if_dirty_sinclair( 0, 0 );
+  plot8_count = 0;
+  display_refresh_all();
+  display_write_if_dirty_sinclair( 0, 0 );
+  display_write_if_dirty_sinclair( 0, 0 );
+  if( plot8_count != 1 || display_force_redraw[964] ) return 1;
+
+  timex_test_before( 0 );
+  display_refresh_all();
+  display_write_if_dirty_timex( 0, 0 );
+  display_write_if_dirty_timex( 0, 0 );
+  if( plot8_count != 1 || display_force_redraw[964] ) return 1;
+
+  pentagon_test_before();
+  display_refresh_all();
+  display_write_if_dirty_pentagon_16_col( 0, 0 );
+  display_write_if_dirty_pentagon_16_col( 0, 0 );
+  if( putpixel_count != 8 || display_force_redraw[964] ) return 1;
+
+  /* Border refresh must also consume its redraw flag. */
+  plot8_count = 0;
+  display_border_frame();
+  if( !plot8_count || display_force_redraw[0] ) return 1;
+  plot8_count = 0;
+  display_border_frame();
+  if( plot8_count ) return 1;
+  return 0;
+}
+
 static const struct test_t tests[] = {
+  { "refresh_preserves_image", refresh_preserves_image },
+  { "refresh_redraws_unchanged_cells", refresh_redraws_unchanged_cells },
   /* display_write_if_dirty_sinclair() tests */
   { "no_write_if_data_unchanged", no_write_if_data_unchanged },
   { "write_called_for_new_data", write_called_for_new_data },

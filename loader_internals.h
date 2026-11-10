@@ -74,6 +74,7 @@ int movieload_loader_detector( libspectrum_word pc );
 int sign_flag_loader_detector( libspectrum_word pc );
 int loader_loop_detector( libspectrum_word pc );
 int ula_read_uses_ear( libspectrum_word pc );
+int ula_read_is_keyboard_scan( libspectrum_word pc );
 
 void accelerate_loader( int long_pulse );
 

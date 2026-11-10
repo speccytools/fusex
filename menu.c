@@ -800,6 +800,7 @@ MENU_CALLBACK_WITH_ACTION( menu_media_ide_eject )
   case 6: divide_eject( LIBSPECTRUM_IDE_MASTER ); break;
   case 7: divide_eject( LIBSPECTRUM_IDE_SLAVE  ); break;
   case 8: divmmc_eject(); break;
+  case 9: zxmmc_eject(); break;
   }
 
   fuse_emulation_unpause();

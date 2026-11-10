@@ -34,7 +34,7 @@
 #include "spec48.h"
 #include "specplus3.h"
 
-static int specplus2a_reset( int hard_reset );
+static int specplus2a_reset( int hard_reset, libspectrum_snap *snap );
 
 int
 specplus2a_init( fuse_machine_info *machine )
@@ -60,21 +60,21 @@ specplus2a_init( fuse_machine_info *machine )
 }
 
 static int
-specplus2a_reset( int hard_reset )
+specplus2a_reset( int hard_reset, libspectrum_snap *snap )
 {
   int error;
 
   error = machine_load_rom( 0, settings_current.rom_plus2a_0,
-                            settings_default.rom_plus2a_0, 0x4000 );
+                            settings_default.rom_plus2a_0, 0x4000, snap );
   if( error ) return error;
   error = machine_load_rom( 1, settings_current.rom_plus2a_1,
-                            settings_default.rom_plus2a_1, 0x4000 );
+                            settings_default.rom_plus2a_1, 0x4000, snap );
   if( error ) return error;
   error = machine_load_rom( 2, settings_current.rom_plus2a_2,
-                            settings_default.rom_plus2a_2, 0x4000 );
+                            settings_default.rom_plus2a_2, 0x4000, snap );
   if( error ) return error;
   error = machine_load_rom( 3, settings_current.rom_plus2a_3,
-                            settings_default.rom_plus2a_3, 0x4000 );
+                            settings_default.rom_plus2a_3, 0x4000, snap );
   if( error ) return error;
 
   error = specplus3_plus2a_common_reset( hard_reset );

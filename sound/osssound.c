@@ -39,7 +39,6 @@
 
 
 static int soundfd=-1;
-static int sixteenbit=1;
 
 
 /* returns 0 on *success*, and adjusts freq/stereo args to reflect
@@ -79,20 +78,12 @@ if(fcntl(soundfd,F_SETFL,flags)==-1)
   }
 
 tmp=AFMT_S16_NE;
-sixteenbit=1;
-if(settings_current.sound_force_8bit || ioctl(soundfd,SNDCTL_DSP_SETFMT,&tmp)==-1)
+if(ioctl(soundfd,SNDCTL_DSP_SETFMT,&tmp)==-1 || tmp!=AFMT_S16_NE)
   {
-  /* try 8-bit - may be an 8-bit-only device */
-  tmp=AFMT_U8;
-  if((ioctl(soundfd,SNDCTL_DSP_SETFMT,&tmp))==-1)
-    {
-    settings_current.sound = 0;
-    ui_error(UI_ERROR_ERROR,"couldn't set sound device into 8-bit mode: %s",strerror(errno));
-    close(soundfd);
-    return 1;
-    }
-
-  sixteenbit=0;
+  settings_current.sound = 0;
+  ui_error(UI_ERROR_ERROR,"sound device does not support native 16-bit PCM");
+  close(soundfd);
+  return 1;
   }
 
 /* XXX should it warn if it didn't get the stereoness it wanted? */
@@ -125,7 +116,7 @@ if(*freqptr>8250) frag++;
 if(*freqptr>16500) frag++;
 if(*freqptr>33000) frag++;
 if(*stereoptr) frag++;
-if(sixteenbit) frag++;
+frag++; /* 16-bit samples */
 
 /* FIXME: OSS API docs say you should write to the soundcard in frag size
    blocks */
@@ -150,25 +141,10 @@ if(soundfd!=-1)
 
 void sound_lowlevel_frame(libspectrum_signed_word *data,int len)
 {
-static unsigned char buf8[4096];
 unsigned char *data8=(unsigned char *)data;
 int ret=0,ofs=0;
 
 len<<=1;	/* now in bytes */
-
-if(!sixteenbit)
-  {
-  libspectrum_signed_word *src;
-  unsigned char *dst;
-  int f;
-
-  src=data; dst=buf8;
-  len>>=1;
-  for(f=0;f<len;f++)
-    *dst++=128+(int)((*src++)/256);
-  
-  data8=buf8;
-  }
 
 while(len)
   {

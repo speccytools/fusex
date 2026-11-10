@@ -41,6 +41,7 @@
 #include "module.h"
 #include "movie.h"
 #include "peripherals/ula.h"
+#include "peripherals/dck.h"
 #include "pokefinder/pokemem.h"
 #include "rzx.h"
 #include "debugger/gdbserver.h"
@@ -69,8 +70,8 @@ typedef struct snapshot_rom_bank {
 static GSList *snapshot_rom_banks;
 
 static int machine_add_machine( int (*init_function)(fuse_machine_info *machine) );
-static void machine_clear_snapshot_rom_banks( void );
-static int machine_select_machine( fuse_machine_info *machine );
+void machine_clear_snapshot_rom_banks( void );
+static int machine_select_machine( fuse_machine_info *machine, libspectrum_snap *snap );
 static void machine_set_const_timings( fuse_machine_info *machine );
 static void machine_set_variable_timings( fuse_machine_info *machine );
 
@@ -146,6 +147,12 @@ machine_add_machine( int (*init_function)( fuse_machine_info *machine ) )
 int
 machine_select( libspectrum_machine type )
 {
+  return machine_select_from_snapshot( type, NULL );
+}
+
+int
+machine_select_from_snapshot( libspectrum_machine type, libspectrum_snap *snap )
+{
   int i;
 
   machine_clear_snapshot_rom_banks();
@@ -162,14 +169,14 @@ machine_select( libspectrum_machine type )
   for( i=0; i < machine_count; i++ ) {
     if( machine_types[i]->machine == type ) {
       machine_location = i;
-      error = machine_select_machine( machine_types[i] );
+      error = machine_select_machine( machine_types[i], snap );
 
       if( !error ) return 0;
 
       /* If we couldn't select the new machine type, try falling back
 	 to plain old 48K */
       if( type != LIBSPECTRUM_MACHINE_48 ) 
-	error = machine_select( LIBSPECTRUM_MACHINE_48 );
+	error = machine_select_from_snapshot( LIBSPECTRUM_MACHINE_48, snap );
 	
       /* If that still didn't work, give up */
       if( error ) {
@@ -194,7 +201,7 @@ int machine_select_id( const char *id )
 
   for( i=0; i < machine_count; i++ ) {
     if( ! strcmp( machine_types[i]->id, id ) ) {
-      error = machine_select_machine( machine_types[i] );
+      error = machine_select_machine( machine_types[i], NULL );
       if( error ) return error;
       return 0;
     }
@@ -250,15 +257,21 @@ machine_get_machine_info( const char *id )
 }
 
 static int
-machine_select_machine( fuse_machine_info *machine )
+machine_select_machine( fuse_machine_info *machine, libspectrum_snap *snap )
 {
   int width, height;
   int capabilities;
 
+  /* Preserve the pending tape interval in the old clock before clearing
+     events and replacing the machine. tape_play() rescales it on resume. */
+  if( tape_recording && tape_record_stop() ) return 1;
+  if( machine_current ) tape_stop();
   machine_current = machine;
 
   settings_set_string( &settings_current.start_machine, machine->id );
   
+  /* Replacing the frame clock/event queue invalidates pending audio cuts. */
+  sound_suspend_subframe();
   tstates = 0;
   general_sound_reanchor();
 
@@ -287,7 +300,7 @@ machine_select_machine( fuse_machine_info *machine )
   sound_init( settings_current.sound_device );
 
   /* Do a hard reset */
-  if( machine_reset( 1 ) ) return 1;
+  if( machine_reset_from_snapshot( 1, snap ) ) return 1;
 
   /* And the dock menu item */
   if( capabilities & LIBSPECTRUM_MACHINE_CAPABILITY_TIMEX_DOCK ) {
@@ -399,7 +412,7 @@ snapshot_rom_bank_find( memory_page *map, int page_num )
   return NULL;
 }
 
-static void
+void
 machine_clear_snapshot_rom_banks( void )
 {
   while( snapshot_rom_banks ) {
@@ -432,7 +445,7 @@ machine_load_rom_bank_from_snapshot( memory_page *bank_map, int page_num,
 static int
 machine_load_rom_bank_internal( memory_page *bank_map, int page_num,
   const char *filename, const char *fallback, const rom_size_spec *sizes,
-  size_t *loaded_length )
+  size_t *loaded_length, libspectrum_snap *loading_snapshot )
 {
   snapshot_rom_bank *snapshot_bank;
   rom_load_result result;
@@ -442,6 +455,20 @@ machine_load_rom_bank_internal( memory_page *bank_map, int page_num,
 
   if( loaded_length ) *loaded_length = 0;
   if( !sizes->allowed_lengths || !sizes->allowed_length_count ) return 1;
+
+  /* Machine ROMs are requested during the machine reset, before modules can
+     restore their snapshot state. Resolve their snapshot banks on demand. */
+  if( bank_map == memory_map_rom && loading_snapshot &&
+      libspectrum_snap_custom_rom( loading_snapshot ) &&
+      page_num >= 0 && page_num < 4 &&
+      page_num < libspectrum_snap_custom_rom_pages( loading_snapshot ) &&
+      libspectrum_snap_roms( loading_snapshot, page_num ) &&
+      !snapshot_rom_bank_find( bank_map, page_num ) ) {
+    if( machine_load_rom_bank_from_snapshot( bank_map, page_num,
+          libspectrum_snap_roms( loading_snapshot, page_num ),
+          libspectrum_snap_rom_length( loading_snapshot, page_num ), 1 ) )
+      return 1;
+  }
 
   snapshot_bank = snapshot_rom_bank_find( bank_map, page_num );
   if( snapshot_bank ) {
@@ -496,7 +523,7 @@ machine_load_rom_bank( memory_page *bank_map, int page_num,
   const rom_size_spec sizes = { &expected_length, 1 };
 
   return machine_load_rom_bank_internal( bank_map, page_num, filename,
-                                         fallback, &sizes, NULL );
+                                         fallback, &sizes, NULL, NULL );
 }
 
 int
@@ -507,23 +534,31 @@ machine_load_rom_bank_with_sizes( memory_page *bank_map, int page_num,
   const rom_size_spec sizes = { allowed_lengths, allowed_length_count };
 
   return machine_load_rom_bank_internal( bank_map, page_num, filename,
-                                         fallback, &sizes, loaded_length );
+                                         fallback, &sizes, loaded_length, NULL );
 }
 
 int
 machine_load_rom( int page_num, const char *filename, const char *fallback,
-  size_t expected_length )
+  size_t expected_length, libspectrum_snap *snap )
 {
-  return machine_load_rom_bank( memory_map_rom, page_num, filename, fallback,
-    expected_length );
+  const rom_size_spec sizes = { &expected_length, 1 };
+  return machine_load_rom_bank_internal( memory_map_rom, page_num, filename,
+                                         fallback, &sizes, NULL, snap );
 }
 
 int
 machine_reset( int hard_reset )
 {
+  return machine_reset_from_snapshot( hard_reset, NULL );
+}
+
+int
+machine_reset_from_snapshot( int hard_reset, libspectrum_snap *snap )
+{
   size_t i;
   int error;
 
+  if( tape_recording && tape_record_stop() ) return 1;
   if( hard_reset ) machine_clear_snapshot_rom_banks();
 
   /* Clear poke list (undoes effects of active pokes on Spectrum memory) */
@@ -541,10 +576,13 @@ machine_reset( int hard_reset )
 
   memory_reset();
 
-  /* Do the machine-specific bits, including loading the ROMs */
-  error = machine_current->reset( hard_reset ); if( error ) return error;
+  /* Snapshot cartridge pages replace, rather than overlay, inserted media. */
+  if( snap ) dck_discard();
 
-  module_reset( hard_reset );
+  /* Do the machine-specific bits, including loading the ROMs */
+  error = machine_current->reset( hard_reset, snap ); if( error ) return error;
+
+  module_reset( hard_reset, snap );
 
   error = machine_current->memory_map(); if( error ) return error;
 

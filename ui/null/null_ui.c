@@ -61,7 +61,7 @@ null_ui_schedule_timer( libspectrum_dword last_tstates )
 static void
 null_display_pixel( int x, int y, int colour )
 {
-  if( x >= 0 && x < null_display_info.width &&
+  if( null_display_pixels && x >= 0 && x < null_display_info.width &&
       y >= 0 && y < null_display_info.height )
     null_display_pixels[ y * null_display_info.width + x ] = (uint8_t)colour;
 }

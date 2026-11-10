@@ -7,6 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F11010030000000000000009 /* utils_string.c in Sources */ = {isa = PBXBuildFile; fileRef = F11010020000000000000009 /* utils_string.c */; };
+		F11010030000000000000008 /* tzx_pzx.c in Sources */ = {isa = PBXBuildFile; fileRef = F11010020000000000000008 /* tzx_pzx.c */; };
+		F11010030000000000000007 /* tape_text.c in Sources */ = {isa = PBXBuildFile; fileRef = F11010020000000000000007 /* tape_text.c */; };
+		F11010030000000000000006 /* tap_pzx.c in Sources */ = {isa = PBXBuildFile; fileRef = F11010020000000000000006 /* tap_pzx.c */; };
+		F11010030000000000000005 /* pzx_write_validate.c in Sources */ = {isa = PBXBuildFile; fileRef = F11010020000000000000005 /* pzx_write_validate.c */; };
+		F11010030000000000000004 /* pzx_write_playback.c in Sources */ = {isa = PBXBuildFile; fileRef = F11010020000000000000004 /* pzx_write_playback.c */; };
+		F11010030000000000000003 /* pzx_write_plan.c in Sources */ = {isa = PBXBuildFile; fileRef = F11010020000000000000003 /* pzx_write_plan.c */; };
+		F11010030000000000000002 /* pzx_write.c in Sources */ = {isa = PBXBuildFile; fileRef = F11010020000000000000002 /* pzx_write.c */; };
+		F11010030000000000000001 /* pzx.c in Sources */ = {isa = PBXBuildFile; fileRef = F11010020000000000000001 /* pzx.c */; };
+		F11010030000000000000000 /* csw_write.c in Sources */ = {isa = PBXBuildFile; fileRef = F11010020000000000000000 /* csw_write.c */; };
+		F11010010000000000000001 /* wait.c in Sources */ = {isa = PBXBuildFile; fileRef = F11010010000000000000002 /* wait.c */; };
 		03A9A1325AFA09F88C578556 /* mlt.icns in Resources */ = {isa = PBXBuildFile; fileRef = 06FA366DDA50516B0E710919 /* mlt.icns */; };
 		133B0AD3B7A88DDE320CC90A /* spc.icns in Resources */ = {isa = PBXBuildFile; fileRef = 6B9DA7F77DF8F6DD5023E33A /* spc.icns */; };
 		1B79AE9FC29230B4DE1FF5DC /* sta.icns in Resources */ = {isa = PBXBuildFile; fileRef = 1C8D4F4DD60D5C25EDFCCA5A /* sta.icns */; };
@@ -536,6 +547,17 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		F11010020000000000000009 /* utils_string.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ../utils_string.c; sourceTree = SOURCE_ROOT; };
+		F11010020000000000000008 /* tzx_pzx.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ../3rdparty/libspectrum/tzx_pzx.c; sourceTree = SOURCE_ROOT; };
+		F11010020000000000000007 /* tape_text.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ../3rdparty/libspectrum/tape_text.c; sourceTree = SOURCE_ROOT; };
+		F11010020000000000000006 /* tap_pzx.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ../3rdparty/libspectrum/tap_pzx.c; sourceTree = SOURCE_ROOT; };
+		F11010020000000000000005 /* pzx_write_validate.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ../3rdparty/libspectrum/pzx_write_validate.c; sourceTree = SOURCE_ROOT; };
+		F11010020000000000000004 /* pzx_write_playback.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ../3rdparty/libspectrum/pzx_write_playback.c; sourceTree = SOURCE_ROOT; };
+		F11010020000000000000003 /* pzx_write_plan.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ../3rdparty/libspectrum/pzx_write_plan.c; sourceTree = SOURCE_ROOT; };
+		F11010020000000000000002 /* pzx_write.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ../3rdparty/libspectrum/pzx_write.c; sourceTree = SOURCE_ROOT; };
+		F11010020000000000000001 /* pzx.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ../3rdparty/libspectrum/pzx.c; sourceTree = SOURCE_ROOT; };
+		F11010020000000000000000 /* csw_write.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ../3rdparty/libspectrum/csw_write.c; sourceTree = SOURCE_ROOT; };
+		F11010010000000000000002 /* wait.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ../compat/darwin/wait.c; sourceTree = SOURCE_ROOT; };
 		0434807795A36A2ADBE801FD /* fdi.icns */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.icns; name = fdi.icns; path = resources/fdi.icns; sourceTree = SOURCE_ROOT; };
 		06FA366DDA50516B0E710919 /* mlt.icns */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.icns; name = mlt.icns; path = resources/mlt.icns; sourceTree = SOURCE_ROOT; };
 		0729E0464F01C4BF0C9CF069 /* gluck.rom */ = {isa = PBXFileReference; lastKnownFileType = file; name = gluck.rom; path = ../roms/gluck.rom; sourceTree = SOURCE_ROOT; };
@@ -1501,6 +1523,7 @@
 				B6501DF211AABD6800898AD1 /* blipbuffer.c */,
 				B6501DF311AABD6800898AD1 /* blipbuffer.h */,
 				B6A6F0950B3C108C000B88E9 /* coreaudiosound.c */,
+				F11010010000000000000002 /* wait.c */,
 				B6F06100078FC2C900CD5D95 /* sfifo.c */,
 				B6F06101078FC2C900CD5D95 /* sfifo.h */,
 				D19200010000000000000001 /* speaker_filter.c */,
@@ -1721,6 +1744,16 @@
 				B6DCBB67114FA0E700DC9A11 /* creator.c */,
 				B6DCBB68114FA0E700DC9A11 /* crypto.c */,
 				B6DCBB69114FA0E700DC9A11 /* csw.c */,
+				F11010020000000000000009 /* utils_string.c */,
+				F11010020000000000000008 /* tzx_pzx.c */,
+				F11010020000000000000007 /* tape_text.c */,
+				F11010020000000000000006 /* tap_pzx.c */,
+				F11010020000000000000005 /* pzx_write_validate.c */,
+				F11010020000000000000004 /* pzx_write_playback.c */,
+				F11010020000000000000003 /* pzx_write_plan.c */,
+				F11010020000000000000002 /* pzx_write.c */,
+				F11010020000000000000001 /* pzx.c */,
+				F11010020000000000000000 /* csw_write.c */,
 				B6DCBB6A114FA0E700DC9A11 /* dck.c */,
 				B6DCBB77114FA0E700DC9A11 /* ide.c */,
 				B6DCBB78114FA0E700DC9A11 /* internals.h */,
@@ -2607,6 +2640,7 @@
 				CC2086963F8A491084EEBE3B /* DisplayShaders.metal in Sources */,
 				B6E0252C0B38AFE500E23A0F /* keysyms.m in Sources */,
 				B6A6F0960B3C108C000B88E9 /* coreaudiosound.c in Sources */,
+				F11010010000000000000001 /* wait.c in Sources */,
 				B6A6F0DA0B3D141B000B88E9 /* cocoaui.m in Sources */,
 				B6A6F10E0B3D6360000B88E9 /* cocoaerror.m in Sources */,
 				B6A6F1200B3EA737000B88E9 /* cocoascreenshot.m in Sources */,
@@ -2671,6 +2705,16 @@
 				B6DCBBC4114FA0E700DC9A11 /* creator.c in Sources */,
 				B6DCBBC5114FA0E700DC9A11 /* crypto.c in Sources */,
 				B6DCBBC6114FA0E700DC9A11 /* csw.c in Sources */,
+				F11010030000000000000009 /* utils_string.c in Sources */,
+				F11010030000000000000008 /* tzx_pzx.c in Sources */,
+				F11010030000000000000007 /* tape_text.c in Sources */,
+				F11010030000000000000006 /* tap_pzx.c in Sources */,
+				F11010030000000000000005 /* pzx_write_validate.c in Sources */,
+				F11010030000000000000004 /* pzx_write_playback.c in Sources */,
+				F11010030000000000000003 /* pzx_write_plan.c in Sources */,
+				F11010030000000000000002 /* pzx_write.c in Sources */,
+				F11010030000000000000001 /* pzx.c in Sources */,
+				F11010030000000000000000 /* csw_write.c in Sources */,
 				B6D71DD61F6AA1E70000D666 /* mmc.c in Sources */,
 				B6DCBBC7114FA0E700DC9A11 /* dck.c in Sources */,
 				FE8E3FD62FD70BD9009FDB81 /* ssh.c in Sources */,
@@ -2857,13 +2901,14 @@
 				);
 				LIBRARY_SEARCH_PATHS = .;
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = "1.10.0-fusex-0.2";
+				MARKETING_VERSION = "1.10.1-fusex-0.1";
 				OTHER_CFLAGS = "";
 				OTHER_CODE_SIGN_FLAGS = "";
 				OTHER_LDFLAGS = (
 					"-lbz2",
 					"-lz",
 					"-lxml2",
+					"-liconv",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = FuseXPreferences;
 				PRODUCT_NAME = FuseX;
@@ -2935,13 +2980,14 @@
 				);
 				LIBRARY_SEARCH_PATHS = .;
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = "1.10.0-fusex-0.2";
+				MARKETING_VERSION = "1.10.1-fusex-0.1";
 				OTHER_CFLAGS = "";
 				OTHER_CODE_SIGN_FLAGS = "";
 				OTHER_LDFLAGS = (
 					"-lbz2",
 					"-lz",
 					"-lxml2",
+					"-liconv",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = FuseXPreferences;
 				PRODUCT_NAME = FuseX;
@@ -3012,13 +3058,14 @@
 				);
 				LIBRARY_SEARCH_PATHS = .;
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = "1.10.0-fusex-0.2";
+				MARKETING_VERSION = "1.10.1-fusex-0.1";
 				OTHER_CFLAGS = "";
 				OTHER_CODE_SIGN_FLAGS = "";
 				OTHER_LDFLAGS = (
 					"-lbz2",
 					"-lz",
 					"-lxml2",
+					"-liconv",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = FuseXPreferences;
 				PRODUCT_NAME = FuseX;

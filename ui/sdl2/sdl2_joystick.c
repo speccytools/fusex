@@ -20,6 +20,7 @@
 #include "settings.h"
 #include "ui/ui.h"
 #include "ui/uijoystick.h"
+#include "sdl2_joystick.h"
 #include "sdl2_joystick_internal.h"
 
 static SDL_Joystick *joystick1;
@@ -83,6 +84,29 @@ ui_joystick_init( void )
 void
 ui_joystick_poll( void )
 {
+#ifndef UI_SDL2
+  /* GTK and Xlib have no SDL UI event loop. */
+  SDL_Event event;
+
+  while( SDL_PollEvent( &event ) ) {
+    switch( event.type ) {
+    case SDL_JOYBUTTONDOWN:
+      sdl2joystick_buttonpress( &event.jbutton );
+      break;
+    case SDL_JOYBUTTONUP:
+      sdl2joystick_buttonrelease( &event.jbutton );
+      break;
+    case SDL_JOYAXISMOTION:
+      sdl2joystick_axismove( &event.jaxis );
+      break;
+    case SDL_JOYHATMOTION:
+      sdl2joystick_hatmove( &event.jhat );
+      break;
+    default:
+      break;
+    }
+  }
+#endif
 }
 
 static void

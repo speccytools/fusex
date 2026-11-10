@@ -36,7 +36,6 @@
 #include "utils.h"
 
 static ao_device *dev_for_ao;
-static int sixteenbit = 1;
 static char *filename = NULL;
 static const char * const default_filename = "fuse-sound.ao";
 static int first_init = 1;
@@ -169,9 +168,8 @@ sound_lowlevel_init( const char *device, int *freqptr, int *stereoptr )
 
   format.channels = *stereoptr ? 2 : 1;
   format.rate = *freqptr;
-  format.bits = settings_current.sound_force_8bit ? 8 : 16;
+  format.bits = 16;
   format.byte_format = AO_FMT_LITTLE;
-  sixteenbit = settings_current.sound_force_8bit ? 0 : 1;
   
   if( driver_info->type == AO_TYPE_LIVE ) {
 
@@ -210,24 +208,6 @@ sound_lowlevel_end( void )
 void
 sound_lowlevel_frame( libspectrum_signed_word *data, int len )
 {
-  static signed char buf8[4096];
-  void *data8 = data;
-
   len <<= 1;	/* now in bytes */
-
-  if( !sixteenbit ) {
-    libspectrum_signed_word *src;
-    signed char *dst;
-    int f;
-
-    src = data;
-    dst = buf8;
-    len >>= 1;
-    for( f = 0; f < len; f++)
-      *dst++ = ( int )( ( *src++ ) / 256 );
-  
-    data8 = buf8;
-  }
-
-  ao_play( dev_for_ao, data8, len );
+  ao_play( dev_for_ao, (void *)data, len );
 }

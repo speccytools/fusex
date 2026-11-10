@@ -101,6 +101,7 @@ wd_fdc_alloc_fdc( wd_type_t type, int hlt_time, unsigned int flags )
   switch( type ) {
   default:
     type = WD1770;			/* illegal type converted to wd_fdc */
+    /* fall through */
   case FD1793:
   case WD1773:
   case WD1770:

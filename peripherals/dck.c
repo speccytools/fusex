@@ -47,6 +47,12 @@
 int dck_active = 0;
 static const utils_file *dck_loaded_file;
 static memory_rom_bank dck_banks[3][8];
+static int dck_writable[3][8];
+static memory_page dck_home_mapping[MEMORY_PAGES_IN_64K];
+static const libspectrum_dck_bank dck_bank_ids[3] = {
+  LIBSPECTRUM_DCK_BANK_DOCK, LIBSPECTRUM_DCK_BANK_EXROM,
+  LIBSPECTRUM_DCK_BANK_HOME
+};
 
 static void
 dck_clear_banks( void )
@@ -58,18 +64,40 @@ dck_clear_banks( void )
       memory_rom_bank_clear( &dck_banks[ bank ][ page ] );
 }
 
+/* Discard ownership before a snapshot rebuilds the machine mappings. */
+void
+dck_discard( void )
+{
+  dck_active = 0;
+  dck_clear_banks();
+  settings_set_string( &settings_current.dck_file, NULL );
+}
+
+static int
+dck_bank_index( libspectrum_dck_bank bank )
+{
+  int i;
+
+  /* DCK bank identifiers are sparse (0, 254 and 255). */
+  for( i = 0; i < 3; i++ )
+    if( dck_bank_ids[ i ] == bank ) return i;
+  return -1;
+}
+
 static memory_rom_bank *
 dck_get_bank( libspectrum_dck_bank bank, int page )
 {
-  if( bank > LIBSPECTRUM_DCK_BANK_EXROM || page < 0 || page >= 8 )
-    return NULL;
+  int index = dck_bank_index( bank );
 
-  return &dck_banks[ bank ][ page ];
+  if( index < 0 || page < 0 || page >= 8 ) return NULL;
+  return &dck_banks[ index ][ page ];
 }
 
 static int
 dck_insert_internal( const char *filename, const utils_file *file )
 {
+  int error;
+
   if ( !( libspectrum_machine_capabilities( machine_current->machine ) &
 	  LIBSPECTRUM_MACHINE_CAPABILITY_TIMEX_DOCK ) ) {
     ui_error( UI_ERROR_ERROR, "This machine does not support the dock" );
@@ -78,12 +106,16 @@ dck_insert_internal( const char *filename, const utils_file *file )
 
   settings_set_string( &settings_current.dck_file, filename );
   dck_active = 0;
+  dck_clear_banks();
 
+  /* Changing the physical cartridge implies a power cycle. With no active
+     banks, dck_reset installs the new image after the machine RAM is reset,
+     retaining any initial RAM contents supplied by that image. */
   dck_loaded_file = file;
-  machine_reset( 0 );
+  error = machine_reset( 1 );
   dck_loaded_file = NULL;
 
-  return 0;
+  return error;
 }
 
 int
@@ -114,7 +146,7 @@ dck_eject( void )
 
   ui_menu_activate( UI_MENU_ITEM_MEDIA_CARTRIDGE_DOCK_EJECT, 0 );
 
-  machine_reset( 0 );
+  machine_reset( 1 );
 }
 
 static memory_page *
@@ -132,19 +164,70 @@ dck_get_memory_page( libspectrum_dck_bank bank, size_t index )
     }
 }
 
+/* HOME ROM pages in RAM slots must not change the underlying RAM maps. */
+static void
+dck_map_bank( libspectrum_dck_bank bank_id, int number, int writable )
+{
+  memory_rom_bank *bank = dck_get_bank( bank_id, number );
+  int j;
+
+  dck_writable[ dck_bank_index( bank_id ) ][ number ] = writable;
+  for( j = 0; j < MEMORY_PAGES_IN_8K; j++ ) {
+    int index = number * MEMORY_PAGES_IN_8K + j;
+    memory_page *page = dck_get_memory_page( bank_id, index );
+
+    if( bank_id == LIBSPECTRUM_DCK_BANK_HOME && number > 1 ) {
+      dck_home_mapping[ index ] = *page;
+      page = &dck_home_mapping[ index ];
+      timex_home[ index ] = page;
+    }
+    page->offset = j * MEMORY_PAGE_SIZE;
+    page->writable = writable;
+    page->save_to_snapshot = 1;
+    page->page = bank->data + page->offset;
+  }
+}
+
+int
+dck_restore_page( libspectrum_dck_bank bank_id, int page, int writable,
+                  const libspectrum_byte *data )
+{
+  memory_rom_bank *bank = dck_get_bank( bank_id, page );
+  if( !bank || memory_rom_bank_set( bank, data, 0x2000, 1 ) ) return 1;
+  dck_map_bank( bank_id, page, writable );
+  dck_active = 1;
+  scld_set_exrom_dock_contention();
+  return 0;
+}
+
 int
 dck_reset( int hard_reset )
 {
-  if( hard_reset ) dck_clear_banks();
-  if( !hard_reset && dck_active ) return 0;
   utils_file file;
   size_t num_block = 0;
   libspectrum_dck *dck;
   int error;
 
+  if( dck_active ) {
+    int bank, page;
+
+    /* Machine reset rebuilt the default maps; reinstall retained pages. */
+    for( bank = 0; bank < 3; bank++ )
+      for( page = 0; page < 8; page++ )
+        if( dck_banks[ bank ][ page ].data ) {
+          if( hard_reset && dck_writable[ bank ][ page ] )
+            memset( dck_banks[ bank ][ page ].data, 0, 0x2000 );
+          dck_map_bank( dck_bank_ids[ bank ], page,
+                        dck_writable[ bank ][ page ] );
+        }
+    scld_set_exrom_dock_contention();
+    return 0;
+  }
+
   dck_active = 0;
 
   if( !settings_current.dck_file ) {
+    dck_clear_banks();
     ui_menu_activate( UI_MENU_ITEM_MEDIA_CARTRIDGE_DOCK_EJECT, 0 );
     return 0;
   }
@@ -161,7 +244,7 @@ dck_reset( int hard_reset )
     if( error ) { libspectrum_dck_free( dck, 0 ); return error; }
 
     error = libspectrum_dck_read2( dck, file.buffer, file.length,
-                                   settings_current.dck_file );
+                                   file.filename );
     utils_close_file( &file );
     if( error ) { libspectrum_dck_free( dck, 0 ); return error; }
   }
@@ -182,7 +265,6 @@ dck_reset( int hard_reset )
 
     for( i = 0; i < 8; i++ ) {
 
-      libspectrum_byte *data;
       int j;
 
       switch( dck->dck[num_block]->access[i] ) {
@@ -198,14 +280,7 @@ dck_reset( int hard_reset )
           libspectrum_dck_free( dck, 0 );
           return 1;
         }
-        data = bank->data;
-        for( j = 0; j < MEMORY_PAGES_IN_8K; j++ ) {
-          page = dck_get_memory_page( dck_bank, i * MEMORY_PAGES_IN_8K + j);
-          page->offset = j * MEMORY_PAGE_SIZE;
-          page->writable = 0;
-          page->save_to_snapshot = 1;
-          page->page = data + page->offset;
-        }
+        dck_map_bank( dck_bank, i, 0 );
         break;
       }
 
@@ -239,14 +314,7 @@ dck_reset( int hard_reset )
             libspectrum_dck_free( dck, 0 );
             return 1;
           }
-          data = bank->data;
-          for( j = 0; j < MEMORY_PAGES_IN_8K; j++ ) {
-            page = dck_get_memory_page( dck_bank, i * MEMORY_PAGES_IN_8K + j);
-            page->offset = j * MEMORY_PAGE_SIZE;
-            page->writable = 1;
-            page->save_to_snapshot = 1;
-            page->page = data + page->offset;
-          }
+          dck_map_bank( dck_bank, i, 1 );
         }
         break;
 

@@ -152,42 +152,16 @@ timer_register_startup( void )
                             timer_end );
 }
 
-#ifdef SOUND_FIFO
-
-/* Callback-style sound based timer */
-#include "sound/sfifo.h"
-
-extern sfifo_t sound_fifo;
-
-static void
-timer_frame_callback_sound( libspectrum_dword last_tstates )
-{
-  for(;;) {
-
-    /* Sleep while fifo is full */
-    if( sfifo_space( &sound_fifo ) < sound_framesiz ) {
-      timer_sleep( TEN_MS );
-    } else {
-      break;
-    }
-
-  }
-
-  event_add( last_tstates + machine_current->timings.tstates_per_frame,
-             timer_event );
-}
-
-#else                           /* #ifdef SOUND_FIFO */
-
-/* Blocking socket-style sound based timer */
+/* Audio backpressure belongs to the actual production boundary: callback
+   backends admit the exact PCM batch before synthesis advances, while blocking
+   backends retain their writer pacing. Do not reserve a hypothetical complete
+   emulation frame here. */
 static void
 timer_frame_callback_sound( libspectrum_dword last_tstates )
 {
   event_add( last_tstates + machine_current->timings.tstates_per_frame,
              timer_event );
 }
-  
-#endif                          /* #ifdef SOUND_FIFO */
 
 void
 timer_start_fastloading( void )

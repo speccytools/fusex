@@ -70,6 +70,7 @@ static void plusd_reset( int hard_reset );
 static void plusd_memory_map( void );
 static void plusd_enabled_snapshot( libspectrum_snap *snap );
 static void plusd_from_snapshot( libspectrum_snap *snap );
+static void plusd_snapshot_roms( libspectrum_snap *snap );
 static void plusd_to_snapshot( libspectrum_snap *snap );
 static void plusd_activate( void );
 
@@ -96,6 +97,7 @@ static module_info_t plusd_module_info = {
   /* .snapshot_enabled = */ plusd_enabled_snapshot,
   /* .snapshot_from = */ plusd_from_snapshot,
   /* .snapshot_to = */ plusd_to_snapshot,
+  /* .snapshot_roms = */ plusd_snapshot_roms,
 
 };
 
@@ -415,7 +417,7 @@ plusd_enabled_snapshot( libspectrum_snap *snap )
 }
 
 static void
-plusd_from_snapshot( libspectrum_snap *snap )
+plusd_snapshot_roms( libspectrum_snap *snap )
 {
   if( !libspectrum_snap_plusd_active( snap ) ) return;
 
@@ -426,6 +428,12 @@ plusd_from_snapshot( libspectrum_snap *snap )
                              libspectrum_snap_plusd_rom( snap, 0 ),
                              ROM_SIZE, 1 ) )
     return;
+}
+
+static void
+plusd_from_snapshot( libspectrum_snap *snap )
+{
+  if( !libspectrum_snap_plusd_active( snap ) ) return;
 
   if( libspectrum_snap_plusd_ram( snap, 0 ) ) {
     memcpy( plusd_ram,
@@ -538,6 +546,7 @@ plusd_unittest( void )
   libspectrum_snap_set_plusd_active( snap, 1 );
   libspectrum_snap_set_plusd_custom_rom( snap, 1 );
   libspectrum_snap_set_plusd_rom( snap, 0, rom );
+  plusd_snapshot_roms( snap );
   plusd_from_snapshot( snap );
 
   if( machine_reset( 0 ) ||

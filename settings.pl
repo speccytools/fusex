@@ -64,8 +64,12 @@ while(<>) {
 
     chomp;
 
-    my( $name, $type, $default, $funcn, $short, $commandline, $configfile ) =
+    my( $name, $type, $default, $funcn, $short, $commandline, $configfile,
+        $deprecated_command, $deprecated_config ) =
 	split /\s*,\s*/;
+
+    # Cocoa has no widget menu mapping in its joystick controls.
+    $default = 4096 if $cocoa && $name =~ /^joystick_[12]_fire_2$/;
 
     if( ( not defined $commandline ) || ( $commandline eq '' ) ) {
 	$commandline = $name;
@@ -79,7 +83,9 @@ while(<>) {
 
     $options{$name} = { type => $type, default => $default, short => $short,
 			commandline => $commandline,
-			configfile => $configfile, funcn => $funcn };
+			configfile => $configfile, funcn => $funcn,
+			deprecated_command => $deprecated_command,
+			deprecated_config => $deprecated_config };
 }
 
 # Each emitter below writes one chunk of the generated implementation.  Those
@@ -594,16 +600,23 @@ parse_xml( xmlDocPtr doc, settings_info *settings )
 
 CODE
 
-foreach my $name ( sort keys %options ) {
+sub print_numeric_setting ($$$) {
 
-    my $type = $options{$name}->{type};
+  my( $name, $configfile, $deprecated_config ) = @_;
 
-    next if $command_line_only{$name};
+  my $read_from;
 
-    if( $type eq 'boolean' or $type eq 'numeric' ) {
+  if( $deprecated_config eq '' ) {
+    $read_from = $configfile;
+  } else {
+    $read_from = $deprecated_config;
+  }
 
-	print << "CODE";
-    if( !strcmp( (const char*)node->name, "$options{$name}->{configfile}" ) ) {
+  print << "CODE";
+    if( !strcmp( (const char*)node->name, "$read_from" ) ) {
+CODE
+
+  print << "CODE";
       xmlstring = xmlNodeListGetString( doc, node->xmlChildrenNode, 1 );
       if( xmlstring ) {
         settings->$name = atoi( (char*)xmlstring );
@@ -612,10 +625,25 @@ foreach my $name ( sort keys %options ) {
     } else
 CODE
 
-    } elsif( $type eq 'string' ) {
+}
 
-	    print << "CODE";
-    if( !strcmp( (const char*)node->name, "$options{$name}->{configfile}" ) ) {
+sub print_string_setting ($$$) {
+
+  my( $name, $configfile, $deprecated_config ) = @_;
+
+  my $read_from;
+
+  if( $deprecated_config eq '' ) {
+    $read_from = $configfile;
+  } else {
+    $read_from = $deprecated_config;
+  }
+
+  print << "CODE";
+    if( !strcmp( (const char*)node->name, "$read_from" ) ) {
+CODE
+
+  print << "CODE";
       xmlstring = xmlNodeListGetString( doc, node->xmlChildrenNode, 1 );
       if( xmlstring ) {
         libspectrum_free( settings->$name );
@@ -625,13 +653,52 @@ CODE
     } else
 CODE
 
-    } elsif( $type eq 'null' or $type eq 'nsarray' or $type eq 'nsdictionary' ) {
+}
 
-	    print << "CODE";
-    if( !strcmp( (const char*)node->name, "$options{$name}->{configfile}" ) ) {
+sub print_null_setting ($) {
+
+  my( $configfile ) = @_;
+
+  print << "CODE";
+    if( !strcmp( (const char*)node->name, "$configfile" ) ) {
       /* Do nothing */
     } else
 CODE
+
+}
+
+foreach my $name ( sort keys %options ) {
+
+    my $type = $options{$name}->{type};
+
+    next if $command_line_only{$name};
+    next if $type eq 'nsarray' or $type eq 'nsdictionary';
+
+    if( $type eq 'boolean' or $type eq 'numeric' ) {
+
+      if( defined $options{$name}->{deprecated_config} ) {
+        print_numeric_setting( $name, $options{$name}->{configfile},
+                               $options{$name}->{deprecated_config} );
+      }
+
+      print_numeric_setting( $name, $options{$name}->{configfile}, '' );
+
+    } elsif( $type eq 'string' ) {
+
+      if( defined $options{$name}->{deprecated_config} ) {
+        print_string_setting( $name, $options{$name}->{configfile},
+                              $options{$name}->{deprecated_config} );
+      }
+
+      print_string_setting( $name, $options{$name}->{configfile}, '' );
+
+    } elsif( $type eq 'null' ) {
+
+      if( defined $options{$name}->{deprecated_config} ) {
+        print_null_setting( $options{$name}->{deprecated_config} );
+      }
+
+      print_null_setting( $options{$name}->{configfile} );
 
     } else {
 	die "Unknown setting type `$type'";
@@ -793,10 +860,18 @@ CODE
 foreach my $name ( sort keys %options ) {
     next if $command_line_only{$name};
     my $type = $options{$name}->{type};
-    my $len = length $options{$name}->{configfile};
+    my $configfile = $options{$name}->{configfile};
+    my $len = length $configfile;
+    my $condition = "n == $len && !strncmp( (const char *)name, \"$configfile\", n )";
+    my $deprecated_config = $options{$name}->{deprecated_config};
+    if( $deprecated_config ) {
+      my $deprecated_len = length $deprecated_config;
+      $condition = "( $condition ) || " .
+        "( n == $deprecated_len && !strncmp( (const char *)name, \"$deprecated_config\", n ) )";
+    }
 
     print << "CODE";
-  if( n == $len && !strncmp( (const char *)name, "$options{$name}->{configfile}", n ) ) {
+  if( $condition ) {
 CODE
     print "    *val_int = \&settings->$name;\n" if( $type eq 'boolean' or $type eq 'numeric' );
     print "    *val_char = \&settings->$name;\n" if( $type eq 'string' );
@@ -1009,6 +1084,7 @@ foreach my $name ( sort keys %options ) {
     my $type = $options{$name}->{type};
     my $commandline = $options{$name}->{commandline};
     my $short = $options{$name}->{short};
+    my $deprecated_command = $options{$name}->{deprecated_command};
 
     unless( $type eq 'boolean' or $short ) { $short = $fake_short_option++ }
 
@@ -1018,9 +1094,23 @@ foreach my $name ( sort keys %options ) {
     {    "$commandline", 0, &(settings->$name), 1 },
     { "no-$commandline", 0, &(settings->$name), 0 },
 CODE
+
+      if( $deprecated_command ) {
+        $short = $fake_short_option++;
+        print "    {    \"$deprecated_command\", 0, NULL, $short },\n";
+        $short = $fake_short_option++;
+        print "    { \"no-$deprecated_command\", 0, NULL, $short },\n";
+      }
+
     } elsif( $type eq 'string' or $type eq 'numeric' ) {
 
 	print "    { \"$commandline\", 1, NULL, $short },\n";
+
+      if( $deprecated_command ) {
+        $short = $fake_short_option++;
+        print "    { \"$deprecated_command\", 1, NULL, $short },\n";
+      }
+
     } elsif( $type eq 'nsarray' ) {
 	# Do nothing
     } elsif( $type eq 'nsdictionary' ) {
@@ -1046,6 +1136,7 @@ print hashline( __LINE__ ), << 'CODE';
     { "automation-capture-audio", 0, NULL, 1008 },
     { "automation-until-disk-idle", 0, NULL, 1009 },
     { "automation-disk-idle-frames", 1, NULL, 1010 },
+    { "automation-sample-tstates", 1, NULL, 1011 },
 #endif
     { "help", 0, NULL, 'h' },
     { "version", 0, NULL, 'V' },
@@ -1083,16 +1174,66 @@ $fake_short_option = 257;
 foreach my $name ( sort keys %options ) {
 
     my $type = $options{$name}->{type};
+    my $commandline = $options{$name}->{commandline};
     my $short = $options{$name}->{short};
+    my $deprecated_command = $options{$name}->{deprecated_command};
 
     unless( $type eq 'boolean' or $short ) { $short = $fake_short_option++ }
 
     if( $type eq 'boolean' ) {
-	# Do nothing
+      # Do nothing
+
+      if( $deprecated_command ) {
+        $short = $fake_short_option++;
+
+        print << "CODE";
+    case $short: settings->$name = 1;
+              fprintf( stderr, "%s: warning: %s is deprecated; use %s instead. The option was accepted.\\n",
+                       fuse_progname, "--$deprecated_command", "--$commandline" );
+              break;
+CODE
+
+        $short = $fake_short_option++;
+
+        print << "CODE";
+    case $short: settings->$name = 0;
+              fprintf( stderr, "%s: warning: %s is deprecated; use %s instead. The option was accepted.\\n",
+                       fuse_progname, "--no-$deprecated_command", "--no-$commandline" );
+              break;
+CODE
+
+      }
+
     } elsif( $type eq 'string' ) {
-	print "    case $short: settings_set_string( &settings->$name, optarg ); break;\n";
+      print "    case $short: settings_set_string( &settings->$name, optarg ); break;\n";
+
+      if( $deprecated_command ) {
+        $short = $fake_short_option++;
+
+        print << "CODE";
+    case $short: settings_set_string( &settings->$name, optarg );
+              fprintf( stderr, "%s: warning: %s is deprecated; use %s instead. The option was accepted.\\n",
+                       fuse_progname, "--$deprecated_command", "--$commandline" );
+              break;
+CODE
+
+      }
+
     } elsif( $type eq 'numeric' ) {
-	print "    case $short: settings->$name = atoi( optarg ); break;\n";
+      print "    case $short: settings->$name = atoi( optarg ); break;\n";
+
+      if( $deprecated_command ) {
+        $short = $fake_short_option++;
+
+        print << "CODE";
+    case $short: settings->$name = atoi( optarg );
+              fprintf( stderr, "%s: warning: %s is deprecated; use %s instead. The option was accepted.\\n",
+                       fuse_progname, "--$deprecated_command", "--$commandline" );
+              break;
+CODE
+
+      }
+
     } elsif( $type eq 'nsarray' ) {
 	# Do nothing
     } elsif( $type eq 'nsdictionary' ) {
@@ -1137,6 +1278,9 @@ print hashline( __LINE__ ), << 'CODE';
       break;
     case 1010:
       if( automation_set_disk_idle_frames( optarg ) ) return 1;
+      break;
+    case 1011:
+      if( automation_set_sample_tstates( optarg ) ) return 1;
       break;
 #endif
     case 'h': settings->show_help = 1; break;

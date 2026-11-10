@@ -392,6 +392,23 @@ get_fire_button_key( int which, input_key button )
   fuse_abort();
 }
 
+/* A fire button mapped to the menu key opens the main menu on widget UIs,
+   except on the Wii where the home button already opens the menu; on UIs
+   without a widget menu, and on the Wii, the menu key falls back to a plain
+   joystick fire button to preserve the previous behaviour */
+static void
+do_menu_key( int which, int press )
+{
+#ifdef USE_WIDGET
+#ifndef GEKKO /* Home button opens the menu on Wii */
+  if( press ) ui_popup_menu( INPUT_KEY_F1 );
+  return;
+#endif  /* #ifndef GEKKO */
+#endif				/* #ifdef USE_WIDGET */
+
+  joystick_press( which, JOYSTICK_BUTTON_FIRE, press );
+}
+
 static int
 do_joystick( const input_event_joystick_t *joystick_event, int press )
 {
@@ -402,18 +419,6 @@ do_joystick( const input_event_joystick_t *joystick_event, int press )
     if( press ) ui_widget_keyhandler( joystick_event->button );
     return 0;
   }
-
-#ifndef GEKKO /* Home button opens the menu on Wii */
-  switch( joystick_event->button ) {
-  case INPUT_JOYSTICK_FIRE_2:
-    if( press ) ui_popup_menu( INPUT_KEY_F1 );
-    break;
-
-  default: break;		/* Remove gcc warning */
-
-  }
-#endif  /* #ifndef GEKKO */
-
 #endif				/* #ifdef USE_WIDGET */
 
   which = joystick_event->which;
@@ -444,6 +449,8 @@ do_joystick( const input_event_joystick_t *joystick_event, int press )
 
     if( key == KEYBOARD_JOYSTICK_FIRE ) {
       joystick_press( which, JOYSTICK_BUTTON_FIRE, press );
+    } else if( key == KEYBOARD_MENU ) {
+      do_menu_key( which, press );
     } else {
       if( press ) {
 	keyboard_synthetic_press( KEYBOARD_SYNTHETIC_JOYSTICK_FIRE, key );

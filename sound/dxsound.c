@@ -39,8 +39,6 @@ static LPDIRECTSOUNDBUFFER lpDSBuffer; /* sound buffer */
 
 static DWORD nextpos; /* next position in circular buffer */
 
-static int sixteenbit;
-
 int
 sound_lowlevel_init( const char *device, int *freqptr, int *stereoptr )
 {
@@ -82,15 +80,9 @@ sound_lowlevel_init( const char *device, int *freqptr, int *stereoptr )
   memset( &pcmwf, 0, sizeof( WAVEFORMATEX ) );
 
   pcmwf.cbSize = 0;
-  if( settings_current.sound_force_8bit ) {
-    pcmwf.wBitsPerSample = 8;
-    sixteenbit = 0;
-  } else {
-    pcmwf.wBitsPerSample = 16;
-    sixteenbit = 1;
-  }
+  pcmwf.wBitsPerSample = 16;
   pcmwf.nChannels = *stereoptr ? 2 : 1;
-  pcmwf.nBlockAlign = pcmwf.nChannels * ( sixteenbit ? 2 : 1 );
+  pcmwf.nBlockAlign = pcmwf.nChannels * 2;
   pcmwf.nSamplesPerSec = *freqptr;
 
   pcmwf.nAvgBytesPerSec = pcmwf.nSamplesPerSec * pcmwf.nBlockAlign;
@@ -159,8 +151,7 @@ sound_lowlevel_frame( libspectrum_signed_word *data, int len )
   DWORD playcursor;
   long cursordiff;
 
-  if( sixteenbit )
-    len *= 2;
+  len *= 2;
 
   while( len ) {
     while( 1 ) {
@@ -186,17 +177,13 @@ sound_lowlevel_frame( libspectrum_signed_word *data, int len )
 
     /* write to the first part of buffer */
     for( i1 = 0; i1 < length1 && len > 0; i1++ ) {
-      if( sixteenbit ) {
-        if( lsb ) {
-          ucbuffer1[ i1 ] = *data & 0xff;
-        } else {
-          ucbuffer1[ i1 ] = *data >> 8;
-          data++;
-        }
-        lsb = !lsb;
+      if( lsb ) {
+        ucbuffer1[ i1 ] = *data & 0xff;
       } else {
-        ucbuffer1[ i1 ] = ( ( *data++ ) >> 8 ) ^ 0x80;
+        ucbuffer1[ i1 ] = *data >> 8;
+        data++;
       }
+      lsb = !lsb;
       nextpos++;
       len--;
     }
@@ -204,17 +191,13 @@ sound_lowlevel_frame( libspectrum_signed_word *data, int len )
     if( ucbuffer2 ) {
       /* write to the second part of buffer */
       for( i2 = 0; i2 < length2 && len > 0; i2++ ) {
-        if( sixteenbit ) {
-          if( lsb ) {
-            ucbuffer2[ i2 ] = *data & 0xff;
-          } else {
-            ucbuffer2[ i2 ] = *data >> 8;
-            data++;
-          }
-          lsb = !lsb;
+        if( lsb ) {
+          ucbuffer2[ i2 ] = *data & 0xff;
         } else {
-          ucbuffer2[ i2 ] = ( ( *data++ ) >> 8 ) ^ 0x80;
+          ucbuffer2[ i2 ] = *data >> 8;
+          data++;
         }
+        lsb = !lsb;
         nextpos++;
         len--;
       }

@@ -69,6 +69,8 @@ int tape_autoplay;
 
 /* Is playback positioned at a pause reached by a tape trap? */
 int trap_resume_pending;
+/* DATA1 also describes mid-byte playback; require a known block boundary. */
+int trap_pzx_ready;
 
 /* Has the tape reached a point which requires an explicit user action? */
 int tape_autoplay_blocked;
@@ -90,6 +92,10 @@ int tape_edge_event;
 static int tape_mic_off_event;
 
 static libspectrum_dword next_tape_edge_tstates;
+/* Edge durations from libspectrum are in 3.5 MHz units. Pending events and
+   saved partial intervals are in machine units. */
+static libspectrum_dword tape_clock;
+static libspectrum_qword tape_clock_remainder;
 
 /* Function prototypes */
 
@@ -136,6 +142,7 @@ tape_init( void *context )
   tape_stop_pending = 0;
   tape_autoplay_blocked = 0;
   trap_resume_pending = 0;
+  trap_pzx_ready = 0;
 
   next_tape_edge_tstates = 0;
   
@@ -145,6 +152,7 @@ tape_init( void *context )
 static void
 tape_end( void )
 {
+  if( tape_recording ) tape_record_stop();
   libspectrum_tape_free( tape );
   tape = NULL;
 }
@@ -196,7 +204,10 @@ tape_read_buffer( unsigned char *buffer, size_t length, libspectrum_id_t type,
 
   tape_autoplay_blocked = 0;
   trap_resume_pending = 0;
+  trap_pzx_ready = 0;
   tape_modified = 0;
+  tape_clock_remainder = 0;
+  next_tape_edge_tstates = 0;
   ui_tape_browser_update( UI_TAPE_BROWSER_NEW_TAPE, NULL );
 
   if( autoload ) {
@@ -213,6 +224,11 @@ tape_close( void )
 {
   int error;
   ui_confirm_save_t confirm;
+
+  if( tape_recording ) {
+    error = tape_record_stop();
+    if( error ) return error;
+  }
 
   /* If the tape has been modified, check if we want to do this */
   if( tape_modified ) {
@@ -242,7 +258,10 @@ tape_close( void )
   if( error ) return error;
 
   tape_modified = 0;
+  trap_pzx_ready = 0;
   trap_resume_pending = 0;
+  tape_clock_remainder = 0;
+  next_tape_edge_tstates = 0;
   ui_tape_browser_update( UI_TAPE_BROWSER_NEW_TAPE, NULL );
 
   return 0;
@@ -275,7 +294,10 @@ tape_select_block( size_t n )
 int
 tape_select_block_no_update( size_t n )
 {
+  trap_pzx_ready = 0;
   trap_resume_pending = 0;
+  tape_clock_remainder = 0;
+  next_tape_edge_tstates = 0;
   return libspectrum_tape_nth_block( tape, n );
 }
 
@@ -313,6 +335,10 @@ tape_write( const char* filename )
   if( class != LIBSPECTRUM_CLASS_TAPE || type == LIBSPECTRUM_ID_UNKNOWN )
     type = LIBSPECTRUM_ID_TAPE_TZX;
 
+  if( tape_recording ) {
+    error = tape_record_stop();
+    if( error ) return error;
+  }
   length = 0;
 
   error = libspectrum_tape_write( &buffer, &length, tape, type );
@@ -347,9 +373,24 @@ tape_play( int autoplay )
   if( autoplay && tape_autoplay_blocked ) return 0;
   if( !autoplay ) tape_autoplay_blocked = 0;
   
+  /* A stopped partial interval is already converted. Rescale it only if
+     the machine clock changed while playback was stopped. */
+  if( tape_clock != machine_current->timings.processor_speed ) {
+    if( tape_clock )
+      next_tape_edge_tstates =
+        (libspectrum_qword)next_tape_edge_tstates *
+        machine_current->timings.processor_speed / tape_clock;
+    tape_clock = machine_current->timings.processor_speed;
+    tape_clock_remainder = 0;
+  }
+
   /* Otherwise, start the tape going */
   tape_playing = 1;
+  trap_pzx_ready = 0;
   tape_autoplay = autoplay && !trap_resume_pending;
+  if( trap_resume_pending &&
+      tape_trap_pzx_data( libspectrum_tape_current_block( tape ) ) )
+    trap_resume_pending = 0;
   {
     libspectrum_tape_signal_level level;
     if( !libspectrum_tape_signal_level_get( &level, tape ) )
@@ -486,8 +527,10 @@ tape_handle_stop_request( const libspectrum_tape_edge *edge )
 int
 tape_should_stop_for_rom_block( libspectrum_tape_block *block )
 {
-  return tape_autoplay && settings_current.tape_traps && !rzx_recording &&
-         libspectrum_tape_block_type( block ) == LIBSPECTRUM_TAPE_BLOCK_ROM;
+  return tape_autoplay && settings_current.tape_traps &&
+         !rzx_recording && !rzx_playback &&
+         ( libspectrum_tape_block_type( block ) == LIBSPECTRUM_TAPE_BLOCK_ROM ||
+           tape_trap_pzx_data( block ) );
 }
 
 static int
@@ -508,6 +551,7 @@ tape_handle_block_end( const libspectrum_tape_edge *edge )
   block = libspectrum_tape_current_block( tape );
   if( tape_should_stop_for_rom_block( block ) ) {
     tape_stop();
+    trap_pzx_ready = tape_trap_pzx_data( block );
     return 1;
   }
   return 0;
@@ -518,9 +562,20 @@ tape_schedule_edge( libspectrum_dword last_tstates,
                     const libspectrum_tape_edge *edge,
                     int from_acceleration )
 {
+  libspectrum_qword duration;
+
   /* Schedule relative to the last edge rather than the current time, since
-     events are only processed between instructions. */
-  event_add( last_tstates + edge->tstates, tape_edge_event );
+     events are only processed between instructions. Convert once here so
+     normal and accelerated playback share the same clock domain. RZX frame
+     lengths affect event rebasing, not the duration of a tape pulse. */
+  if( tape_clock != machine_current->timings.processor_speed ) {
+    tape_clock = machine_current->timings.processor_speed;
+    tape_clock_remainder = 0;
+  }
+  duration = (libspectrum_qword)edge->tstates * tape_clock +
+             tape_clock_remainder;
+  tape_clock_remainder = duration % 3500000;
+  event_add( last_tstates + duration / 3500000, tape_edge_event );
   loader_set_acceleration_flags( edge->flags, from_acceleration );
 }
 

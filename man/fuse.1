@@ -26,7 +26,7 @@
 .\" E-mail: philip-fuse@shadowmagic.org.uk
 .\"
 .\"
-.TH fuse 1 "1st October, 2026" "Version 1.10.0-fusex-0.2" "Emulators"
+.TH fuse 1 "1st October, 2026" "Version 1.10.1-fusex-0.1" "Emulators"
 .\"
 .\"------------------------------------------------------------------
 .\"
@@ -105,6 +105,123 @@ window, thus preventing resizing to non-square sizes which lead to
 Fuse not displaying correctly. (Enabled by default, but you can use
 .RB ` \-\-no\-aspect\-hint '
 to disable).
+.RE
+.PP
+.B \-\-automation\-capture\-audio
+.RS
+Development option, available when Fuse is configured with the
+\(lq\-\-enable\-automation\(rq development flag. Requests that the final mixed
+PCM of a development automation scenario is written as a WAV file in the
+output directory. Overrides --no\-sound because sound synthesis must run for
+capture, but it never opens a host sound device.
+.RE
+.PP
+.B \-\-automation\-capture\-screen
+.RS
+Development option, available when Fuse is configured with the
+\(lq\-\-enable\-automation\(rq development flag. Requests that the final
+screen of a development automation scenario is written as a PNG file in the
+output directory.
+.RE
+.PP
+.B \-\-automation\-disk\-idle\-frames
+.I count
+.RS
+Development option, available when Fuse is configured with the
+\(lq\-\-enable\-automation\(rq development flag. Sets the number of completed
+machine frames of observed disk motor inactivity required before a
+--automation\-until\-disk\-idle scenario completes; defaults to 50.
+.RE
+.PP
+.B \-\-automation\-failure\-pc
+.I address
+.RS
+Development option, available when Fuse is configured with the
+\(lq\-\-enable\-automation\(rq development flag. Stops a development
+automation scenario unsuccessfully when the program counter reaches the given
+address. Requires --automation\-success\-pc.
+.RE
+.PP
+.B \-\-automation\-failure\-pc\-ignore
+.I n
+.RS
+Development option, available when Fuse is configured with the
+\(lq\-\-enable\-automation\(rq development flag. Ignores the first n hits of
+the --automation\-failure\-pc address before it becomes fatal.
+.RE
+.PP
+.B \-\-automation\-frames
+.I count
+.RS
+Development option, available when Fuse is configured with the
+\(lq\-\-enable\-automation\(rq development flag. Requests a one-shot
+development automation scenario that stops after the given count of completed
+machine frames.
+.RE
+.PP
+.B \-\-automation\-max\-frames
+.I count
+.RS
+Development option, available when Fuse is configured with the
+\(lq\-\-enable\-automation\(rq development flag. Supplies the frame deadline
+for a PC-condition, RZX completion or disk idle run.
+.RE
+.PP
+.B \-\-automation\-output
+.I directory
+.RS
+Development option, available when Fuse is configured with the
+\(lq\-\-enable\-automation\(rq development flag. Selects an existing directory
+in which the one-shot result artifacts of a development automation scenario
+are written. Fuse does not create the directory.
+.RE
+.PP
+.B \-\-automation\-sample\-tstates
+.I count
+.RS
+Development option, available when Fuse is configured with the
+\(lq\-\-enable\-automation\(rq development flag. Delays the stop of a
+fixed-frame automation scenario until at least
+.I count
+T-states (1 to 5000) have elapsed inside the final frame, so the CPU can
+run past the frame interrupt before the stop state is captured. The
+scenario result records the sampled CPU state under
+.B state.cpu ,
+including
+.B pc
+and
+.B frame_tstate ,
+and Z80 instruction boundaries can overshoot
+.I count
+slightly. The screenshot is still the last completed display frame, and
+the option is not accepted for PC-condition, RZX completion or disk idle
+scenarios.
+.RE
+.PP
+.B \-\-automation\-success\-pc
+.I address
+.RS
+Development option, available when Fuse is configured with the
+\(lq\-\-enable\-automation\(rq development flag. Stops a development
+automation scenario successfully when the program counter reaches the given
+address. Required by every PC-condition run.
+.RE
+.PP
+.B \-\-automation\-until\-disk\-idle
+.RS
+Development option, available when Fuse is configured with the
+\(lq\-\-enable\-automation\(rq development flag. Requests that the automation
+scenario stops after observed disk motor activity becomes idle. Must be paired
+with --automation\-max\-frames and can be refined with
+--automation\-disk\-idle\-frames.
+.RE
+.PP
+.B \-\-automation\-until\-rzx\-end
+.RS
+Development option, available when Fuse is configured with the
+\(lq\-\-enable\-automation\(rq development flag. Requests that the automation
+scenario stops when RZX playback completes or fails. Must be paired with
+--automation\-max\-frames.
 .RE
 .PP
 .B \-\-autosave\-settings
@@ -530,31 +647,10 @@ option.
 .B \-\-full\-screen
 .RS
 Specify whether Fuse should run in full screen mode.
-This option is effective under the GTK, SDL and SDL2 UIs.
+This option is effective under the GTK and SDL2 UIs.
 .PP
 Under SDL2, Fuse uses desktop fullscreen: the current desktop display mode is
 kept and Fuse scales the emulated display to fit it.
-.RE
-.PP
-.B \-\-sdl\-fullscreen\-mode
-.I mode
-.RS
-Specify the fullscreen display mode to use under the SDL UI. This option has
-no effect under SDL2, which uses desktop fullscreen.
-.I mode
-may be one of the following:
-.RS
-.TP
-.B list
-Print the available fullscreen modes and exit.
-.TP
-.B number
-Select one of the listed fullscreen modes by its number.
-.TP
-.B WxH
-Select a fullscreen mode by width and height, for example
-.BR 1024x768 .
-.RE
 .RE
 .PP
 .B \-g
@@ -770,8 +866,14 @@ Select which Fuse key code should be triggered by the applicable
 real joystick button press. The codes are the Fuse keyboard codes
 corresponding to the keys. The default value is
 .I 4096
-which corresponds to the virtual joystick fire button. Same as the
-Joysticks Options dialog's
+which corresponds to the virtual joystick fire button, except for button 2
+on each real joystick, which defaults to
+.I 4097
+(Menu). On widget-based user interfaces, Menu opens Fuse's main menu;
+on GTK3 and other interfaces without a widget menu, it acts as joystick
+fire instead. GTK3 offers only Joystick Fire, not Menu, in its joystick
+button selector. These settings correspond to the Joysticks Options
+dialog's
 .I "Joystick fire"
 options.
 .RE
@@ -1393,17 +1495,6 @@ option;
 see there for more details.
 .RE
 .PP
-.B \-\-sdl\-fullscreen\-mode
-.I mode
-.RS
-Select a screen resolution for full screen mode under the SDL UI. Available
-values for
-.IR mode " are listed in a table, when Fuse is called with"
-.B \-\-sdl\-fullscreen\-mode
-.IR list " command line option."
-This option has no effect under SDL2, which uses desktop fullscreen.
-.RE
-.PP
 .B \-\-separation
 .I type
 .RS
@@ -1470,6 +1561,15 @@ you can use
 to disable). Same as the Sound Options dialog's
 .I "Sound enabled"
 option.
+.PP
+To prevent some audio devices from cutting off tones after short silent
+passages, Fuse replaces exact-zero final audio samples with balanced,
+randomly oriented pairs of +1 and -1 in 16-bit PCM. Nonzero samples are
+unchanged, and the inserted noise has no accumulating DC bias. This affects
+both playback and recordings, independently of speaker type. It may keep a
+connected device unmuted, exposing its existing background hiss. It does not
+keep an audio stream running when playback stops, and may not prevent muting
+on devices with higher signal thresholds.
 .RE
 .PP
 .B \-d
@@ -1479,7 +1579,7 @@ option.
 .I device
 .RS
 Specify the sound output device to use and any options to give that
-device. If you are not using the SDL UI or using
+device. If you are not using SDL2 or using
 .I libao
 or
 .I "libasound (ALSA)"
@@ -1488,10 +1588,10 @@ then the
 .I "device"
 parameter just specifies the device to be used for sound output.
 .PP
-If you are using the SDL UI, the
+If you are using SDL2 for sound output, the
 .I "device"
-parameter allows you to specify the
-audio driver to be used (e.g. dsp, alsa, dma, esd and arts).
+parameter allows you to specify the SDL2 audio driver to be used
+(e.g. coreaudio, alsa or pulseaudio).
 .PP
 If you are using
 .I libao
@@ -1781,14 +1881,6 @@ causes Fuse to request a sound buffer of 2646 bytes and print info to
 .br
 .RE
 .PP
-.B \-\-sound\-force\-8bit
-.RS
-Force the use of 8-bit sound, even if 16-bit is possible. Same as the
-Sound Options dialog's
-.I "Force 8-bit"
-option.
-.RE
-.PP
 .B \-f
 .I frequency
 .br
@@ -1867,7 +1959,7 @@ option.
 .B \-\-statusbar
 .RS
 For the GTK and Win32 UI, enables the statusbar beneath the display. For the
-Xlib and SDL UI, enables the status icons showing whether the disk and tape are
+Xlib and SDL2 UI, enables the status icons showing whether the disk and tape are
 being accessed. Same as the General Options dialog's
 .I "Show statusbar"
 option.
@@ -2134,7 +2226,7 @@ section for details.
 .\"
 .SH "THE VARIOUS FRONT-ENDS"
 Fuse supports various front-ends, or UIs (user interfaces). The usual
-one is GTK-based, but there are also SDL, Win32, Xlib and
+one is GTK-based, but there are also SDL2, Win32, Xlib and
 framebuffer ones.
 .PP
 The important difference to note is that GTK and Win32 versions uses
@@ -2496,7 +2588,7 @@ and white television. This is effective under every Fuse user interface.
 .I "Show statusbar"
 .RS
 For the GTK and Win32 UI, enables the statusbar beneath the display. For the
-SDL UI, enables the status icons showing whether the disk and tape are
+SDL2 UI, enables the status icons showing whether the disk and tape are
 being accessed. This option has no effect for the other user
 interfaces.
 .RE
@@ -2690,14 +2782,6 @@ ACB stereo (for sound from the 128 and other clone's AY-3-8912 sound
 chip).
 .RE
 .PP
-.I "Force 8-bit"
-.RS
-Force the use of 8-bit sound even if 16-bit (the default) is
-available. Note that (when the option is enabled) if 8-bit sound isn't
-available then there will be no sound at all, so it's best not to use
-this option unless you have a specific need for it.
-.RE
-.PP
 .I "Speaker type"
 .RS
 Choose the character of the emulated sound output. \(lqAutomatic\(rq uses the
@@ -2766,7 +2850,7 @@ menu.
 .RS
 If this option is selected, Fuse will emulate a Kempston mouse interface.
 .PP
-With the SDL and SDL2 UIs, middle click (or middle button release) on the
+With the SDL2 UI, middle click (or middle button release) on the
 Spectrum display toggles mouse grab when the Kempston mouse is enabled.
 When grabbed, SDL2 uses relative mouse mode so motion is no longer limited by
 the host pointer reaching the edge of the screen.
@@ -3307,7 +3391,7 @@ section for more details.
 .I "Options, Full Screen"
 .RS
 Switch Fuse between full screen and windowed mode.
-This menu is only available under the GTK and SDL UIs.
+This menu is only available under the GTK and SDL2 UIs.
 .RE
 .PP
 .I "Options, Disk Options..."
@@ -3477,14 +3561,17 @@ up the main menu.
 .I "Machine, Reset"
 .RS
 Reset the emulated Spectrum. A soft reset preserves the active ROM and
-cartridge images loaded from a snapshot.
+cartridge images loaded from a snapshot. Timex cartridge ROM and RAM
+contents are preserved, whether loaded from a cartridge image or a snapshot.
 .RE
 .PP
 .I "Machine, Hard reset"
 .RS
 Reset the emulated Spectrum. A hard reset is equivalent to turning the
 Spectrum's power off, and then turning it back on; it reloads configured ROM
-and cartridge images.
+and Interface\ 2 cartridge images. Timex cartridge ROM is retained and
+cartridge RAM is cleared, without reopening the cartridge image. This also
+applies to Timex cartridges restored from snapshots.
 .RE
 .PP
 .I F9
@@ -4049,13 +4136,19 @@ As above, but for the emulated DISCiPLE drives.
 .RS
 Insert a cartridge into the Timex\ 2068 dock. This will cause the
 emulated machine to be changed to the TC2068 (if it wasn't already
-a 2068 variant) and reset.
+a 2068 variant) and hard reset, as if the machine had been power cycled
+to change the physical cartridge. Any previous cartridge, including one
+restored from a snapshot, is replaced. Initial RAM contents supplied by
+the new cartridge image are retained. The cartridge data is retained in memory;
+subsequent resets do not require the original image file. A soft reset
+preserves cartridge RAM contents, while a hard reset clears them.
 .RE
 .PP
 .I "Media, Cartridge, Timex Dock, Eject"
 .RS
 Remove the cartridge from the Timex\ 2068 dock. This will cause the
-emulated machine to be reset.
+emulated machine to be hard reset, as if the machine had been power cycled
+to remove the physical cartridge.
 .RE
 .PP
 .I "Media, Cartridge, Interface\ 2, Insert..."
@@ -4256,7 +4349,7 @@ this problem, the
 .RB ` \-\-no\-aspect\-hint '
 option may help.
 .PP
-If you're using the SDL UI under X11 or GTK, the window will
+If you're using the SDL2 UI under X11 or GTK, the window will
 automatically resize to be the correct size for the graphics filter
 selected.
 .\"
@@ -4269,7 +4362,7 @@ emulating machine's monitor. These filters can be used to do various
 forms of smoothing, emulation of TV scanlines and various other
 possibilities. Support for graphics filters varies between the
 different user interfaces, but there are two general classes: the GTK,
-Win32, Xlib and SDL user interfaces (and the saving of .png
+Win32, Xlib and SDL2 user interfaces (and the saving of .png
 screenshots) support `interpolating' filters which use a palette larger
 than the Spectrum's 16\ colours, while the framebuffer user interface
 currently does not support filters at all.
@@ -4280,7 +4373,7 @@ resolution. To deal with this, Fuse treats these machines as having a
 `normal' display size which is twice the size of a normal Spectrum's
 screen, leading to a different set of filters being available for
 these machines. Note that any of the double or triple-sizing filters
-are available for Timex machines only when using the SDL, Win32 or GTK
+are available for Timex machines only when using the SDL2, Win32 or GTK
 user interfaces.
 .PP
 The available filters, along with their short name used to select them
@@ -4484,6 +4577,10 @@ time using a crude sort of OCR based on the current character set (a
 bit like using SCREEN$). There is currently no support for graphics
 when using the serial/parallel output, though any escape codes used
 will be `printed' faithfully. (!)
+.PP
+Serial and parallel printer output is written byte-for-byte, without
+host line-ending conversion. Simulated ZX\ Printer text output uses
+native host line endings: CR/LF on Windows and LF on other platforms.
 .PP
 By the way, it's not a good idea to modify the
 .I printout.pbm

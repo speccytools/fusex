@@ -80,6 +80,7 @@ static void didaktik_activate( void );
 static void didaktik_memory_map( void );
 static void didaktik_enabled_snapshot( libspectrum_snap *snap );
 static void didaktik_from_snapshot( libspectrum_snap *snap );
+static void didaktik_snapshot_roms( libspectrum_snap *snap );
 static void didaktik_to_snapshot( libspectrum_snap *snap );
 static libspectrum_byte didaktik_sr_read( libspectrum_word port GCC_UNUSED, libspectrum_byte *attached );
 static void didaktik_cr_write( libspectrum_word port GCC_UNUSED, libspectrum_byte b );
@@ -100,6 +101,7 @@ static module_info_t didaktik_module_info = {
   /* .snapshot_enabled = */ didaktik_enabled_snapshot,
   /* .snapshot_from = */ didaktik_from_snapshot,
   /* .snapshot_to = */ didaktik_to_snapshot,
+  /* .snapshot_roms = */ didaktik_snapshot_roms,
 
 };
 
@@ -466,6 +468,7 @@ didaktik80_unittest( void )
     MEMORY_PAGE_SIZE - 1 ] = 0;
   didaktik80_unpage();
   libspectrum_snap_didaktik80_rom( snap, 0 )[ 0 ] = 0xa5;
+  didaktik_snapshot_roms( snap );
   didaktik_from_snapshot( snap );
 
   if( didaktik_memory_map_romcs_ram[ 0 ].page[ 0 ] != 0x55 ||
@@ -556,10 +559,8 @@ didaktik_enabled_snapshot( libspectrum_snap *snap )
 }
 
 static void
-didaktik_from_snapshot( libspectrum_snap *snap )
+didaktik_snapshot_roms( libspectrum_snap *snap )
 {
-  int i;
-
   if( !libspectrum_snap_didaktik80_active( snap ) ) return;
 
   if( libspectrum_snap_didaktik80_custom_rom( snap ) &&
@@ -569,6 +570,14 @@ didaktik_from_snapshot( libspectrum_snap *snap )
                              libspectrum_snap_didaktik80_rom( snap, 0 ),
                              ROM_SIZE, 1 ) )
     return;
+}
+
+static void
+didaktik_from_snapshot( libspectrum_snap *snap )
+{
+  int i;
+
+  if( !libspectrum_snap_didaktik80_active( snap ) ) return;
 
   if( libspectrum_snap_didaktik80_ram( snap, 0 ) ) {
     for( i = 0; i < MEMORY_PAGES_IN_2K; i++ )

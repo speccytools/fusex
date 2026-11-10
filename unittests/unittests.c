@@ -29,6 +29,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "libspectrum.h"
@@ -47,6 +48,7 @@
 #include "peripherals/ulaplus.h"
 #include "peripherals/disk/beta.h"
 #include "peripherals/disk/disk.h"
+#include "peripherals/disk/crc.h"
 #include "peripherals/disk/didaktik.h"
 #include "peripherals/disk/disciple.h"
 #include "peripherals/disk/opus.h"
@@ -58,6 +60,7 @@
 #include "peripherals/ide/zxcf.h"
 #include "peripherals/if1.h"
 #include "peripherals/if2.h"
+#include "peripherals/joystick.h"
 #include "peripherals/multiface.h"
 #include "peripherals/sound/uspeech.h"
 #include "peripherals/speccyboot.h"
@@ -68,6 +71,7 @@
 #include "pokefinder/pokefinder.h"
 #include "settings.h"
 #include "sound.h"
+#include "sound/ay_engine.h"
 #include "sound/blipbuffer.h"
 #include "sound/dc_filter.h"
 #include "sound/source_synths.h"
@@ -79,14 +83,20 @@
 #include "bitmap.h"
 #include "rectangle.h"
 #include "compat.h"
+#include "event.h"
 #include "rzx.h"
 #include "spectrum.h"
+#include "screenshot.h"
 #include "ui/scaler/scaler.h"
 #include "helpers.h"
 #include "unittests.h"
 #include "utils.h"
 #include "z80/z80.h"
 #include "z80/z80_macros.h"
+
+#ifdef ENABLE_AUTOMATION
+#include "automation/artifacts.h"
+#endif /* ENABLE_AUTOMATION */
 
 static int
 rzx_automatic_snapshot_count( libspectrum_snap **automatic_snap )
@@ -571,6 +581,15 @@ speaker_filter_test( void )
     TEST_ASSERT( output[ i ] == speaker_filter_apply(
                                    &filter, i == 0 ? 2234.0 : 1234.0 ) );
 
+  /* Sub-threshold residual state must be flushed, as in the dc and tv
+   * filter tests, so processors without denormal flushing cannot slow a
+   * long silence down. */
+  speaker_filter_reset( &filter );
+  TEST_ASSERT( speaker_filter_apply( &filter, 0.0 ) == 0.0 );
+  TEST_ASSERT( fabs( speaker_filter_apply( &filter, 1.0e-30 ) ) < 1.0e-20 );
+  TEST_ASSERT( filter.z1 == 0.0 );
+  TEST_ASSERT( filter.z2 == 0.0 );
+
   return 0;
 }
 
@@ -821,6 +840,77 @@ source_volume_test( void )
 }
 
 static int
+ay_render_grid_continuity_test( void )
+{
+  libspectrum_machine old_machine = machine_current->machine;
+  libspectrum_dword frame, offset, last_tick, expected, seen;
+  int frames, r = 0;
+
+  if( machine_select( LIBSPECTRUM_MACHINE_128 ) ) r++;
+
+  frame = machine_current->timings.tstates_per_frame;
+
+  /* AY rendering runs on a 32-tstate grid; 128K frames are 70908 tstates
+     long, so only a carried offset keeps the grid continuous. */
+  if( !r && frame != 70908 ) r++;
+
+  for( frames = 0; !r && frames < 9; frames++ ) {
+    /* The last tick of this frame is the largest grid position below the
+       frame end; the next tick must land exactly one grid step later in
+       machine time, whatever frame-relative offset that is. */
+    offset = ay_engine_next_tick_offset();
+    last_tick = offset + 32 * ( ( frame - 1 - offset ) / 32 );
+    ay_engine_render( frame );
+    ay_engine_end_frame();
+    expected = frames * frame + last_tick + 32;
+    seen = ( frames + 1 ) * frame + ay_engine_next_tick_offset();
+    if( seen != expected ) r++;
+  }
+
+  if( machine_select( old_machine ) ) r++;
+
+  if( r ) printf( "ay_render_grid_continuity_test failed\n" );
+  return r;
+}
+
+static int
+ay_tail_write_survives_frame_boundary_test( void )
+{
+  libspectrum_machine old_machine = machine_current->machine;
+  libspectrum_dword frame;
+  int r = 0;
+
+  if( machine_select( LIBSPECTRUM_MACHINE_128 ) ) r++;
+
+  frame = machine_current->timings.tstates_per_frame;
+
+  if( !r ) {
+    /* A write queued before the last tick is applied by this frame's
+       first tick at or after its tstate. */
+    ay_engine_write( 6, 0x31, 100 );
+    ay_engine_render( frame );
+    ay_engine_end_frame();
+    if( ay_engine_register_value( 6 ) != 0x31 ) r++;
+
+    /* A write queued after the last rendering tick has no eligible tick
+       left in this frame; it must wait for the next frame's first tick
+       instead of being dropped. */
+    ay_engine_write( 9, 0x55, frame - 8 );
+    ay_engine_render( frame );
+    ay_engine_end_frame();
+    if( ay_engine_register_value( 9 ) != 0 ) r++;
+    ay_engine_render( frame );
+    ay_engine_end_frame();
+    if( ay_engine_register_value( 9 ) != 0x55 ) r++;
+  }
+
+  if( machine_select( old_machine ) ) r++;
+
+  if( r ) printf( "ay_tail_write_survives_frame_boundary_test failed\n" );
+  return r;
+}
+
+static int
 floating_bus_merge_test( void )
 {
   /* If peripherals asserted all lines, should see no change */
@@ -942,6 +1032,32 @@ snapshot_copy_from_releases_keyboard_test( void )
 }
 
 static int
+snapshot_copy_from_releases_joystick_test( void )
+{
+  libspectrum_snap *snap;
+  libspectrum_byte attached;
+  int old_output = settings_current.joystick_1_output;
+
+  snap = libspectrum_snap_alloc();
+  TEST_ASSERT( snap != NULL );
+
+  settings_current.joystick_1_output = JOYSTICK_TYPE_NONE;
+  TEST_ASSERT( snapshot_copy_to( snap ) == 0 );
+
+  settings_current.joystick_1_output = JOYSTICK_TYPE_KEMPSTON;
+  joystick_press( 0, JOYSTICK_BUTTON_FIRE, 1 );
+  TEST_ASSERT( ( joystick_kempston_read( 0, &attached ) & 0x10 ) != 0 );
+
+  TEST_ASSERT( snapshot_copy_from( snap ) == 0 );
+  TEST_ASSERT( joystick_kempston_read( 0, &attached ) == 0 );
+
+  settings_current.joystick_1_output = old_output;
+  TEST_ASSERT( libspectrum_snap_free( snap ) == 0 );
+
+  return 0;
+}
+
+static int
 snapshot_custom_rom_is_replaced_by_soft_reset_test( void )
 {
   static const libspectrum_machine machines[] = {
@@ -981,6 +1097,162 @@ snapshot_custom_rom_is_replaced_by_soft_reset_test( void )
 
   if( machine_select( old_machine ) ) r++;
 
+  return r;
+}
+
+static int
+snapshot_machine_rom_without_file_test( void )
+{
+  static char missing_rom[] = "/nonexistent/snapshot-machine.rom";
+  libspectrum_machine old_machine = machine_current->machine;
+  char *saved_rom = settings_current.rom_48_0;
+  char *saved_default_rom = settings_default.rom_48_0;
+  libspectrum_snap *snap;
+  libspectrum_byte *rom;
+  int r = 0;
+
+  if( machine_select( LIBSPECTRUM_MACHINE_48 ) ) return 1;
+  snap = libspectrum_snap_alloc();
+  if( !snap ) return 1;
+  if( snapshot_copy_to( snap ) ) { libspectrum_snap_free( snap ); return 1; }
+
+  rom = libspectrum_new( libspectrum_byte, 0x4000 );
+  memset( rom, 0xa5, 0x4000 );
+  libspectrum_snap_set_custom_rom( snap, 1 );
+  libspectrum_snap_set_custom_rom_pages( snap, 1 );
+  libspectrum_snap_set_roms( snap, 0, rom );
+  libspectrum_snap_set_rom_length( snap, 0, 0x4000 );
+
+  settings_current.rom_48_0 = missing_rom;
+  settings_default.rom_48_0 = missing_rom;
+  if( snapshot_copy_from( snap ) || !memory_map_rom[ 0 ].page ||
+      memory_map_rom[ 0 ].page[ 0 ] != 0xa5 ) r++;
+
+  settings_current.rom_48_0 = saved_rom;
+  settings_default.rom_48_0 = saved_default_rom;
+  if( machine_select( LIBSPECTRUM_MACHINE_128 ) ) r++;
+
+  settings_current.rom_48_0 = missing_rom;
+  settings_default.rom_48_0 = missing_rom;
+  if( snapshot_copy_from( snap ) || !memory_map_rom[ 0 ].page ||
+      memory_map_rom[ 0 ].page[ 0 ] != 0xa5 ) r++;
+
+  settings_current.rom_48_0 = saved_rom;
+  settings_default.rom_48_0 = saved_default_rom;
+  if( machine_select( old_machine ) ) r++;
+  if( libspectrum_snap_free( snap ) ) r++;
+  return r;
+}
+
+static int
+snapshot_missing_rom_file_uses_snapshot_rom_test( void )
+{
+  libspectrum_snap *snap;
+  libspectrum_byte *rom;
+  char *saved_rom_plusd;
+  char *saved_default_rom_plusd;
+  static char missing_rom[] = "/nonexistent/plusd.rom";
+  int saved_plusd = settings_current.plusd;
+  int r = 0;
+
+  if( machine_select( LIBSPECTRUM_MACHINE_48 ) ) return 1;
+
+  snap = libspectrum_snap_alloc();
+  if( !snap ) return 1;
+
+  /* A +D snapshot ROM that the +D reset cannot find on disk */
+  rom = libspectrum_new( libspectrum_byte, 0x2000 );
+  if( !rom ) {
+    libspectrum_snap_free( snap );
+    return 1;
+  }
+  memset( rom, 0xa5, 0x2000 );
+  libspectrum_snap_set_machine( snap, LIBSPECTRUM_MACHINE_48 );
+  libspectrum_snap_set_plusd_active( snap, 1 );
+  libspectrum_snap_set_plusd_custom_rom( snap, 1 );
+  libspectrum_snap_set_plusd_rom( snap, 0, rom );
+
+  /* Hide both the configured +D ROM and its fallback so the +D reset cannot
+     read any ROM from disk and has to use the snapshot's ROM bank */
+  saved_rom_plusd = utils_safe_strdup( settings_current.rom_plusd );
+  saved_default_rom_plusd = utils_safe_strdup( settings_default.rom_plusd );
+  settings_current.rom_plusd = missing_rom;
+  settings_default.rom_plusd = missing_rom;
+
+  /* Soft reset: the snapshot's machine is the machine already selected */
+  if( snapshot_copy_from( snap ) || !plusd_available ||
+      periph_is_active( PERIPH_TYPE_PLUSD ) != 1 ||
+      settings_current.plusd != 1 )
+    r++;
+
+  plusd_page();
+  if( memory_map_read[ 0 ].page[ 0 ] != 0xa5 ) r++;
+  plusd_unpage();
+
+  /* Machine change: select a different machine first, then let the snapshot
+     select its own machine */
+  settings_current.rom_plusd = saved_rom_plusd;
+  settings_default.rom_plusd = saved_default_rom_plusd;
+
+  if( machine_select( LIBSPECTRUM_MACHINE_128 ) ) r++;
+
+  settings_current.rom_plusd = missing_rom;
+  settings_default.rom_plusd = missing_rom;
+
+  if( snapshot_copy_from( snap ) || !plusd_available ||
+      periph_is_active( PERIPH_TYPE_PLUSD ) != 1 ||
+      settings_current.plusd != 1 )
+    r++;
+
+  plusd_page();
+  if( memory_map_read[ 0 ].page[ 0 ] != 0xa5 ) r++;
+  plusd_unpage();
+
+  settings_current.rom_plusd = saved_rom_plusd;
+  settings_default.rom_plusd = saved_default_rom_plusd;
+  settings_current.plusd = saved_plusd;
+
+  if( machine_select( LIBSPECTRUM_MACHINE_48 ) ) r++;
+
+  if( libspectrum_snap_free( snap ) ) r++;
+
+  return r;
+}
+
+static int
+snapshot_write_read_roundtrip_test( void )
+{
+  char temporary_path[] = "/tmp/fuse-snapshot-roundtrip-XXXXXX";
+  char filename[ PATH_MAX ];
+  libspectrum_machine old_machine = machine_current->machine;
+  int fd, r = 0;
+
+  /* mkdtemp is not provided by MinGW; use mkstemp to obtain a unique
+     filename prefix, as in the disk round-trip test */
+  fd = mkstemp( temporary_path );
+  if( fd < 0 ) return 1;
+  close( fd );
+  unlink( temporary_path );
+  snprintf( filename, sizeof( filename ), "%s.szx", temporary_path );
+
+  if( machine_select( LIBSPECTRUM_MACHINE_48 ) ) r++;
+
+  /* Write a snapshot of the selected machine to a real file */
+  if( !r && snapshot_write( filename ) ) r++;
+
+  /* Select a different machine first, so loading the snapshot has to
+     restore the written snapshot's own machine */
+  if( !r && machine_select( LIBSPECTRUM_MACHINE_128 ) ) r++;
+
+  if( !r && snapshot_read( filename ) ) r++;
+
+  if( !r && machine_current->machine != LIBSPECTRUM_MACHINE_48 ) r++;
+
+  if( machine_select( old_machine ) ) r++;
+
+  unlink( filename );
+
+  if( r ) printf( "snapshot_write_read_roundtrip_test failed\n" );
   return r;
 }
 
@@ -1046,6 +1318,65 @@ slt_screen_is_cleared_by_reset_test( void )
 
   if( libspectrum_snap_free( snap ) ) r++;
   if( libspectrum_snap_free( result ) ) r++;
+
+  return r;
+}
+
+static int
+snapshot_dock_carts_cleared_by_hard_reset_test( void )
+{
+  libspectrum_machine old_machine = machine_current->machine;
+  libspectrum_snap *snap;
+  libspectrum_snap *result;
+  libspectrum_byte *cart;
+  int r = 0;
+
+  if( machine_select( LIBSPECTRUM_MACHINE_48 ) ) return 1;
+
+  snap = libspectrum_snap_alloc();
+  result = libspectrum_snap_alloc();
+  if( !snap || !result ) {
+    if( snap ) libspectrum_snap_free( snap );
+    if( result ) libspectrum_snap_free( result );
+    return 1;
+  }
+
+  libspectrum_snap_set_machine( snap, machine_current->machine );
+  libspectrum_snap_set_dock_active( snap, 1 );
+  cart = libspectrum_new( libspectrum_byte, 0x2000 );
+  memset( cart, 0xa5, 0x2000 );
+  libspectrum_snap_set_dock_cart( snap, 0, cart );
+  libspectrum_snap_set_dock_ram( snap, 0, 1 );
+
+  /* Loading a snapshot carrying a DOCK cartridge on a machine without dock
+     support still maps the cartridge: scld_from_snapshot() copies it into a
+     shared cartridge bank and points the DOCK page mappings at it. */
+  if( snapshot_copy_from( snap ) ) r++;
+  TEST_ASSERT( timex_dock[ 0 ].page != NULL );
+  TEST_ASSERT( timex_dock[ 0 ].page[ 0 ] == 0xa5 );
+
+  /* A hard reset drops the bank data; the mappings must be dropped with
+     it rather than left pointing into the freed bank. */
+  if( machine_reset( 1 ) ) r++;
+  TEST_ASSERT( timex_dock[ 0 ].page == NULL );
+  TEST_ASSERT( timex_exrom[ 0 ].page == NULL );
+  TEST_ASSERT( !timex_dock[ 0 ].save_to_snapshot );
+  TEST_ASSERT( !timex_dock[ 0 ].writable );
+  TEST_ASSERT( !timex_exrom[ 0 ].save_to_snapshot );
+  TEST_ASSERT( !timex_exrom[ 0 ].writable );
+
+  /* Saving a snapshot afterwards must not resurrect cartridges out of
+     the freed bank. */
+  if( snapshot_copy_to( result ) ) r++;
+  TEST_ASSERT( libspectrum_snap_dock_cart( result, 0 ) == NULL );
+  TEST_ASSERT( libspectrum_snap_exrom_cart( result, 0 ) == NULL );
+  TEST_ASSERT( !libspectrum_snap_dock_ram( result, 0 ) );
+  TEST_ASSERT( !libspectrum_snap_exrom_ram( result, 0 ) );
+
+  if( libspectrum_snap_free( snap ) ) r++;
+  if( libspectrum_snap_free( result ) ) r++;
+
+  if( machine_select( old_machine ) ) r++;
 
   return r;
 }
@@ -1216,6 +1547,37 @@ ulaplus_snapshot_test( void )
   periph_update();
 
   return 0;
+}
+
+static int
+spec_se_dock_active_machine_switch_test( void )
+{
+  libspectrum_machine old_machine = machine_current->machine;
+  libspectrum_snap *snap;
+  int r = 0;
+
+  if( machine_select( LIBSPECTRUM_MACHINE_SE ) ) return 1;
+
+  /* The dock is always active on the SE */
+  if( !dck_active ) r++;
+
+  /* Switching to a machine without Timex-style video support drops the
+     dock state, so snapshots saved there claim no dock carts */
+  if( machine_select( LIBSPECTRUM_MACHINE_48 ) ) r++;
+  else {
+    if( dck_active ) r++;
+
+    snap = libspectrum_snap_alloc();
+    if( !snap ) return 1;
+    if( snapshot_copy_to( snap ) || libspectrum_snap_dock_active( snap ) ||
+        libspectrum_snap_dock_cart( snap, 0 ) ||
+        libspectrum_snap_exrom_cart( snap, 0 ) ) r++;
+    if( libspectrum_snap_free( snap ) ) r++;
+  }
+
+  if( machine_select( old_machine ) ) r++;
+
+  return r;
 }
 
 static int
@@ -2768,6 +3130,575 @@ utils_open_loaded_dck_test( void )
   return r;
 }
 
+/* Exercise the sparse DCK bank IDs, not just an empty DOCK block (#532). */
+static int
+dck_sparse_banks_test( void )
+{
+  static const libspectrum_dck_bank banks[] = {
+    LIBSPECTRUM_DCK_BANK_DOCK, LIBSPECTRUM_DCK_BANK_EXROM,
+    LIBSPECTRUM_DCK_BANK_HOME
+  };
+  libspectrum_machine old_machine = machine_current->machine;
+  utils_file file;
+  int bank, page, offset, ram, r = 0;
+  size_t block_length = 9 + 8 * 0x2000;
+  size_t position;
+
+  utils_file_init( &file, "synthetic-banks.dck" );
+  file.length = 3 * block_length;
+  file.buffer = libspectrum_new0( unsigned char, file.length );
+
+  if( machine_select( LIBSPECTRUM_MACHINE_TC2068 ) ) {
+    r++;
+    goto cleanup;
+  }
+
+  for( ram = 0; ram < 2; ram++ ) {
+    position = 0;
+    for( bank = 0; bank < 3; bank++ ) {
+      unsigned char *block = file.buffer + position;
+      int pages = !ram && bank == 2 ? 2 : 8;
+
+      memset( block, 0, 9 );
+      block[ 0 ] = banks[ bank ];
+      for( page = 0; page < pages; page++ ) {
+        block[ 1 + page ] = ram ? LIBSPECTRUM_DCK_PAGE_RAM :
+                                 LIBSPECTRUM_DCK_PAGE_ROM;
+        memset( block + 9 + page * 0x2000,
+                0x40 + bank * 8 + page, 0x2000 );
+      }
+      position += 9 + pages * 0x2000;
+    }
+    file.length = position;
+
+    if( dck_insert_loaded( &file ) || !dck_active ) {
+      printf( "dck_sparse_banks_test: %s cartridge rejected\n",
+              ram ? "RAM" : "ROM" );
+      r++;
+      break;
+    }
+
+    for( bank = 0; bank < 3; bank++ ) {
+      writeport_internal( 0x00ff, bank == 1 ? 0x80 : 0 );
+      writeport_internal( 0x00f4, bank == 2 ? 0 : 0xff );
+      /* HOME ROM replaces only the two ROM slots, as in Emulator.dck. */
+      for( page = 0; page < ( !ram && bank == 2 ? 2 : 8 ); page++ ) {
+        libspectrum_byte expected = 0x40 + bank * 8 + page;
+        for( offset = 0; offset < 0x2000; offset++ ) {
+          if( readbyte_internal( page * 0x2000 + offset ) != expected ) {
+            printf( "dck_sparse_banks_test: bank %d page %d contents\n",
+                    banks[ bank ], page );
+            r++;
+            break;
+          }
+        }
+        writebyte_internal( page * 0x2000, expected ^ 0xff );
+        if( readbyte_internal( page * 0x2000 ) !=
+            ( ram ? ( expected ^ 0xff ) : expected ) ) r++;
+      }
+    }
+    dck_eject();
+  }
+
+cleanup:
+  if( dck_active ) dck_eject();
+  if( machine_select( old_machine ) ) r++;
+  utils_file_free( &file );
+  if( r ) printf( "dck_sparse_banks_test failed\n" );
+  return r;
+}
+
+static void
+dck_test_map( libspectrum_dck_bank bank )
+{
+  writeport_internal( 0x00ff, bank == LIBSPECTRUM_DCK_BANK_EXROM ? 0x80 : 0 );
+  writeport_internal( 0x00f4, bank == LIBSPECTRUM_DCK_BANK_HOME ? 0 : 0xff );
+}
+
+static int
+dck_independent_pages_test( void )
+{
+  static const libspectrum_dck_bank banks[] = {
+    LIBSPECTRUM_DCK_BANK_DOCK, LIBSPECTRUM_DCK_BANK_EXROM,
+    LIBSPECTRUM_DCK_BANK_HOME
+  };
+  static const libspectrum_dck_page_type types[] = {
+    LIBSPECTRUM_DCK_PAGE_ROM, LIBSPECTRUM_DCK_PAGE_RAM,
+    LIBSPECTRUM_DCK_PAGE_RAM_EMPTY, LIBSPECTRUM_DCK_PAGE_NULL,
+    LIBSPECTRUM_DCK_PAGE_RAM, LIBSPECTRUM_DCK_PAGE_RAM_EMPTY,
+    LIBSPECTRUM_DCK_PAGE_NULL, LIBSPECTRUM_DCK_PAGE_RAM
+  };
+  libspectrum_machine old_machine = machine_current->machine;
+  libspectrum_byte *defaults = libspectrum_new( libspectrum_byte, 0x10000 );
+  utils_file file;
+  int bank, page, offset, r = 0;
+  size_t position;
+
+  utils_file_init( &file, "synthetic-page-types.dck" );
+  file.buffer = libspectrum_new0( unsigned char, 9 + 8 * 0x2000 );
+  for( bank = 0; bank < 3; bank++ ) {
+    if( machine_select( LIBSPECTRUM_MACHINE_TC2068 ) ) { r++; break; }
+    dck_test_map( banks[ bank ] );
+    for( offset = 0; offset < 0x10000; offset++ )
+      defaults[ offset ] = readbyte_internal( offset );
+
+    memset( file.buffer, 0, 9 );
+    file.buffer[ 0 ] = banks[ bank ];
+    position = 9;
+    for( page = 0; page < 8; page++ ) {
+      file.buffer[ 1 + page ] = types[ page ];
+      if( types[ page ] == LIBSPECTRUM_DCK_PAGE_ROM ||
+          types[ page ] == LIBSPECTRUM_DCK_PAGE_RAM ) {
+        memset( file.buffer + position, 0x60 + page, 0x2000 );
+        position += 0x2000;
+      }
+    }
+    file.length = position;
+    if( dck_insert_loaded( &file ) || !dck_active ) {
+      printf( "dck_independent_pages_test: bank %d rejected\n", banks[ bank ] );
+      r++;
+    } else {
+      dck_test_map( banks[ bank ] );
+      for( page = 0; page < 8; page++ ) {
+        for( offset = 0; offset < 0x2000; offset++ ) {
+          int address = page * 0x2000 + offset;
+          libspectrum_byte expected = types[ page ] == LIBSPECTRUM_DCK_PAGE_NULL ?
+            defaults[ address ] : types[ page ] == LIBSPECTRUM_DCK_PAGE_RAM_EMPTY ?
+            0 : 0x60 + page;
+          if( readbyte_internal( address ) != expected ) {
+            printf( "dck_independent_pages_test: bank %d page %d contents\n",
+                    banks[ bank ], page );
+            r++;
+            break;
+          }
+        }
+        if( types[ page ] != LIBSPECTRUM_DCK_PAGE_NULL ) {
+          int writable = types[ page ] != LIBSPECTRUM_DCK_PAGE_ROM;
+          libspectrum_byte before = readbyte_internal( page * 0x2000 );
+          writebyte_internal( page * 0x2000, 0xa5 );
+          if( readbyte_internal( page * 0x2000 ) !=
+              ( writable ? 0xa5 : before ) ) r++;
+        }
+      }
+    }
+    dck_eject();
+  }
+  if( machine_select( old_machine ) ) r++;
+  utils_file_free( &file );
+  libspectrum_free( defaults );
+  if( r ) printf( "dck_independent_pages_test failed\n" );
+  return r;
+}
+
+static int
+dck_lifecycle_test( void )
+{
+  static const libspectrum_dck_bank banks[] = {
+    LIBSPECTRUM_DCK_BANK_DOCK, LIBSPECTRUM_DCK_BANK_EXROM,
+    LIBSPECTRUM_DCK_BANK_HOME
+  };
+  libspectrum_machine old_machine = machine_current->machine;
+  utils_file file;
+  int bank, reset, fd, r = 0;
+  char filename[] = "/tmp/fuse-dck-lifecycle-XXXXXX";
+
+  fd = mkstemp( filename );
+  if( fd < 0 ) return 1;
+  utils_file_init( &file, filename );
+  file.length = 9 + 2 * 0x2000;
+  file.buffer = libspectrum_new0( unsigned char, file.length );
+  file.buffer[ 1 ] = LIBSPECTRUM_DCK_PAGE_RAM;
+  file.buffer[ 2 ] = LIBSPECTRUM_DCK_PAGE_ROM;
+  memset( file.buffer + 9, 0x35, 0x2000 );
+  memset( file.buffer + 9 + 0x2000, 0x79, 0x2000 );
+
+  for( bank = 0; bank < 3; bank++ ) {
+    file.buffer[ 0 ] = banks[ bank ];
+    if( lseek( fd, 0, SEEK_SET ) < 0 ||
+        write( fd, file.buffer, file.length ) != file.length ) { r++; break; }
+    if( machine_select( LIBSPECTRUM_MACHINE_TC2068 ) ||
+        dck_insert( filename ) || !dck_active ) { r++; break; }
+    dck_test_map( banks[ bank ] );
+    if( readbyte_internal( 0 ) != 0x35 ||
+        readbyte_internal( 0x2000 ) != 0x79 ) r++;
+
+    for( reset = 0; reset < 2; reset++ ) {
+      writebyte_internal( 0, 0xa5 );
+      if( machine_reset( reset ) ) r++;
+      dck_test_map( banks[ bank ] );
+      if( !dck_active || readbyte_internal( 0 ) != ( reset ? 0 : 0xa5 ) ||
+          readbyte_internal( 0x2000 ) != 0x79 ) {
+        printf( "dck_lifecycle_test: bank %d %s reset\n",
+                banks[ bank ], reset ? "hard" : "soft" );
+        r++;
+      }
+    }
+
+    /* Replace it with an empty block; old cartridge pages must disappear. */
+    file.length = 9;
+    memset( file.buffer + 1, 0, 8 );
+    if( dck_insert_loaded( &file ) || !dck_active ) r++;
+    dck_test_map( banks[ bank ] );
+    if( readbyte_internal( 0 ) == 0x35 ||
+        readbyte_internal( 0x2000 ) == 0x79 ) r++;
+    dck_eject();
+    if( dck_active || settings_current.dck_file ) r++;
+    writebyte_internal( 0x4000, 0x96 );
+    if( readbyte_internal( 0x4000 ) != 0x96 ) r++;
+    file.length = 9 + 2 * 0x2000;
+    file.buffer[ 1 ] = LIBSPECTRUM_DCK_PAGE_RAM;
+    file.buffer[ 2 ] = LIBSPECTRUM_DCK_PAGE_ROM;
+  }
+  if( dck_active ) dck_eject();
+  if( close( fd ) ) r++;
+  unlink( filename );
+  utils_file_free( &file );
+  if( machine_select( old_machine ) ) r++;
+  if( r ) printf( "dck_lifecycle_test failed\n" );
+  return r;
+}
+
+/* The archives contain cartridge.dck: one DOCK ROM page filled with 0x79.
+   Keep fixtures inline so these tests need no external compression tools. */
+static int
+dck_archive_test( void )
+{
+#ifdef HAVE_ZLIB_H
+  static const unsigned char zip[] = {
+    0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00, 0x08, 0x00, 0xea, 0x8a,
+    0x49, 0x5d, 0x0c, 0x27, 0xb8, 0x2b, 0x1d, 0x00, 0x00, 0x00, 0x09, 0x20,
+    0x00, 0x00, 0x0d, 0x00, 0x00, 0x00, 0x63, 0x61, 0x72, 0x74, 0x72, 0x69,
+    0x64, 0x67, 0x65, 0x2e, 0x64, 0x63, 0x6b, 0xed, 0xc1, 0xb1, 0x09, 0x00,
+    0x00, 0x08, 0x03, 0xb0, 0xe2, 0xd7, 0x7e, 0xdf, 0xc1, 0x2b, 0x84, 0x24,
+    0x99, 0x9c, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xde, 0x2b,
+    0x50, 0x4b, 0x01, 0x02, 0x14, 0x03, 0x14, 0x00, 0x00, 0x00, 0x08, 0x00,
+    0xea, 0x8a, 0x49, 0x5d, 0x0c, 0x27, 0xb8, 0x2b, 0x1d, 0x00, 0x00, 0x00,
+    0x09, 0x20, 0x00, 0x00, 0x0d, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x80, 0x01, 0x00, 0x00, 0x00, 0x00, 0x63, 0x61,
+    0x72, 0x74, 0x72, 0x69, 0x64, 0x67, 0x65, 0x2e, 0x64, 0x63, 0x6b, 0x50,
+    0x4b, 0x05, 0x06, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x3b,
+    0x00, 0x00, 0x00, 0x48, 0x00, 0x00, 0x00, 0x00, 0x00,
+  };
+  static const unsigned char gzip[] = {
+    0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xed, 0xc1,
+    0xb1, 0x09, 0x00, 0x00, 0x08, 0x03, 0xb0, 0xe2, 0xd7, 0x7e, 0xdf, 0xc1,
+    0x2b, 0x84, 0x24, 0x99, 0x9c, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0xde, 0x2b, 0x0c, 0x27, 0xb8, 0x2b, 0x09, 0x20, 0x00, 0x00,
+  };
+#endif
+  unsigned char plain[ 9 + 0x2000 ];
+  const unsigned char *data[] = { plain,
+#ifdef HAVE_ZLIB_H
+    zip, gzip,
+#endif
+  };
+  const size_t lengths[] = { sizeof( plain ),
+#ifdef HAVE_ZLIB_H
+    sizeof( zip ), sizeof( gzip ),
+#endif
+  };
+  const char *suffixes[] = { ".dck",
+#ifdef HAVE_ZLIB_H
+    ".zip", ".dck.gz",
+#endif
+  };
+  libspectrum_machine old_machine = machine_current->machine;
+  char temporary_path[ PATH_MAX ];
+  char filename[ PATH_MAX ];
+  utils_file file;
+  size_t format;
+  int loaded, reset, page, fd, r = 0;
+
+  memset( plain, 0, 9 );
+  plain[ 1 ] = LIBSPECTRUM_DCK_PAGE_ROM;
+  memset( plain + 9, 0x79, 0x2000 );
+  snprintf( temporary_path, sizeof( temporary_path ),
+            "%s%sfuse-dck-archive-XXXXXX", compat_get_temp_path(),
+            FUSE_DIR_SEP_STR );
+  fd = mkstemp( temporary_path );
+  if( fd < 0 ) return 1;
+  close( fd );
+  unlink( temporary_path );
+  utils_file_init( &file, NULL );
+  if( machine_select( LIBSPECTRUM_MACHINE_TC2068 ) ) { r++; goto cleanup; }
+  for( format = 0; format < ARRAY_SIZE( data ); format++ ) {
+    snprintf( filename, sizeof( filename ), "%s%s",
+              temporary_path, suffixes[ format ] );
+    fd = open( filename, O_WRONLY | O_CREAT | O_TRUNC, 0600 );
+    if( fd < 0 ) { r++; break; }
+    if( write( fd, data[ format ], lengths[ format ] ) != lengths[ format ] )
+      r++;
+    if( close( fd ) ) r++;
+    for( loaded = 0; loaded < 2; loaded++ ) {
+      /* Menu insertion reads the path; generic loading supplies resolved data. */
+      if( loaded ) {
+        if( utils_read_file( filename, &file ) ) { r++; continue; }
+        if( dck_insert_loaded( &file ) ) r++;
+      } else if( dck_insert( filename ) ) r++;
+      /* Neither reset may need the source archive after insertion. */
+      if( loaded ) unlink( filename );
+      for( reset = -1; reset < 2; reset++ ) {
+        if( reset >= 0 && machine_reset( reset ) ) r++;
+        dck_test_map( LIBSPECTRUM_DCK_BANK_DOCK );
+        if( !dck_active || !settings_current.dck_file ||
+            strcmp( settings_current.dck_file,
+                    loaded ? file.filename : filename ) ) r++;
+        for( page = 0; page < 0x2000; page++ )
+          if( readbyte_internal( page ) != 0x79 ) { r++; break; }
+        writebyte_internal( 0, 0xa5 );
+        if( readbyte_internal( 0 ) != 0x79 ) r++;
+      }
+      dck_eject();
+      utils_file_free( &file );
+    }
+    unlink( filename );
+  }
+cleanup:
+  utils_file_free( &file );
+  if( dck_active ) dck_eject();
+  if( machine_select( old_machine ) ) r++;
+  if( r ) printf( "dck_archive_test failed: %d errors\n", r );
+  return r;
+}
+
+static int
+dck_snapshot_reset_test( void )
+{
+  libspectrum_machine old_machine = machine_current->machine;
+  libspectrum_snap *snap = libspectrum_snap_alloc();
+  libspectrum_snap *saved = libspectrum_snap_alloc();
+  utils_file file;
+  libspectrum_byte *ram, *rom;
+  int bank, reset, address, r = 0;
+
+  utils_file_init( &file, "buffer-only.dck" );
+  file.length = 9 + 0x2000;
+  file.buffer = libspectrum_new0( unsigned char, file.length );
+  file.buffer[ 3 ] = LIBSPECTRUM_DCK_PAGE_ROM;
+  memset( file.buffer + 9, 0x35, 0x2000 );
+  if( machine_select( LIBSPECTRUM_MACHINE_TC2068 ) ||
+      dck_insert_loaded( &file ) ) { r++; goto cleanup; }
+  libspectrum_snap_set_machine( snap, LIBSPECTRUM_MACHINE_TC2068 );
+  libspectrum_snap_set_dock_active( snap, 1 );
+  for( bank = 0; bank < 2; bank++ ) {
+    ram = libspectrum_new( libspectrum_byte, 0x2000 );
+    rom = libspectrum_new( libspectrum_byte, 0x2000 );
+    memset( ram, 0x96, 0x2000 );
+    memset( rom, 0x79, 0x2000 );
+    if( bank ) {
+      libspectrum_snap_set_exrom_cart( snap, 0, ram );
+      libspectrum_snap_set_exrom_ram( snap, 0, 1 );
+      libspectrum_snap_set_exrom_cart( snap, 1, rom );
+      libspectrum_snap_set_exrom_ram( snap, 1, 0 );
+    } else {
+      libspectrum_snap_set_dock_cart( snap, 0, ram );
+      libspectrum_snap_set_dock_ram( snap, 0, 1 );
+      libspectrum_snap_set_dock_cart( snap, 1, rom );
+      libspectrum_snap_set_dock_ram( snap, 1, 0 );
+    }
+  }
+  if( snapshot_copy_from( snap ) ) { r++; goto cleanup; }
+  /* The snapshot replaces the old cartridge and needs no backing path. */
+  if( !dck_active || settings_current.dck_file ) r++;
+  if( snapshot_copy_to( saved ) ||
+      libspectrum_snap_dock_cart( saved, 2 ) ) r++;
+  for( reset = -1; reset < 2; reset++ ) {
+    if( reset >= 0 && machine_reset( reset ) ) r++;
+    for( bank = 0; bank < 2; bank++ ) {
+      dck_test_map( bank ? LIBSPECTRUM_DCK_BANK_EXROM :
+                          LIBSPECTRUM_DCK_BANK_DOCK );
+      for( address = 0; address < 0x2000; address++ ) {
+        libspectrum_byte expected = reset == 1 ? 0 :
+          ( reset == 0 && address == 0 ? 0xa5 : 0x96 );
+        if( readbyte_internal( address ) != expected ||
+            readbyte_internal( 0x2000 + address ) != 0x79 ) {
+          r++; break;
+        }
+      }
+      writebyte_internal( 0, 0xa5 );
+      writebyte_internal( 0x2000, 0xa5 );
+      if( readbyte_internal( 0 ) != 0xa5 ||
+          readbyte_internal( 0x2000 ) != 0x79 ) r++;
+    }
+    if( !dck_active ) r++;
+  }
+  /* A cartridge-free snapshot must also replace the restored cartridge. */
+  libspectrum_snap_set_dock_active( snap, 0 );
+  if( snapshot_copy_from( snap ) || dck_active ) r++;
+cleanup:
+  dck_eject();
+  utils_file_free( &file );
+  libspectrum_snap_free( snap );
+  libspectrum_snap_free( saved );
+  if( machine_select( old_machine ) ) r++;
+  if( r ) printf( "dck_snapshot_reset_test failed: %d errors\n", r );
+  return r;
+}
+
+static int
+dck_replacement_power_cycle_test( void )
+{
+  static const libspectrum_dck_bank banks[] = {
+    LIBSPECTRUM_DCK_BANK_DOCK, LIBSPECTRUM_DCK_BANK_EXROM,
+    LIBSPECTRUM_DCK_BANK_HOME
+  };
+  libspectrum_machine old_machine = machine_current->machine;
+  libspectrum_snap *snap = libspectrum_snap_alloc();
+  utils_file old, replacement;
+  int bank, from_snapshot, r = 0;
+
+  utils_file_init( &old, "old.dck" );
+  old.length = 9 + 0x2000;
+  old.buffer = libspectrum_new0( unsigned char, old.length );
+  old.buffer[ 3 ] = LIBSPECTRUM_DCK_PAGE_ROM;
+  memset( old.buffer + 9, 0x35, 0x2000 );
+  utils_file_init( &replacement, "replacement.dck" );
+  replacement.length = 9 + 2 * 0x2000;
+  replacement.buffer = libspectrum_new0( unsigned char, replacement.length );
+  replacement.buffer[ 1 ] = LIBSPECTRUM_DCK_PAGE_RAM;
+  replacement.buffer[ 2 ] = LIBSPECTRUM_DCK_PAGE_ROM;
+  memset( replacement.buffer + 9, 0x96, 0x2000 );
+  memset( replacement.buffer + 9 + 0x2000, 0x79, 0x2000 );
+  if( machine_select( LIBSPECTRUM_MACHINE_TC2068 ) ) { r++; goto cleanup; }
+  for( bank = 0; bank < ARRAY_SIZE( banks ); bank++ ) {
+    for( from_snapshot = 0; from_snapshot < ( bank == 2 ? 1 : 2 );
+         from_snapshot++ ) {
+      old.buffer[ 0 ] = banks[ bank ];
+      if( dck_insert_loaded( &old ) || !dck_active ) r++;
+      if( from_snapshot ) {
+        libspectrum_snap_free( snap );
+        snap = libspectrum_snap_alloc();
+        if( snapshot_copy_to( snap ) || snapshot_copy_from( snap ) ) r++;
+      }
+      /* Replace even HOME ROM overlays with a different bank: absent old
+         pages must revert to their normal machine mappings. */
+      replacement.buffer[ 0 ] = banks[ ( bank + 1 ) % 3 ];
+      BC = 0x1234;
+      if( dck_insert_loaded( &replacement ) || !dck_active || BC ) r++;
+      dck_test_map( banks[ bank ] );
+      if( readbyte_internal( 0x4000 ) == 0x35 ) r++;
+      dck_test_map( banks[ ( bank + 1 ) % 3 ] );
+      if( readbyte_internal( 0 ) != 0x96 ||
+          readbyte_internal( 0x2000 ) != 0x79 ) r++;
+      BC = 0x5678;
+      dck_eject();
+      if( BC || dck_active || settings_current.dck_file ) r++;
+      dck_test_map( banks[ ( bank + 1 ) % 3 ] );
+      if( readbyte_internal( 0 ) == 0x96 ||
+          readbyte_internal( 0x2000 ) == 0x79 ) r++;
+    }
+  }
+cleanup:
+  if( dck_active ) dck_eject();
+  utils_file_free( &old );
+  utils_file_free( &replacement );
+  libspectrum_snap_free( snap );
+  if( machine_select( old_machine ) ) r++;
+  if( r ) printf( "dck_replacement_power_cycle_test failed: %d errors\n", r );
+  return r;
+}
+
+static int
+dck_malformed_test( void )
+{
+  libspectrum_machine old_machine = machine_current->machine;
+  utils_file file;
+  int test, r = 0;
+
+  utils_file_init( &file, "malformed.dck" );
+  file.buffer = libspectrum_new0( unsigned char, 9 + 0x2000 );
+  if( machine_select( LIBSPECTRUM_MACHINE_TC2068 ) ) { r++; goto cleanup; }
+  for( test = 0; test < 4; test++ ) {
+    /* A failed replacement must eject the previous valid cartridge. */
+    memset( file.buffer, 0, 9 );
+    file.length = 9;
+    if( dck_insert_loaded( &file ) || !dck_active ) r++;
+    memset( file.buffer, 0, 9 + 0x2000 );
+    file.length = 9;
+    switch( test ) {
+    case 0: file.length = 8; break; /* Truncated header. */
+    case 1: file.buffer[ 0 ] = 42; break; /* Unsupported bank. */
+    case 2: file.buffer[ 1 ] = 42; break; /* Invalid page type. */
+    case 3:
+      file.buffer[ 1 ] = LIBSPECTRUM_DCK_PAGE_ROM;
+      file.length = 9 + 0x2000 - 1; /* Truncated page. */
+      break;
+    }
+    dck_insert_loaded( &file );
+    if( dck_active || settings_current.dck_file ) {
+      printf( "dck_malformed_test: case %d accepted\n", test );
+      r++;
+      dck_eject();
+    }
+    writebyte_internal( 0x4000, 0x96 );
+    if( readbyte_internal( 0x4000 ) != 0x96 ) r++;
+  }
+cleanup:
+  utils_file_free( &file );
+  if( machine_select( old_machine ) ) r++;
+  if( r ) printf( "dck_malformed_test failed\n" );
+  return r;
+}
+
+static int
+dck_home_rom_ram_slots_test( void )
+{
+  libspectrum_machine old_machine = machine_current->machine;
+  memory_page *saved = libspectrum_new( memory_page,
+                                       SPECTRUM_RAM_PAGES * MEMORY_PAGES_IN_16K );
+  utils_file file;
+  int page, r = 0;
+
+  memcpy( saved, memory_map_ram, sizeof( memory_map_ram ) );
+  utils_file_init( &file, "home-rom-in-ram-slots.dck" );
+  file.length = 9 + 6 * 0x2000;
+  file.buffer = libspectrum_new0( unsigned char, file.length );
+  file.buffer[ 0 ] = LIBSPECTRUM_DCK_BANK_HOME;
+  for( page = 2; page < 8; page++ ) {
+    file.buffer[ 1 + page ] = LIBSPECTRUM_DCK_PAGE_ROM;
+    memset( file.buffer + 9 + ( page - 2 ) * 0x2000, 0x40 + page, 0x2000 );
+  }
+  if( machine_select( LIBSPECTRUM_MACHINE_TC2068 ) ||
+      dck_insert_loaded( &file ) || !dck_active ) r++;
+  for( page = 2; page < 8; page++ ) {
+    if( readbyte_internal( page * 0x2000 ) != 0x40 + page ) r++;
+    writebyte_internal( page * 0x2000, 0xa5 );
+    if( readbyte_internal( page * 0x2000 ) != 0x40 + page ) r++;
+  }
+  if( machine_reset( 0 ) ) r++;
+  for( page = 2; page < 8; page++ ) {
+    if( readbyte_internal( page * 0x2000 ) != 0x40 + page ) r++;
+    writebyte_internal( page * 0x2000, 0xa5 );
+    if( readbyte_internal( page * 0x2000 ) != 0x40 + page ) r++;
+  }
+  dck_eject();
+  for( page = 2; page < 8; page++ ) {
+    writebyte_internal( page * 0x2000, 0xa5 );
+    if( readbyte_internal( page * 0x2000 ) != 0xa5 ) {
+      printf( "dck_home_rom_ram_slots_test: page %d read-only after eject\n",
+              page );
+      r++;
+    }
+  }
+  if( machine_reset( 1 ) ) r++;
+  /* Check descriptors before reading: stale cartridge storage may be freed. */
+  for( page = 0; page < SPECTRUM_RAM_PAGES * MEMORY_PAGES_IN_16K; page++ ) {
+    if( memory_map_ram[ page ].page != saved[ page ].page ||
+        memory_map_ram[ page ].writable != saved[ page ].writable ) {
+      printf( "dck_home_rom_ram_slots_test: RAM mapping not restored by hard reset\n" );
+      r++;
+      break;
+    }
+  }
+  /* Keep test isolation even if cartridge descriptor handling regresses. */
+  memcpy( memory_map_ram, saved, sizeof( memory_map_ram ) );
+  libspectrum_free( saved );
+  utils_file_free( &file );
+  if( machine_select( old_machine ) ) r++;
+  if( r ) printf( "dck_home_rom_ram_slots_test failed\n" );
+  return r;
+}
+
 static int
 utils_open_loaded_microdrive_test( void )
 {
@@ -3035,6 +3966,252 @@ disk_write_open_udi_roundtrip_test( void )
   return r;
 }
 
+/* A UDI image whose stored CRC or length field does not match its contents
+   must be refused: open_udi() validates both before decoding any tracks */
+static int
+disk_open_malformed_udi_rejected_test( void )
+{
+  char temporary_path[] = "/tmp/fuse-disk-malformed-XXXXXX";
+  char filename[ PATH_MAX ];
+  disk_t write_disk, open_disk;
+  utils_file file;
+  libspectrum_dword eof = 0;
+  int fd, r = 0;
+
+  /* mkdtemp is not provided by MinGW; use mkstemp to obtain a unique
+     filename prefix instead. */
+  fd = mkstemp( temporary_path );
+  if( fd < 0 ) return 1;
+  close( fd );
+  unlink( temporary_path );
+  snprintf( filename, sizeof( filename ), "%s.udi", temporary_path );
+
+  memset( &write_disk, 0, sizeof( write_disk ) );
+  if( disk_new( &write_disk, 2, 40, DISK_DENS_AUTO, DISK_UDI ) != DISK_OK )
+    return 1;
+  if( disk_write( &write_disk, filename ) != DISK_OK ) r++;
+  disk_close( &write_disk );
+
+  utils_file_init( &file, filename );
+  if( !r && utils_file_read( &file ) ) r++;
+  if( !r && file.length < 8 ) r++;
+
+  if( !r ) {
+    /* The stored length is the file length minus the four CRC bytes */
+    eof = (libspectrum_dword) file.buffer[4] |
+          (libspectrum_dword) file.buffer[5] << 8 |
+          (libspectrum_dword) file.buffer[6] << 16 |
+          (libspectrum_dword) file.buffer[7] << 24;
+    if( eof != file.length - 4 ) r++;
+  }
+
+  /* A corrupted CRC must be refused */
+  if( !r ) {
+    file.buffer[eof] ^= 0xff;
+    memset( &open_disk, 0, sizeof( open_disk ) );
+    if( disk_open_loaded( &open_disk, &file, 0, 0 ) != DISK_OPEN ) r++;
+    disk_close( &open_disk );
+    file.buffer[eof] ^= 0xff;
+  }
+
+  /* A mismatched length field must be refused */
+  if( !r ) {
+    file.buffer[4] ^= 0x01;
+    memset( &open_disk, 0, sizeof( open_disk ) );
+    if( disk_open_loaded( &open_disk, &file, 0, 0 ) != DISK_OPEN ) r++;
+    disk_close( &open_disk );
+    file.buffer[4] ^= 0x01;
+  }
+
+  utils_file_free( &file );
+  unlink( filename );
+
+  if( r ) printf( "disk_open_malformed_udi_rejected_test failed\n" );
+  return r;
+}
+
+static int
+disk_open_fdi_bounds_test( void )
+{
+  libspectrum_byte image[512];
+  utils_file file;
+  disk_t disk;
+  int i, r = 0;
+
+  /* One track, one 128-byte sector, with enough room for the header. */
+  for( i = 0; i < 9; i++ ) {
+    memset( image, 0, sizeof( image ) );
+    memcpy( image, "FDI", 3 );
+    image[4] = image[6] = 1;
+    image[10] = 0x00; image[11] = 1; /* data at 256 */
+    image[20] = 1;                 /* one sector */
+    image[25] = 1;                 /* sector data present */
+    if( i == 1 ) image[15] = 2;    /* track beyond EOF */
+    if( i == 2 ) image[27] = 1;    /* sector beyond EOF */
+    if( i == 3 ) image[24] = 8;    /* invalid size code */
+    if( i == 4 ) image[14] = image[15] = image[16] = image[17] = 255;
+    if( i == 5 ) image[26] = 200;  /* sector crosses EOF */
+    utils_file_init( &file, "bounds.fdi" );
+    file.buffer = image;
+    file.length = i == 6 ? 13 : i == 7 ? 20 : sizeof( image );
+    if( i == 8 ) image[12] = image[13] = 255; /* header outside file */
+    file.type = LIBSPECTRUM_ID_DISK_FDI;
+    memset( &disk, 0, sizeof( disk ) );
+    if( disk_open_loaded( &disk, &file, 0, 0 ) !=
+        ( i < 6 && i != 3 ? DISK_OK : DISK_OPEN ) ) r++;
+    disk_close( &disk );
+  }
+  if( r ) printf( "disk_open_fdi_bounds_test failed\n" );
+  return r;
+}
+
+static int
+disk_open_fdi_recovery_test( void )
+{
+  libspectrum_byte image[841];
+  utils_file file;
+  disk_t disk;
+  int t, s, j, k, h, p, offset, ids, marks, r = 0;
+
+  /* Two tracks, three sectors each, and three extra header bytes.
+     Both tracks have a bad middle sector followed by readable data. */
+  memset( image, 0, sizeof( image ) );
+  memcpy( image, "FDI", 3 );
+  image[4] = 2; image[6] = 1;
+  image[10] = 73; image[12] = 3;
+  for( t = 0; t < 2; t++ ) {
+    h = 17 + t * 28;
+    image[h] = ( t * 384 ) & 255;
+    image[h + 1] = ( t * 384 ) >> 8;
+    image[h + 6] = 3;
+    for( s = 0; s < 3; s++ ) {
+      p = h + 7 + s * 7;
+      image[p] = t;
+      image[p + 2] = s + 1;
+      image[p + 4] = s == 2 ? 0x81 : 1;
+      offset = s * 128;
+      if( s == 1 ) offset = t ? 320 : 65535;
+      image[p + 5] = offset & 255;
+      image[p + 6] = offset >> 8;
+      memset( image + 73 + t * 384 + s * 128, 0x30 + t * 3 + s, 128 );
+    }
+  }
+  utils_file_init( &file, "recovery.fdi" );
+  file.buffer = image;
+  file.length = sizeof( image );
+  file.type = LIBSPECTRUM_ID_DISK_FDI;
+  memset( &disk, 0, sizeof( disk ) );
+  if( disk_open_loaded( &disk, &file, 0, 0 ) != DISK_OK ) r++;
+  else for( t = 0; t < 2; t++ ) {
+    DISK_SET_TRACK_IDX( ( &disk ), t );
+    ids = marks = 0;
+    for( j = 0; j < disk.c_bpt; j++ ) {
+      if( !bitmap_test( disk.clocks, j ) ) continue; /* FM marks */
+      if( disk.track[j] == 0xfe ) ids++;
+      if( disk.track[j] == 0xfb || disk.track[j] == 0xf8 ) {
+        s = marks ? 2 : 0;
+        if( disk.track[j] != ( s == 2 ? 0xf8 : 0xfb ) ) r++;
+        for( k = 1; k <= 128; k++ )
+          if( disk.track[j + k] != 0x30 + t * 3 + s ) { r++; break; }
+        marks++;
+      }
+    }
+    if( ids != 3 || marks != 2 ) r++;
+  }
+  disk_close( &disk );
+  if( r ) printf( "disk_open_fdi_recovery_test failed\n" );
+  return r;
+}
+
+static int
+disk_open_fdi_semantics_test( void )
+{
+  static const int flags[] = { 1, 0, 2, 0x81, 0x80, 0x40, 0xc0,
+                               0x40, 0x20, 0, 0x40 };
+  libspectrum_byte image[8192];
+  disk_t disk;
+  utils_file file;
+  libspectrum_word crc;
+  int test, j, k, n, size, data_offset, length, ids, marks, pos;
+  int id_pos, data_pos, start, missing, mfm, r = 0;
+
+  for( test = 0; test < (int)( sizeof( flags ) / sizeof( flags[0] ) );
+       test++ ) {
+    n = test == 7 ? 36 : 1; /* cross the old 35-header chunk boundary */
+    size = test == 8 || test == 9 ? 5 : 0;
+    length = 128 << size;
+    missing = flags[test] & 0x40;
+    data_offset = 14 + 7 + n * 7;
+    memset( image, 0, sizeof( image ) );
+    memcpy( image, "FDI", 3 );
+    image[4] = image[6] = 1;
+    image[10] = data_offset & 0xff;
+    image[11] = data_offset >> 8;
+    image[20] = n;
+    for( j = 0; j < n; j++ ) {
+      image[21 + j * 7 + 2] = j + 1;
+      image[21 + j * 7 + 3] = size;
+      image[21 + j * 7 + 4] = flags[test];
+      /* Missing-data offsets need not point into the file. */
+      if( missing ) image[21 + j * 7 + 6] = 255;
+    }
+    memset( image + data_offset, 0x5a, missing ? 0 : length );
+    utils_file_init( &file, "semantics.fdi" );
+    file.buffer = image;
+    file.length = data_offset + ( missing ? 0 : length );
+    if( test == 10 ) file.length--; /* truncated sector header */
+    file.type = LIBSPECTRUM_ID_DISK_FDI;
+    memset( &disk, 0, sizeof( disk ) );
+    pos = disk_open_loaded( &disk, &file, test & 1, 0 );
+    if( test == 10 ) {
+      if( pos != DISK_OPEN ) r++;
+      disk_close( &disk );
+      continue;
+    }
+    if( pos != DISK_OK ) {
+      r++;
+      disk_close( &disk );
+      continue;
+    }
+    DISK_SET_TRACK_IDX( ( &disk ), 0 );
+    ids = marks = 0;
+    id_pos = data_pos = -1;
+    mfm = test == 8 || test == 9;
+    for( j = 0; j < disk.c_bpt; j++ ) {
+      if( mfm ? j < 3 || !bitmap_test( disk.clocks, j - 1 ) :
+                !bitmap_test( disk.clocks, j ) ) continue;
+      if( disk.track[j] == 0xfe ) { ids++; id_pos = j; }
+      if( disk.track[j] == 0xfb || disk.track[j] == 0xf8 ) {
+        marks++; data_pos = j;
+      }
+    }
+    if( ids != n || marks != ( missing ? 0 : 1 ) ) r++;
+    /* Check ID and data CRC independently, including MFM's three A1s. */
+    if( id_pos < 0 ) r++;
+    else {
+      start = id_pos - ( mfm ? 3 : 0 );
+      crc = 0xffff;
+      for( k = start; k < id_pos + 7; k++ )
+        crc = crc_fdc( crc, disk.track[k] );
+      if( crc ) r++;
+      if( disk.track[id_pos + 3] != n || disk.track[id_pos + 4] != size ) r++;
+    }
+    if( !missing && data_pos >= 0 ) {
+      if( disk.track[data_pos] != ( flags[test] & 0x80 ? 0xf8 : 0xfb ) ) r++;
+      for( k = 0; k < length; k++ )
+        if( disk.track[data_pos + 1 + k] != 0x5a ) { r++; break; }
+      crc = 0xffff;
+      start = data_pos - ( mfm ? 3 : 0 );
+      for( k = start; k < data_pos + length + 3; k++ )
+        crc = crc_fdc( crc, disk.track[k] );
+      if( ( crc == 0 ) != ( ( flags[test] & ( 1 << size ) ) != 0 ) ) r++;
+    }
+    disk_close( &disk );
+  }
+  if( r ) printf( "disk_open_fdi_semantics_test failed: %d\n", r );
+  return r;
+}
+
 static FILE compat_file_test_file;
 static int compat_file_test_calls[ 7 ];
 
@@ -3088,6 +4265,349 @@ compat_file_vtable_test( void )
   return r;
 }
 
+#ifdef ENABLE_AUTOMATION
+
+/* Little-endian writers used to build the expected audio.wav contents */
+static void
+automation_audio_test_put_le16( libspectrum_byte *p, unsigned value )
+{
+  p[ 0 ] = value;
+  p[ 1 ] = value >> 8;
+}
+
+static void
+automation_audio_test_put_le32( libspectrum_byte *p, unsigned long value )
+{
+  p[ 0 ] = value;
+  p[ 1 ] = value >> 8;
+  p[ 2 ] = value >> 16;
+  p[ 3 ] = value >> 24;
+}
+
+/* Round-trip the automation artifacts' WAV writer: capture a short PCM
+   buffer, write audio.wav into a temporary directory and check the
+   resulting RIFF header field by field and the s16le payload byte for
+   byte */
+static int
+automation_audio_artifacts_test( void )
+{
+  static const libspectrum_signed_word samples[] = {
+    -32768, -16000, -3200, -400, 0, 400, 3200, 16000
+  };
+  const size_t sample_count = ARRAY_SIZE( samples );
+  const size_t byte_count = 2 * sample_count;
+  const unsigned int rate = 44100, channels = 1;
+  char dir_template[] = "/tmp/fuse-automation-audio-XXXXXX";
+  char wav_path[ PATH_MAX ];
+  libspectrum_byte expected[ 44 + 2 * ARRAY_SIZE( samples ) ];
+  libspectrum_byte *payload;
+  utils_file file;
+  size_t i;
+  int fd, r = 0;
+
+  memset( &file, 0, sizeof( file ) );
+
+  fd = mkstemp( dir_template );
+  if( fd < 0 ) return 1;
+  close( fd );
+  unlink( dir_template );
+  if( mkdir( dir_template, 0700 ) ) {
+    printf( "automation_audio_artifacts_test: failed to create directory\n" );
+    return 1;
+  }
+  snprintf( wav_path, sizeof( wav_path ), "%s" FUSE_DIR_SEP_STR "audio.wav",
+            dir_template );
+
+  automation_artifacts_audio_initialized( (int) rate, (int) channels );
+  automation_artifacts_capture_pcm( samples, (int) sample_count,
+                                    (int) rate, (int) channels );
+
+  if( automation_artifacts_write( dir_template, 0, 1 ) ||
+      utils_read_file( wav_path, &file ) ||
+      file.length != 44 + byte_count ) {
+    printf( "automation_audio_artifacts_test: failed to write or read "
+            "audio.wav\n" );
+    r++;
+    goto cleanup;
+  }
+
+  /* The header must describe exactly what was captured */
+  memset( expected, 0, sizeof( expected ) );
+  memcpy( expected, "RIFF", 4 );
+  automation_audio_test_put_le32( expected + 4, 36 + byte_count );
+  memcpy( expected + 8, "WAVEfmt ", 8 );
+  automation_audio_test_put_le32( expected + 16, 16 );
+  automation_audio_test_put_le16( expected + 20, 1 );	/* PCM */
+  automation_audio_test_put_le16( expected + 22, channels );
+  automation_audio_test_put_le32( expected + 24, rate );
+  automation_audio_test_put_le32( expected + 28, rate * channels * 2 );
+  automation_audio_test_put_le16( expected + 32, channels * 2 );
+  automation_audio_test_put_le16( expected + 34, 16 );	/* bits per sample */
+  memcpy( expected + 36, "data", 4 );
+  automation_audio_test_put_le32( expected + 40, byte_count );
+
+  payload = expected + 44;
+  for( i = 0; i < sample_count; i++ )
+    automation_audio_test_put_le16( payload + 2 * i,
+                                    (unsigned short) samples[ i ] );
+
+  if( memcmp( file.buffer, expected, sizeof( expected ) ) ) {
+    printf( "automation_audio_artifacts_test: wrong audio.wav contents\n" );
+    r++;
+  }
+
+cleanup:
+  utils_close_file( &file );
+  unlink( wav_path );
+  rmdir( dir_template );
+  automation_artifacts_end();
+  if( r ) printf( "automation_audio_artifacts_test failed\n" );
+  return r;
+}
+
+#endif /* ENABLE_AUTOMATION */
+
+static int
+screenshot_scr_roundtrip_test( void )
+{
+  static const char temp_prefix[] = "/tmp/fuse-scr-test-XXXXXX";
+  char temporary_path[ sizeof( temp_prefix ) ];
+  libspectrum_machine old_machine = machine_current->machine;
+  libspectrum_dword *saved_last_screen;
+  libspectrum_byte saved_screen[ DISPLAY_FILE_SIZE ];
+  libspectrum_byte *expected;
+  utils_file file;
+  int fd, x, y, r = 0;
+  size_t j, count;
+
+  /* mkdtemp is not provided by MinGW; use mkstemp to obtain a unique
+     filename prefix instead. */
+  strcpy( temporary_path, temp_prefix );
+  fd = mkstemp( temporary_path );
+  if( fd < 0 ) return 1;
+  close( fd );
+  unlink( temporary_path );
+
+  if( machine_select( LIBSPECTRUM_MACHINE_48 ) ) {
+    unlink( temporary_path );
+    return 1;
+  }
+
+  /* Save the display and screen state the test touches */
+  saved_last_screen = libspectrum_new( libspectrum_dword,
+    DISPLAY_SCREEN_WIDTH_COLS * DISPLAY_SCREEN_HEIGHT );
+  memcpy( saved_last_screen, display_last_screen,
+          sizeof( display_last_screen ) );
+  memcpy( saved_screen, RAM[ memory_current_screen ], DISPLAY_FILE_SIZE );
+
+  /* Fill the display's last-screen buffer with a distinctive pattern: the
+     low byte carries the pixel value and the high byte the attribute */
+  count = DISPLAY_SCREEN_WIDTH_COLS * DISPLAY_SCREEN_HEIGHT;
+  for( j = 0; j < count; j++ )
+    display_last_screen[ j ] = ( ( j % 256 ) << 8 ) | ( j / 256 );
+
+  /* Derive what the standard .scr writer must produce from the known .scr
+     layout rather than from screenshot.c itself */
+  expected = libspectrum_new( libspectrum_byte, DISPLAY_FILE_SIZE );
+  for( y = 0; y < DISPLAY_HEIGHT; y++ ) {
+    for( x = 0; x < DISPLAY_WIDTH_COLS; x++ ) {
+      libspectrum_dword cell;
+      int index = ( x + DISPLAY_BORDER_WIDTH_COLS ) +
+                  ( y + DISPLAY_BORDER_HEIGHT ) * DISPLAY_SCREEN_WIDTH_COLS;
+      cell = display_last_screen[ index ];
+      expected[ display_get_offset( x, y ) ] = cell & 0xff;
+      if( y % 8 == 0 )
+        expected[ DISPLAY_PIXEL_BYTES + x +
+                  ( y / 8 ) * DISPLAY_WIDTH_COLS ] = ( cell >> 8 ) & 0xff;
+    }
+  }
+
+  if( screenshot_scr_write( temporary_path ) ) r++;
+  if( utils_read_file( temporary_path, &file ) ) {
+    r++;
+  } else {
+    if( file.length != DISPLAY_FILE_SIZE ) r++;
+    else if( memcmp( file.buffer, expected, DISPLAY_FILE_SIZE ) ) r++;
+    utils_close_file( &file );
+  }
+
+  /* Reading the file back must place the same bytes in the screen page */
+  if( screenshot_scr_read( temporary_path ) ) r++;
+  if( memcmp( RAM[ memory_current_screen ], expected, DISPLAY_FILE_SIZE ) )
+    r++;
+
+  /* Restore the display and screen state */
+  memcpy( display_last_screen, saved_last_screen,
+          sizeof( display_last_screen ) );
+  memcpy( RAM[ memory_current_screen ], saved_screen, DISPLAY_FILE_SIZE );
+  libspectrum_free( saved_last_screen );
+  libspectrum_free( expected );
+
+  if( machine_select( old_machine ) ) r++;
+  unlink( temporary_path );
+
+  if( r ) printf( "screenshot_scr_roundtrip_test failed\n" );
+  return r;
+}
+
+/* Event queue tests */
+
+/* Fired-event log for the event queue tests */
+static int event_test_fired;
+static libspectrum_dword event_test_tstates[ 8 ];
+static int event_test_type[ 8 ];
+static void *event_test_user_data[ 8 ];
+
+static void
+log_event( libspectrum_dword fired_tstates, int type, void *user_data )
+{
+  event_test_tstates[ event_test_fired ] = fired_tstates;
+  event_test_type[ event_test_fired ] = type;
+  event_test_user_data[ event_test_fired ] = user_data;
+  event_test_fired++;
+}
+
+/* Rescheduling handler: fires at fired_tstates, then queues itself again
+   0x10 T-states later */
+static void
+reschedule_fn( libspectrum_dword fired_tstates, int type, void *user_data )
+{
+  log_event( fired_tstates, type, user_data );
+  event_add( fired_tstates + 0x10, type );
+}
+
+static int
+expect( int index, libspectrum_dword fired_tstates, int type, void *user_data )
+{
+  if( index >= event_test_fired ) return 1;
+  if( event_test_tstates[ index ] != fired_tstates ) return 1;
+  if( event_test_type[ index ] != type ) return 1;
+  if( event_test_user_data[ index ] != user_data ) return 1;
+  return 0;
+}
+
+static int
+event_queue_test( void )
+{
+  libspectrum_dword saved_tstates = tstates;
+  libspectrum_dword saved_tstates_per_frame;
+  int type_q, type_p, type_r, type_a, type_d, type_h, type_i, type_j,
+    type_resched, error = 0;
+
+  /* Clear whatever the emulator itself queued; the main loop is done by
+     the time the unit tests run */
+  event_reset();
+
+  /* --- Test 1: the comparator orders by unsigned T-state, not by signed
+     subtraction (event.c pins this with the overflow-safe form) --- */
+  type_q = event_register( log_event, "unittest-q" );
+  type_p = event_register( log_event, "unittest-p" );
+  type_r = event_register( log_event, "unittest-r" );
+  if( type_q < 0 || type_p <= type_q || type_r <= type_p ) error++;
+  if( strcmp( event_name( type_q ), "unittest-q" ) ) error++;
+
+  event_add( 0x00000100, type_q );
+  event_add( 0xe0000000, type_p );
+  event_add( 0x40000000, type_r );
+
+  if( event_next_event != 0x00000100 ) error++;
+
+  tstates = 0xe0000001;
+  if( event_do_events() ) error++;
+  if( event_test_fired != 3 ) error++;
+  if( expect( 0, 0x00000100, type_q, NULL ) ) error++;
+  if( expect( 1, 0x40000000, type_r, NULL ) ) error++;
+  if( expect( 2, 0xe0000000, type_p, NULL ) ) error++;
+
+  /* --- Test 2: equal T-states fire in registration order --- */
+  event_test_fired = 0;
+  type_a = event_register( log_event, "unittest-a" );
+  type_d = event_register( log_event, "unittest-d" );
+  event_add( 0x80, type_a );
+  event_add( 0x80, type_d );
+  if( event_next_event != 0x80 ) error++;
+
+  tstates = 0x80;
+  if( event_do_events() ) error++;
+  if( event_test_fired != 2 ) error++;
+  if( expect( 0, 0x80, type_a, NULL ) ) error++;
+  if( expect( 1, 0x80, type_d, NULL ) ) error++;
+
+  /* --- Test 3: event_frame() reduces every entry and recomputes the next
+     event time --- */
+  event_test_fired = 0;
+  event_add( 0x50, type_a );
+  event_add( 0x60, type_d );
+  event_frame( 0x20 );
+  if( event_next_event != 0x30 ) error++;
+
+  tstates = 0x45;
+  if( event_do_events() ) error++;
+  if( event_test_fired != 2 ) error++;
+  if( expect( 0, 0x30, type_a, NULL ) ) error++;
+  if( expect( 1, 0x40, type_d, NULL ) ) error++;
+
+  /* --- Test 4: event_remove_type() turns matching events null, and null
+     events are dispatched silently --- */
+  event_test_fired = 0;
+  type_h = event_register( log_event, "unittest-h" );
+  type_i = event_register( log_event, "unittest-i" );
+  event_add( 0x30, type_h );
+  event_add( 0x40, type_h );
+  event_add( 0x50, type_i );
+  event_remove_type( type_h );
+
+  tstates = 0x60;
+  if( event_do_events() ) error++;
+  if( event_test_fired != 1 ) error++;
+  if( expect( 0, 0x50, type_i, NULL ) ) error++;
+  if( event_next_event != 0xffffffff ) error++;
+
+  /* --- Test 5: event_remove_type_user_data() nulls only matching
+     user data --- */
+  event_test_fired = 0;
+  type_j = event_register( log_event, "unittest-j" );
+  event_add_with_data( 0x30, type_j, (void *) 1 );
+  event_add_with_data( 0x40, type_j, (void *) 2 );
+  event_remove_type_user_data( type_j, (void *) 1 );
+
+  tstates = 0x50;
+  if( event_do_events() ) error++;
+  if( event_test_fired != 1 ) error++;
+  if( expect( 0, 0x40, type_j, (void *) 2 ) ) error++;
+
+  /* --- Test 6: a callback may queue another event, and the dispatch loop
+     picks it up in the same call --- */
+  event_test_fired = 0;
+  type_resched = event_register( reschedule_fn, "unittest-resched" );
+  event_add( 0x100, type_resched );
+
+  tstates = 0x115;
+  if( event_do_events() ) error++;
+  if( event_test_fired != 2 ) error++;
+  if( expect( 0, 0x100, type_resched, NULL ) ) error++;
+  if( expect( 1, 0x110, type_resched, NULL ) ) error++;
+
+  /* --- Test 7: event_force_events() jumps to the next event (RZX
+     playback path) --- */
+  event_reset();
+  event_test_fired = 0;
+  saved_tstates_per_frame = machine_current->timings.tstates_per_frame;
+  machine_current->timings.tstates_per_frame = 0x200;
+  event_add( 0x50, type_i );
+  event_force_events();
+  if( event_test_fired != 1 ) error++;
+  if( expect( 0, 0x50, type_i, NULL ) ) error++;
+  machine_current->timings.tstates_per_frame = saved_tstates_per_frame;
+
+  /* Leave the queue exactly as the emulator left it: empty */
+  event_reset();
+  tstates = saved_tstates;
+
+  if( error ) printf( "event_queue_test failed\n" );
+  return error;
+}
+
 int
 unittests_run( void )
 {
@@ -3107,14 +4627,22 @@ unittests_run( void )
   r += sound_source_routes_test();
   r += ula_sound_levels_test();
   r += source_volume_test();
+  r += ay_render_grid_continuity_test();
+  r += ay_tail_write_survives_frame_boundary_test();
   r += floating_bus_merge_test();
   r += snapshot_copy_from_releases_keyboard_test();
+  r += snapshot_copy_from_releases_joystick_test();
   r += snapshot_custom_rom_is_replaced_by_soft_reset_test();
+  r += snapshot_machine_rom_without_file_test();
+  r += snapshot_missing_rom_file_uses_snapshot_rom_test();
+  r += snapshot_write_read_roundtrip_test();
   r += slt_is_cleared_by_reset_test();
   r += slt_screen_is_cleared_by_reset_test();
+  r += snapshot_dock_carts_cleared_by_hard_reset_test();
   r += spec_se_dock_ram_reset_test();
   r += ulaplus_ports_test();
   r += ulaplus_snapshot_test();
+  r += spec_se_dock_active_machine_switch_test();
   r += keyboard_read_test();
   r += keyboard_synthetic_test();
   r += keyboard_simulate_keypress_test();
@@ -3139,12 +4667,29 @@ unittests_run( void )
   r += utils_open_loaded_file_test();
   r += utils_open_loaded_if2_test();
   r += utils_open_loaded_dck_test();
+  r += dck_sparse_banks_test();
+  r += dck_independent_pages_test();
+  r += dck_lifecycle_test();
+  r += dck_archive_test();
+  r += dck_snapshot_reset_test();
+  r += dck_replacement_power_cycle_test();
+  r += dck_malformed_test();
+  r += dck_home_rom_ram_slots_test();
   r += utils_open_loaded_microdrive_test();
   r += utils_open_loaded_disk_test();
   r += utils_open_loaded_compressed_disk_test();
   r += utils_open_loaded_disk_merge_test();
   r += disk_write_blank_disk_cpc_save_test();
   r += disk_write_open_udi_roundtrip_test();
+  r += disk_open_malformed_udi_rejected_test();
+  r += disk_open_fdi_bounds_test();
+  r += disk_open_fdi_semantics_test();
+  r += disk_open_fdi_recovery_test();
+  r += screenshot_scr_roundtrip_test();
+  r += event_queue_test();
+#ifdef ENABLE_AUTOMATION
+  r += automation_audio_artifacts_test();
+#endif /* ENABLE_AUTOMATION */
 
   printf("Final return value: %d (should be 0)\n", r);
 

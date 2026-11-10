@@ -27,6 +27,17 @@
 
 #include "libspectrum.h"
 
+/* Internal normal production cadence, not a user preference. */
+#define SOUND_AUDIO_CADENCE_MS 5
+
+/* Round down to whole CPU T-states. Widen before multiplying so the clock
+   conversion cannot overflow; the interval is at most the supplied clock. */
+static inline libspectrum_dword
+sound_audio_interval_tstates( libspectrum_dword processor_speed )
+{
+  return (libspectrum_qword)processor_speed * SOUND_AUDIO_CADENCE_MS / 1000;
+}
+
 enum sound_speaker_type {
   SOUND_SPEAKER_TYPE_AUTOMATIC,
   SOUND_SPEAKER_TYPE_TV,
@@ -60,6 +71,14 @@ void sound_sp0256_write( libspectrum_dword at_tstates,
                          libspectrum_signed_word val );
 void sound_frame( void );
 int sound_layout_stale( void );
+/* Call before a clock discontinuity, an out-of-band source reset/restore,
+ * or a transition to/from RZX's forced-event timing. Cancel interior cuts for
+ * the rest of this frame; sound_frame() rearms the next eligible frame.
+ * If this frame has already been partly consumed, reinitialize audio to avoid
+ * reusing committed history. Published PCM cannot be retracted, so continuity
+ * across the discontinuity is not guaranteed. This does not change tstates.
+ */
+void sound_suspend_subframe( void );
 #define SOUND_AMPL_BEEPER ( 50 * 256 )
 #define SOUND_AMPL_TAPE   ( 2 * 256 )
 
@@ -105,5 +124,12 @@ extern int sound_channels;
 int sound_lowlevel_init( const char *device, int *freqptr, int *stereoptr );
 void sound_lowlevel_end( void );
 void sound_lowlevel_frame( libspectrum_signed_word *data, int len );
+#ifdef SOUND_PCM_ADMISSION
+/* Sole producer: wait for a complete batch before synthesis mutation.
+   Negative errno on failure; no producer writes may intervene before publish. */
+int sound_lowlevel_reserve( unsigned int frames );
+#endif
+/* Ordinary subframe context; frame-only/RZX/discontinuities use capacity. */
+int sound_normal_producer_context( void );
 
 #endif				/* #ifndef FUSE_SOUND_H */

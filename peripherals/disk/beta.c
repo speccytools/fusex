@@ -45,6 +45,7 @@
 #include "event.h"
 #include "infrastructure/startup_manager.h"
 #include "machine.h"
+#include "snapshot.h"
 #include "module.h"
 #include "settings.h"
 #include "ui/ui.h"
@@ -98,6 +99,7 @@ static void beta_reset( int hard_reset );
 static void beta_memory_map( void );
 static void beta_enabled_snapshot( libspectrum_snap *snap );
 static void beta_from_snapshot( libspectrum_snap *snap );
+static void beta_snapshot_roms( libspectrum_snap *snap );
 static void beta_to_snapshot( libspectrum_snap *snap );
 
 /* 16KB ROM */
@@ -110,6 +112,7 @@ static module_info_t beta_module_info = {
   /* .snapshot_enabled = */ beta_enabled_snapshot,
   /* .snapshot_from = */ beta_from_snapshot,
   /* .snapshot_to = */ beta_to_snapshot,
+  /* .snapshot_roms = */ beta_snapshot_roms,
 
 };
 
@@ -423,6 +426,19 @@ beta_enabled_snapshot( libspectrum_snap *snap )
 }
 
 static void
+beta_snapshot_roms( libspectrum_snap *snap )
+{
+  /* Do not carry a custom ROM over from a previous snapshot. */
+  memory_rom_bank_clear( &beta_snapshot_rom );
+
+  if( libspectrum_snap_beta_active( snap ) &&
+      libspectrum_snap_beta_custom_rom( snap ) &&
+      libspectrum_snap_beta_rom( snap, 0 ) )
+    memory_rom_bank_set( &beta_snapshot_rom,
+                         libspectrum_snap_beta_rom( snap, 0 ), ROM_SIZE, 1 );
+}
+
+static void
 beta_from_snapshot( libspectrum_snap *snap )
 {
   if( !libspectrum_snap_beta_active( snap ) ) return;
@@ -439,16 +455,6 @@ beta_from_snapshot( libspectrum_snap *snap )
   } else {
     beta_unpage();
   }
-
-  if( libspectrum_snap_beta_custom_rom( snap ) &&
-      libspectrum_snap_beta_rom( snap, 0 ) &&
-      memory_rom_bank_set( &beta_snapshot_rom,
-                           libspectrum_snap_beta_rom( snap, 0 ),
-                           ROM_SIZE, 1 ) )
-    return;
-
-  if( beta_snapshot_rom.data )
-    memory_rom_bank_map( &beta_snapshot_rom, beta_memory_map_romcs, 0 );
 
   /* ignore drive count for now, there will be an issue with loading snaps where
      drives have been disabled
@@ -510,9 +516,11 @@ int
 beta_unittest( void )
 {
   static const char rom_filename[] = "unittests-beta128.rom";
+  static char missing_rom[] = "/nonexistent/unittests-beta128.rom";
   libspectrum_byte *test_rom;
   libspectrum_snap *snap = NULL;
   char *saved_rom = settings_current.rom_beta128;
+  char *saved_default_rom = settings_default.rom_beta128;
   int r = 0;
   int was_active = periph_is_active( PERIPH_TYPE_BETA128 );
 
@@ -545,12 +553,24 @@ beta_unittest( void )
 
   test_rom = libspectrum_new( libspectrum_byte, ROM_SIZE );
   memset( test_rom, 0xa5, ROM_SIZE );
+  libspectrum_snap_set_machine( snap, machine_current->machine );
   libspectrum_snap_set_beta_active( snap, 1 );
   libspectrum_snap_set_beta_custom_rom( snap, 1 );
   libspectrum_snap_set_beta_rom( snap, 0, test_rom );
-  beta_from_snapshot( snap );
 
-  if( machine_reset( 0 ) || beta_memory_map_romcs[ 0 ].page[ 0 ] != 0xa5 ) {
+  settings_current.rom_beta128 = missing_rom;
+  settings_default.rom_beta128 = missing_rom;
+  if( snapshot_copy_from( snap ) || !beta_available ||
+      !beta_memory_map_romcs[ 0 ].page ||
+      beta_memory_map_romcs[ 0 ].page[ 0 ] != 0xa5 ) {
+    fprintf( stderr, "Beta 128 snapshot ROM failed without ROM file\n" );
+    r++;
+  }
+  settings_current.rom_beta128 = (char *)rom_filename;
+  settings_default.rom_beta128 = saved_default_rom;
+
+  if( machine_reset( 0 ) || !beta_memory_map_romcs[ 0 ].page ||
+      beta_memory_map_romcs[ 0 ].page[ 0 ] != 0xa5 ) {
     fprintf( stderr, "Beta 128 snapshot ROM was not preserved by soft reset\n" );
     r++;
   }
@@ -577,6 +597,7 @@ cleanup:
   if( !was_active )
     periph_activate_type( PERIPH_TYPE_BETA128, 0 );
   settings_current.rom_beta128 = saved_rom;
+  settings_default.rom_beta128 = saved_default_rom;
   if( remove( rom_filename ) ) {
     fprintf( stderr, "Couldn't remove Beta 128 unit test ROM\n" );
     r++;

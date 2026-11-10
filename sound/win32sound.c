@@ -44,8 +44,6 @@ static int current_buffer;
 static char buffer1[ BUFFER_SIZE ];
 static char buffer2[ BUFFER_SIZE ];
 
-static int sixteenbit;
-
 static void
 sound_display_mmresult( const char * const func, MMRESULT result );
 
@@ -63,15 +61,9 @@ sound_lowlevel_init( const char *device, int *freqptr, int *stereoptr )
   memset( &pcmwf, 0, sizeof( WAVEFORMATEX ) );
 
   pcmwf.cbSize = 0;
-  if( settings_current.sound_force_8bit ) {
-    pcmwf.wBitsPerSample = 8;
-    sixteenbit = 0;
-  } else {
-    pcmwf.wBitsPerSample = 16;
-    sixteenbit = 1;
-  }
+  pcmwf.wBitsPerSample = 16;
   pcmwf.nChannels = *stereoptr ? 2 : 1;
-  pcmwf.nBlockAlign = pcmwf.nChannels * ( sixteenbit ? 2 : 1 );
+  pcmwf.nBlockAlign = pcmwf.nChannels * 2;
   pcmwf.nSamplesPerSec = *freqptr;
   pcmwf.nAvgBytesPerSec = pcmwf.nSamplesPerSec * pcmwf.nBlockAlign;
   pcmwf.wFormatTag = WAVE_FORMAT_PCM;
@@ -137,25 +129,11 @@ sound_lowlevel_end( void )
 void
 sound_lowlevel_frame( libspectrum_signed_word *data, int len )
 {
-  static unsigned char buf8[4096];
   MMRESULT result;
 
   /* Convert to bytes */
   unsigned char *bytes = (unsigned char *) data;
   len <<= 1;
-  if( !sixteenbit ) {
-    libspectrum_signed_word *src;
-    unsigned char *dst;
-    int f;
-
-    src = data; dst = buf8;
-    len >>= 1;
-    /* TODO: confirm byteorder on IA64 */
-    for( f = 0; f < len; f++ )
-      *dst++ = 128 + (int)( (*src++) / 256 );
-
-    bytes = buf8;
-  }
   
   if( len > BUFFER_SIZE ) {
     ui_error( UI_ERROR_WARNING, "%s: requested wave size exceeds the buffer size", __func__ );

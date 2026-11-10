@@ -1,0 +1,4 @@
+# Official MSYS2 MINGW32 packages retained on repo.msys2.org but absent from
+# its current package database. Verify detached signatures as well as hashes.
+87c928f2a4e3eb637f82da60eacf7d5d374f57f03a1a66efe7663bfda76f0831  mingw-w64-i686-libgcrypt-1.12.2-2-any.pkg.tar.zst
+fcb1eebd273e8f63ee1faf1ce457b0bcd52d58c5aebf583ce4af386b5d6b648d  mingw-w64-i686-libgpg-error-1.60-1-any.pkg.tar.zst

@@ -15,6 +15,7 @@
 #include "periph.h"
 #include "sound.h"
 #include "sound/source_synths.h"
+#include "sound/audio_timeline.h"
 
 static Blip_Synth *left_specdrum, *right_specdrum;
 static Blip_Synth *left_generalsound, *right_generalsound;
@@ -83,9 +84,10 @@ void
 sound_specdrum_write( libspectrum_word port GCC_UNUSED, libspectrum_byte val )
 {
   if( periph_is_active( PERIPH_TYPE_SPECDRUM ) ) {
-    blip_synth_update( left_specdrum, tstates, ( val - 128 ) * 128 );
+    libspectrum_dword time = sound_interval_time( tstates );
+    blip_synth_update( left_specdrum, time, ( val - 128 ) * 128 );
     if( right_specdrum )
-      blip_synth_update( right_specdrum, tstates, ( val - 128 ) * 128 );
+      blip_synth_update( right_specdrum, time, ( val - 128 ) * 128 );
     machine_current->specdrum.specdrum_dac = val - 128;
   }
 }
@@ -113,8 +115,9 @@ sound_covox_write( libspectrum_word port GCC_UNUSED, libspectrum_byte val )
 {
   if( periph_is_active( PERIPH_TYPE_COVOX_FB ) ||
       periph_is_active( PERIPH_TYPE_COVOX_DD ) ) {
-    blip_synth_update( left_covox, tstates, val * 128 );
-    if( right_covox ) blip_synth_update( right_covox, tstates, val * 128 );
+    libspectrum_dword time = sound_interval_time( tstates );
+    blip_synth_update( left_covox, time, val * 128 );
+    if( right_covox ) blip_synth_update( right_covox, time, val * 128 );
     machine_current->covox.covox_dac = val;
   }
 }
@@ -123,6 +126,7 @@ void
 source_synths_sp0256_write( libspectrum_dword at_tstates,
                             libspectrum_signed_word val )
 {
-  blip_synth_update( left_sp0256, at_tstates, val );
-  if( right_sp0256 ) blip_synth_update( right_sp0256, at_tstates, val );
+  libspectrum_dword time = sound_interval_time( at_tstates );
+  blip_synth_update( left_sp0256, time, val );
+  if( right_sp0256 ) blip_synth_update( right_sp0256, time, val );
 }

@@ -436,6 +436,12 @@ automation_active( void )
 }
 
 int
+automation_pc_check_active( void )
+{
+  return 0;
+}
+
+int
 automation_check_pc( libspectrum_word pc GCC_UNUSED )
 {
   return 0;

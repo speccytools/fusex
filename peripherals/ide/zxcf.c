@@ -354,6 +354,7 @@ zxcf_unittest( void )
   int old_setting = settings_current.zxcf_active;
 
   settings_current.zxcf_active = 1;
+  zxcf_activate();
 
   zxcf_memctl_write( 0x10b4, 0x00 );
   r += unittests_assert_16k_page( 0x0000, zxcf_memory_source, 0 );

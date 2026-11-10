@@ -1,0 +1,146 @@
+name: Build and publish Fuse for the web
+run-name: Web Fuse ${{ inputs.fuse_ref }} / libspectrum ${{ inputs.libspectrum_ref }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      fuse_ref:
+        description: Fuse tag, or master (both refs must be master for a development build)
+        required: true
+        default: master
+        type: string
+      libspectrum_ref:
+        description: Libspectrum tag, or master
+        required: true
+        default: master
+        type: string
+
+# All publishers must use this group: each deployment includes the whole site.
+concurrency:
+  group: emscripten-pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # Preserve the published tree on gh-pages.
+    env:
+      FUSE_REF: ${{ inputs.fuse_ref }}
+      LIBSPECTRUM_REF: ${{ inputs.libspectrum_ref }}
+      EMSCRIPTEN_VERSION: 6.0.12
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Validate source selection
+        id: refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$FUSE_REF" == master && "$LIBSPECTRUM_REF" == master ]]; then
+            echo 'fuse=refs/heads/master' >> "$GITHUB_OUTPUT"
+            echo 'libspectrum=refs/heads/master' >> "$GITHUB_OUTPUT"
+          elif [[ "$FUSE_REF" != master && "$LIBSPECTRUM_REF" != master ]]; then
+            git check-ref-format "refs/tags/$FUSE_REF"
+            git check-ref-format "refs/tags/$LIBSPECTRUM_REF"
+            echo "fuse=refs/tags/$FUSE_REF" >> "$GITHUB_OUTPUT"
+            echo "libspectrum=refs/tags/$LIBSPECTRUM_REF" >> "$GITHUB_OUTPUT"
+          else
+            echo 'Select master/master or two explicit tags.' >&2
+            exit 1
+          fi
+
+      - name: Check out selected Fuse source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.refs.outputs.fuse }}
+          path: sources/fuse
+          persist-credentials: false
+
+      - name: Check out selected libspectrum source
+        uses: actions/checkout@v7
+        with:
+          repository: fuse-emulator/libspectrum
+          ref: ${{ steps.refs.outputs.libspectrum }}
+          path: sources/libspectrum
+          persist-credentials: false
+
+      - name: Test publication logic
+        run: PYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/test_publish_emscripten.py
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends autoconf automake libtool make pkg-config perl python3
+
+      - name: Install Emscripten
+        shell: bash
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install "$EMSCRIPTEN_VERSION"
+          "$RUNNER_TEMP/emsdk/emsdk" activate "$EMSCRIPTEN_VERSION"
+
+      - name: Build browser application
+        shell: bash
+        run: |
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          bash .github/scripts/build_emscripten.sh "$GITHUB_WORKSPACE/sources"
+
+      - name: Retrieve previous publications
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin refs/heads/gh-pages; then
+            git fetch --depth 1 origin refs/heads/gh-pages
+            git worktree add --detach published FETCH_HEAD
+          else
+            status=$?
+            if [[ "$status" != 2 ]]; then exit "$status"; fi
+            git worktree add --detach published HEAD
+            git -C published checkout --orphan gh-pages
+            git -C published rm -rf .
+            git -C published clean -fdx
+          fi
+
+      - name: Add build and regenerate index
+        run: python3 .github/scripts/publish_emscripten.py sources published
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Save publication history
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C published config user.name 'github-actions[bot]'
+          git -C published config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C published add .
+          git -C published commit -m "Publish web Fuse $FUSE_REF / libspectrum $LIBSPECTRUM_REF"
+          git -C published push origin HEAD:refs/heads/gh-pages
+
+      - name: Stage complete site without Git metadata
+        run: |
+          mkdir site
+          git -C published archive HEAD | tar -x -C site
+
+      - name: Upload complete site
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy complete site
+        id: deployment
+        uses: actions/deploy-pages@v4

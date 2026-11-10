@@ -66,10 +66,11 @@ tape_foreach( void (*function)( libspectrum_tape_block *block,
 				void *user_data),
 	      void *user_data );
 
-/* Fill 'buffer' with up a maximum of 'length' characters of
-   information about 'block' */
-int tape_block_details( char *buffer, size_t length,
-			libspectrum_tape_block *block );
+/* Allocate complete details for 'block'; caller must libspectrum_free() it.
+   Ordinary metadata and ROM names are UTF-8; ASCII CUSTOM identifiers
+   are copied unchanged.
+   Unformatted block types return an allocated empty string. */
+int tape_block_details( char **details, libspectrum_tape_block *block );
 
 extern int tape_microphone;
 extern int tape_modified;

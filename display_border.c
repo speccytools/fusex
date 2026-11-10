@@ -193,11 +193,13 @@ flush_ulaplus_border_cell( int c, int y, int colour_left, int colour_right,
   colours = ( ink << 16 ) | paper;
   chunk_detail = DISPLAY_LAST_SCREEN_ULAPLUS | data;
 
-  if( display_last_screen[ index ] != chunk_detail ||
+  if( display_force_redraw[ index ] ||
+      display_last_screen[ index ] != chunk_detail ||
       display_last_colours[ index ] != colours ) {
     uidisplay_plot8( c, y, data, ink, paper );
     display_last_screen[ index ] = chunk_detail;
     display_last_colours[ index ] = colours;
+    display_force_redraw[ index ] = 0;
     display_mark_screen_dirty( c, y );
   }
 }
@@ -272,7 +274,9 @@ flush_border_line( int y )
     }
 
     index = c + y * DISPLAY_SCREEN_WIDTH_COLS;
-    if( display_last_screen[ index ] != chunk_detail ) {
+    if( display_force_redraw[ index ] ||
+        display_last_screen[ index ] != chunk_detail ) {
+      display_force_redraw[ index ] = 0;
       uidisplay_plot8( c, y, data, ink, paper );
       display_last_screen[ index ] = chunk_detail;
       display_mark_screen_dirty( c, y );

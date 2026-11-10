@@ -84,12 +84,13 @@ const char *joystick_connection[ JOYSTICK_CONN_COUNT ] = {
   "Joystick 2",
 };
 
+static void joystick_reset( int hard_reset );
 static void joystick_enabled_snapshot( libspectrum_snap *snap );
 static void joystick_to_snapshot( libspectrum_snap *snap );
 
 static module_info_t joystick_module_info = {
 
-  /* .reset = */ NULL,
+  /* .reset = */ joystick_reset,
   /* .romcs = */ NULL,
   /* .snapshot_enabled = */ joystick_enabled_snapshot,
   /* .snapshot_from = */ NULL,
@@ -123,12 +124,18 @@ static const periph_t kempston_loose_periph = {
 
 /* Init/shutdown functions. Errors aren't important here */
 
+static void
+joystick_reset( int hard_reset GCC_UNUSED )
+{
+  kempston_value = timex1_value = timex2_value = 0x00;
+  fuller_value = 0xff;
+}
+
 int
 joystick_init( void *context )
 {
   joysticks_supported = ui_joystick_init();
-  kempston_value = timex1_value = timex2_value = 0x00;
-  fuller_value = 0xff;
+  joystick_reset( 0 );
 
   module_register( &joystick_module_info );
   periph_register( PERIPH_TYPE_KEMPSTON, &kempston_strict_periph );

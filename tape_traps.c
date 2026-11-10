@@ -37,7 +37,7 @@
 
 int tape_trap_load_block( libspectrum_tape_block *block,
                           size_t *bytes_consumed );
-static libspectrum_error tape_trap_advance_rom( size_t data_edges );
+static libspectrum_error tape_trap_advance_data_edges( size_t data_edges );
 
 static int
 does_tape_load_with_code( void )
@@ -104,12 +104,14 @@ tape_trap_precheck( void )
 }
 
 static int
-consume_pending_pause( libspectrum_tape_block **block )
+consume_pending_trap_interval( libspectrum_tape_block **block )
 {
   libspectrum_tape_edge edge;
   int error;
 
-  if( !trap_resume_pending ||
+  if( !trap_resume_pending ) return 0;
+  /* PZX completion leaves the cursor at DATA's tail, not a ROM pause. */
+  if( !tape_trap_pzx_data( *block ) &&
       libspectrum_tape_state( tape ) != LIBSPECTRUM_TAPE_STATE_PAUSE )
     return 0;
 
@@ -118,6 +120,11 @@ consume_pending_pause( libspectrum_tape_block **block )
   tape_update_microphone( &edge );
   trap_resume_pending = 0;
   ui_tape_browser_update( UI_TAPE_BROWSER_SELECT_BLOCK, NULL );
+  if( tape_edge_requests_stop( &edge ) ) {
+    tape_handle_stop_request( &edge );
+    tape_stop_pending = 0; /* Already stopped; no edge event will service it. */
+    return 1;
+  }
   *block = libspectrum_tape_current_block( tape );
   return 0;
 }
@@ -132,11 +139,121 @@ skip_metadata_blocks( libspectrum_tape_block **block )
   return 0;
 }
 
+/* Deliberately exact: custom encodings must retain waveform playback. */
+int
+tape_trap_pzx_data( libspectrum_tape_block *block )
+{
+  if( !block || libspectrum_tape_block_type( block ) !=
+      LIBSPECTRUM_TAPE_BLOCK_DATA_BLOCK ) return 0;
+  if( libspectrum_tape_block_data_length( block ) < 2 ||
+      libspectrum_tape_block_bits_in_last_byte( block ) != 8 ||
+      libspectrum_tape_block_bit0_pulse_count( block ) != 2 ||
+      libspectrum_tape_block_bit1_pulse_count( block ) != 2 ) return 0;
+  return libspectrum_tape_block_bit0_pulses( block, 0 ) == 855 &&
+         libspectrum_tape_block_bit0_pulses( block, 1 ) == 855 &&
+         libspectrum_tape_block_bit1_pulses( block, 0 ) == 1710 &&
+         libspectrum_tape_block_bit1_pulses( block, 1 ) == 1710;
+}
+
+static int
+pzx_has_rom_pilot( libspectrum_tape_block *block )
+{
+  size_t repeats;
+
+  if( !block || libspectrum_tape_block_type( block ) !=
+      LIBSPECTRUM_TAPE_BLOCK_PULSE_SEQUENCE ||
+      libspectrum_tape_block_count( block ) != 3 ) return 0;
+  repeats = libspectrum_tape_block_pulse_repeats( block, 0 );
+  return ( repeats == 8063 || repeats == 3223 ) &&
+         libspectrum_tape_block_pulse_lengths( block, 0 ) == 2168 &&
+         libspectrum_tape_block_pulse_lengths( block, 1 ) == 667 &&
+         libspectrum_tape_block_pulse_lengths( block, 2 ) == 735 &&
+         libspectrum_tape_block_pulse_repeats( block, 1 ) == 1 &&
+         libspectrum_tape_block_pulse_repeats( block, 2 ) == 1;
+}
+
+/* Unlike the general metadata predicate, exclude loop/control instructions. */
+static int
+pzx_trap_metadata( libspectrum_tape_block *block )
+{
+  switch( libspectrum_tape_block_type( block ) ) {
+  case LIBSPECTRUM_TAPE_BLOCK_GROUP_START:
+  case LIBSPECTRUM_TAPE_BLOCK_GROUP_END:
+  case LIBSPECTRUM_TAPE_BLOCK_COMMENT:
+  case LIBSPECTRUM_TAPE_BLOCK_MESSAGE:
+  case LIBSPECTRUM_TAPE_BLOCK_ARCHIVE_INFO:
+  case LIBSPECTRUM_TAPE_BLOCK_HARDWARE:
+  case LIBSPECTRUM_TAPE_BLOCK_CUSTOM:
+  case LIBSPECTRUM_TAPE_BLOCK_CONCAT:
+    return 1;
+  default:
+    return 0;
+  }
+}
+
+static int
+pzx_trap_can_skip( libspectrum_tape_block *block )
+{
+  return pzx_trap_metadata( block ) ||
+         ( libspectrum_tape_block_type( block ) == LIBSPECTRUM_TAPE_BLOCK_PAUSE &&
+           libspectrum_tape_block_pause_tstates( block ) );
+}
+
+/* Read-only lookahead: no playback or trap state changes on rejection. */
+static libspectrum_tape_block *
+find_pzx_rom_data( libspectrum_tape *source, size_t *position )
+{
+  libspectrum_tape_block *block;
+  libspectrum_tape_iterator iterator;
+  int current;
+  size_t index = 0;
+
+  if( libspectrum_tape_position( &current, source ) ) return NULL;
+  block = libspectrum_tape_iterator_init( &iterator, source );
+  while( block && index < (size_t)current ) {
+    block = libspectrum_tape_iterator_next( &iterator );
+    index++;
+  }
+  while( block && pzx_trap_can_skip( block ) ) {
+    block = libspectrum_tape_iterator_next( &iterator );
+    index++;
+  }
+  if( !pzx_has_rom_pilot( block ) ) return NULL;
+  block = libspectrum_tape_iterator_next( &iterator );
+  index++;
+  while( block && pzx_trap_metadata( block ) ) {
+    block = libspectrum_tape_iterator_next( &iterator );
+    index++;
+  }
+  if( !tape_trap_pzx_data( block ) ) return NULL;
+  *position = index;
+  return block;
+}
+
+static void
+skip_pzx_pilot( libspectrum_tape_block **block )
+{
+  size_t position;
+  libspectrum_tape_block *data = find_pzx_rom_data( tape, &position );
+
+  if( !data ||
+      libspectrum_tape_block_data_length( data ) != (size_t)DE + 2 ) return;
+  if( libspectrum_tape_nth_block( tape, position ) ) return;
+  *block = libspectrum_tape_current_block( tape );
+  trap_resume_pending = 0;
+  trap_pzx_ready = 1;
+  ui_tape_browser_update( UI_TAPE_BROWSER_SELECT_BLOCK, NULL );
+}
+
 static int
 block_requires_playback( libspectrum_tape_block *block )
 {
   libspectrum_tape_block *next_block;
   size_t length;
+
+  if( tape_trap_pzx_data( block ) )
+    return !trap_pzx_ready ||
+           libspectrum_tape_block_data_length( block ) != (size_t)DE + 2;
 
   if( libspectrum_tape_block_type( block ) != LIBSPECTRUM_TAPE_BLOCK_ROM ||
       libspectrum_tape_state( tape ) != LIBSPECTRUM_TAPE_STATE_PILOT )
@@ -172,7 +289,7 @@ finish_trapped_load( size_t bytes_consumed )
   if( ( F & FLAG_C ) && IX == 0xffff && next_block &&
       libspectrum_tape_block_type( next_block ) ==
         LIBSPECTRUM_TAPE_BLOCK_ROM ) {
-    error = tape_trap_advance_rom( bytes_consumed * 16 );
+    error = tape_trap_advance_data_edges( bytes_consumed * 16 );
     if( error ) return error;
     trap_resume_pending = 1;
     return 0;
@@ -188,6 +305,22 @@ finish_trapped_load( size_t bytes_consumed )
   return 0;
 }
 
+static int
+finish_pzx_trapped_load( libspectrum_tape_block *block, size_t bytes_consumed )
+{
+  /* Stop exactly after the consumed bits. The ordinary edge engine owns
+     the tail, separate PAUS/STOP blocks, and any unconsumed data. */
+  int error = tape_trap_advance_data_edges( bytes_consumed * 16 );
+
+  if( error ) return error;
+  trap_pzx_ready = 0;
+  if( bytes_consumed == libspectrum_tape_block_data_length( block ) ) {
+    trap_resume_pending = 1;
+    return 0;
+  }
+  return tape_play( 1 );
+}
+
 int
 tape_load_trap( void )
 {
@@ -199,10 +332,12 @@ tape_load_trap( void )
   if( error ) return error;
 
   block = libspectrum_tape_current_block( tape );
-  error = consume_pending_pause( &block );
+  error = consume_pending_trap_interval( &block );
   if( error ) return error;
   error = skip_metadata_blocks( &block );
   if( error ) return error;
+
+  skip_pzx_pilot( &block );
 
   /* Custom loaders and unsupported partial loads observe normal playback. */
   if( block_requires_playback( block ) ) {
@@ -216,6 +351,8 @@ tape_load_trap( void )
   error = tape_trap_load_block( block, &bytes_consumed );
   if( error ) return error;
   trap_resume_pending = 0;
+  if( tape_trap_pzx_data( block ) )
+    return finish_pzx_trapped_load( block, bytes_consumed );
   return finish_trapped_load( bytes_consumed );
 }
 
@@ -248,7 +385,7 @@ tape_trap_finish_rom_block( void )
 }
 
 static libspectrum_error
-tape_trap_advance_rom( size_t data_edges )
+tape_trap_advance_data_edges( size_t data_edges )
 {
   libspectrum_tape_cursor *cursor;
   libspectrum_error error = LIBSPECTRUM_ERROR_NONE;
@@ -256,9 +393,8 @@ tape_trap_advance_rom( size_t data_edges )
   cursor = libspectrum_tape_cursor_capture( tape );
   if( !cursor ) return LIBSPECTRUM_ERROR_MEMORY;
 
-  /* Standard ROM blocks begin low. Track every skipped edge so EAR has the
-     same level when execution resumes at the trailing pause. */
-  tape_microphone = 0;
+  /* The edge engine tracks absolute signal level, including PZX's initial
+     level. Do not mutate the live position or EAR until traversal succeeds. */
   while( data_edges ) {
     libspectrum_tape_edge edge;
 

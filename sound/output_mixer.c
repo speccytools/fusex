@@ -10,6 +10,8 @@
 
 #include "config.h"
 
+#include <string.h>
+
 #include "fuse.h"
 #include "machine.h"
 #include "options.h"
@@ -18,6 +20,7 @@
 #include "tape.h"
 #include "sound/dc_filter.h"
 #include "sound/output_mixer.h"
+#include "sound/audio_timeline.h"
 #include "sound/speaker_filter.h"
 #include "sound/tv_filter.h"
 #include "sound/ula_filter.h"
@@ -25,6 +28,10 @@
 static Blip_Buffer *tv_left_buf, *tv_right_buf, *ula_buf;
 static Blip_Synth *ula_synth;
 static blip_sample_t *tv_samples, *ula_samples;
+/* Extraction scratch is private. Accessors expose only the last whole frame. */
+static blip_sample_t *ula_frame, *ula_published;
+static int ula_frame_count, ula_published_count, ula_frame_size;
+static int ula_published_speaker_type = -1;
 static int channels, tv_output_count, ula_output_count;
 /* The ULA MIC output is active-low at the port. These normalized logical
  * states are retained separately from tape input and rendered output state. */
@@ -82,6 +89,11 @@ output_mixer_init( libspectrum_dword clock_rate, int sample_rate,
 
   tv_samples = libspectrum_new0( blip_sample_t, frame_size * channels );
   ula_samples = libspectrum_new0( blip_sample_t, frame_size );
+  ula_frame = libspectrum_new0( blip_sample_t, frame_size );
+  ula_published = libspectrum_new0( blip_sample_t, frame_size );
+  ula_frame_size = frame_size;
+  ula_frame_count = ula_published_count = 0;
+  ula_published_speaker_type = -1;
   beeper_filter_active = 0;
   filter_speaker_type = synth_speaker_type = -1;
   return 0;
@@ -96,10 +108,12 @@ output_mixer_end( void )
   delete_Blip_Buffer( &ula_buf );
   libspectrum_free( tv_samples );
   libspectrum_free( ula_samples );
+  libspectrum_free( ula_frame );
+  libspectrum_free( ula_published );
 }
 
 void
-output_mixer_reset( void )
+output_mixer_reset( blip_resampled_time_t offset )
 {
   int speaker_type = output_mixer_speaker_type();
 
@@ -115,12 +129,18 @@ output_mixer_reset( void )
     ula_levels_t levels = current_ula_levels();
 
     blip_buffer_clear( ula_buf, BLIP_BUFFER_DEF_ENTIRE_BUFF );
+    /* Preserve alignment after a discontinuity inside an extracted frame. */
+    ula_buf->offset_ = offset;
     blip_synth_set_output( ula_synth, ula_buf );
     blip_synth_set_level( ula_synth,
                           speaker_type == SOUND_SPEAKER_TYPE_BEEPER ?
                           levels.beeper : levels.mic );
   }
   ula_output_count = 0;
+  if( !sound_audio_position() ) {
+    ula_frame_count = ula_published_count = 0;
+    ula_published_speaker_type = speaker_type;
+  }
 }
 
 int
@@ -230,13 +250,13 @@ mix_output( blip_sample_t *main_samples, long count )
 }
 
 void
-output_mixer_end_frame( libspectrum_dword tstates_per_frame,
-                        blip_sample_t *main_samples, long count )
+output_mixer_advance( libspectrum_dword elapsed,
+                      blip_sample_t *main_samples, long count )
 {
-  blip_buffer_end_frame( tv_left_buf, tstates_per_frame );
-  blip_buffer_end_frame( ula_buf, tstates_per_frame );
+  blip_buffer_end_frame( tv_left_buf, elapsed );
+  blip_buffer_end_frame( ula_buf, elapsed );
   if( channels == 2 ) {
-    blip_buffer_end_frame( tv_right_buf, tstates_per_frame );
+    blip_buffer_end_frame( tv_right_buf, elapsed );
     tv_output_count = blip_buffer_read_samples( tv_left_buf, tv_samples,
                                                 count / 2, 1 );
     blip_buffer_read_samples( tv_right_buf, tv_samples + 1,
@@ -249,6 +269,19 @@ output_mixer_end_frame( libspectrum_dword tstates_per_frame,
   ula_output_count = blip_buffer_read_samples( ula_buf, ula_samples,
                                                count / channels, 0 );
   mix_output( main_samples, count );
+  if( ula_output_count > ula_frame_size - ula_frame_count ) fuse_abort();
+  memcpy( ula_frame + ula_frame_count, ula_samples,
+          ula_output_count * sizeof( *ula_samples ) );
+  ula_frame_count += ula_output_count;
+}
+
+void
+output_mixer_end_frame( void )
+{
+  memcpy( ula_published, ula_frame, ula_frame_count * sizeof( *ula_frame ) );
+  ula_published_count = ula_frame_count;
+  ula_published_speaker_type = synth_speaker_type;
+  ula_frame_count = 0;
 }
 
 void
@@ -297,7 +330,7 @@ ula_update( libspectrum_dword at_tstates )
     blip_synth_set_output( ula_synth, ula_buf );
     synth_speaker_type = speaker_type;
   }
-  blip_synth_update( ula_synth, at_tstates,
+  blip_synth_update( ula_synth, sound_interval_time( at_tstates ),
                      speaker_type == SOUND_SPEAKER_TYPE_BEEPER ?
                      levels.beeper : levels.mic );
 }
@@ -319,25 +352,27 @@ sound_tape( libspectrum_dword at_tstates )
 const libspectrum_signed_word *
 sound_ula_mic_output( void )
 {
-  return synth_speaker_type == SOUND_SPEAKER_TYPE_BEEPER ? NULL : ula_samples;
+  return ula_published_speaker_type == SOUND_SPEAKER_TYPE_BEEPER ?
+           NULL : ula_published;
 }
 
 const libspectrum_signed_word *
 sound_ula_beeper_output( void )
 {
-  return synth_speaker_type == SOUND_SPEAKER_TYPE_BEEPER ? ula_samples : NULL;
+  return ula_published_speaker_type == SOUND_SPEAKER_TYPE_BEEPER ?
+           ula_published : NULL;
 }
 
 int
 sound_ula_mic_output_count( void )
 {
-  return synth_speaker_type == SOUND_SPEAKER_TYPE_BEEPER ?
-         0 : ula_output_count;
+  return ula_published_speaker_type == SOUND_SPEAKER_TYPE_BEEPER ?
+         0 : ula_published_count;
 }
 
 int
 sound_ula_beeper_output_count( void )
 {
-  return synth_speaker_type == SOUND_SPEAKER_TYPE_BEEPER ?
-         ula_output_count : 0;
+  return ula_published_speaker_type == SOUND_SPEAKER_TYPE_BEEPER ?
+         ula_published_count : 0;
 }

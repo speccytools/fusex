@@ -100,6 +100,11 @@ typedef enum keyboard_key_name {
 
   KEYBOARD_JOYSTICK_FIRE = 0x1000,
 
+  /* Used by the configuration code to signify that a real joystick fire
+     button should open the main menu */
+
+  KEYBOARD_MENU = 0x1001,
+
 } keyboard_key_name;
 
 void keyboard_register_startup( void );

@@ -82,6 +82,7 @@ static void disciple_memory_map( void );
 static void disciple_activate( void );
 static void disciple_enabled_snapshot( libspectrum_snap *snap );
 static void disciple_from_snapshot( libspectrum_snap *snap );
+static void disciple_snapshot_roms( libspectrum_snap *snap );
 static void disciple_to_snapshot( libspectrum_snap *snap );
 static void disciple_reset_guard_event( libspectrum_dword tstates, int type,
                                         void *user_data );
@@ -120,6 +121,7 @@ static module_info_t disciple_module_info = {
   /* .snapshot_enabled = */ disciple_enabled_snapshot,
   /* .snapshot_from = */ disciple_from_snapshot,
   /* .snapshot_to = */ disciple_to_snapshot,
+  /* .snapshot_roms = */ disciple_snapshot_roms,
 
 };
 
@@ -698,6 +700,7 @@ disciple_unittest( void )
   libspectrum_snap_set_disciple_custom_rom( snap, 1 );
   libspectrum_snap_set_disciple_rom_length( snap, 0, ROM_SIZE );
   libspectrum_snap_set_disciple_rom( snap, 0, test_rom );
+  disciple_snapshot_roms( snap );
   disciple_from_snapshot( snap );
 
   if( machine_reset( 0 ) ||
@@ -869,10 +872,8 @@ disciple_enabled_snapshot( libspectrum_snap *snap )
 }
 
 static void
-disciple_from_snapshot( libspectrum_snap *snap )
+disciple_snapshot_roms( libspectrum_snap *snap )
 {
-  int i;
-
   if( !libspectrum_snap_disciple_active( snap ) ) return;
 
   if( libspectrum_snap_disciple_custom_rom( snap ) &&
@@ -883,6 +884,14 @@ disciple_from_snapshot( libspectrum_snap *snap )
                              libspectrum_snap_disciple_rom_length( snap, 0 ),
                              1 ) )
     return;
+}
+
+static void
+disciple_from_snapshot( libspectrum_snap *snap )
+{
+  int i;
+
+  if( !libspectrum_snap_disciple_active( snap ) ) return;
 
   if( libspectrum_snap_disciple_ram( snap, 0 ) ) {
     for( i = 0; i < MEMORY_PAGES_IN_8K; i++ )

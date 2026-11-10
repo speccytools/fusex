@@ -22,13 +22,17 @@
 #include "ui/ui.h"
 #include "utils.h"
 
+/* CRC32 checksum of a byte buffer, shared by automation.c and artifacts.c */
+unsigned long automation_checksum( const unsigned char *data, size_t length );
+
 typedef struct automation_condition { int present; libspectrum_word address;
                                       unsigned long ignore, hits;
 } automation_condition;
 
 typedef struct automation_scenario { char *output_directory;
                                      unsigned long maximum_frames,
-                                                   disk_idle_frames;
+                                                   disk_idle_frames,
+                                                   sample_tstates;
                                      int until_rzx_end, until_disk_idle,
                                          capture_screen, capture_audio;
                                      automation_condition success, failure;
@@ -65,6 +69,7 @@ int automation_set_frame_limit( const char *frames );
 void automation_set_until_rzx_end( void );
 void automation_set_until_disk_idle( void );
 int automation_set_disk_idle_frames( const char *frames );
+int automation_set_sample_tstates( const char *tstates );
 void automation_set_capture_screen( void );
 void automation_set_capture_audio( void );
 int automation_capture_screen_enabled( void );
@@ -75,6 +80,7 @@ int automation_set_failure_pc_ignore( const char *text );
 
 int automation_validate_scenario( void );
 int automation_active( void );
+int automation_pc_check_active( void );
 void automation_arm( unsigned long frame_count );
 int automation_check_pc( libspectrum_word pc );
 int automation_frame_limit_reached( unsigned long frame_count );

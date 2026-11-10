@@ -45,7 +45,7 @@
 #include "ui/ui.h"
 
 static void dock_exrom_reset( int hard_reset );
-static int spec_se_reset( int hard_reset );
+static int spec_se_reset( int hard_reset, libspectrum_snap *snap );
 static libspectrum_byte *dock_ram[8];
 static libspectrum_byte *exrom_ram[8];
 static int spec_se_memory_map( void );
@@ -81,7 +81,7 @@ dock_exrom_reset( int hard_reset )
 }
 
 int
-spec_se_reset( int hard_reset )
+spec_se_reset( int hard_reset, libspectrum_snap *snap )
 {
   int error;
   size_t i, j;
@@ -89,10 +89,10 @@ spec_se_reset( int hard_reset )
   dock_exrom_reset( hard_reset );
 
   error = machine_load_rom( 0, settings_current.rom_se_0,
-                            settings_default.rom_se_0, 0x4000 );
+                            settings_default.rom_se_0, 0x4000, snap );
   if( error ) return error;
   error = machine_load_rom( 1, settings_current.rom_se_1,
-                            settings_default.rom_se_1, 0x4000 );
+                            settings_default.rom_se_1, 0x4000, snap );
   if( error ) return error;
 
   scld_home_map_16k( 0x0000, memory_map_rom, 0 );

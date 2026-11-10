@@ -548,7 +548,7 @@ static void scroll( int step )
 	debugger_memaddr += length;
     } else
       for( ; step; ++step ) {
-	/* For details, see ui/gtk/debugger.c:move_disassembly() */
+	/* For details, see ui/gtk3/debugger.c:move_disassembly() */
 	size_t i, longest = 1;
 
 	for( i = 1; i <= 8; ++i ) {

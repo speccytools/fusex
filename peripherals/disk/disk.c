@@ -126,7 +126,8 @@ disk_strerror( int error )
 static int
 buffread( void *data, size_t len, buffer_t *buffer )
 {
-  if( len > buffer->file.length - buffer->index )
+  if( buffer->index > buffer->file.length ||
+      len > buffer->file.length - buffer->index )
     return 0;
   memcpy( data, buffer->file.buffer + buffer->index, len );
   buffer->index += len;
@@ -598,8 +599,9 @@ data_add( disk_t *d, buffer_t *buffer, unsigned char *data, int len, int ddam,
     memcpy( d->track + d->i, data, len );
     length = len;
   } else {
-    length = buffavail( buffer );
-    if( length > len ) length = len;
+    if( buffer->index > buffer->file.length ) return 1;
+    length = buffavail( buffer ) > (size_t) len ? len :
+             (int) buffavail( buffer );
     buffread( d->track + d->i, length, buffer );
   }
   if( length < len ) {	/* autofill with 'autofill' */
@@ -1034,14 +1036,19 @@ open_udi( buffer_t *buffer, disk_t *d )
   crc = ~(libspectrum_dword) 0;
 
   /* check file length */
-  eof = buff[4] + 256 * buff[5] + 65536 * buff[6] + 16777216 * buff[7];
+  eof = (libspectrum_dword) buff[4] |
+        (libspectrum_dword) buff[5] << 8 |
+        (libspectrum_dword) buff[6] << 16 |
+        (libspectrum_dword) buff[7] << 24;
   if( eof != buffer->file.length - 4 )
     return d->status = DISK_OPEN;
   /* check CRC32 */
   for( i = 0; i < eof; i++ )
     crc = crc_udi( crc, buff[i] );
-  if( crc != buff[eof] + 256 * buff[eof + 1] + 65536 * buff[eof + 2] +
-						16777216 * buff[eof + 3] )
+  if( crc != ( (libspectrum_dword) buff[eof] |
+               (libspectrum_dword) buff[eof + 1] << 8 |
+               (libspectrum_dword) buff[eof + 2] << 16 |
+               (libspectrum_dword) buff[eof + 3] << 24 ) )
     return d->status = DISK_OPEN;
 
   d->sides = buff[10] + 1;
@@ -1467,12 +1474,33 @@ open_trd( buffer_t *buffer, disk_t *d )
   return d->status = DISK_OK;
 }
 
+/* Validate each addition before forming a sector's file offset. */
+static int
+fdi_data_offset( const buffer_t *buffer, size_t data_offset,
+                 size_t track_offset, const libspectrum_byte *sector,
+                 size_t *offset )
+{
+  size_t sector_offset = sector[5] + 256 * sector[6];
+  size_t length = (size_t) 0x80 << sector[3];
+
+  if( data_offset > buffer->file.length ||
+      track_offset > buffer->file.length - data_offset ) return 0;
+  *offset = data_offset + track_offset;
+  if( sector_offset > buffer->file.length - *offset ) return 0;
+  *offset += sector_offset;
+  return length <= buffer->file.length - *offset;
+}
+
 static int
 open_fdi( buffer_t *buffer, disk_t *d, int preindex )
 {
   int i, j, h, gap;
   int bpt, bpt_fm, max_bpt = 0, max_bpt_fm = 0;
-  int data_offset, track_offset, head_offset, sector_offset;
+  int data_offset, head_offset, unavailable = 0;
+  libspectrum_byte sector[7];
+  size_t track_offset, offset, sector_length;
+
+  if( buffer->file.length < 14 ) return d->status = DISK_OPEN;
 
   d->wrprot = buff[0x03] == 1 ? 1 : 0;
   d->sides = buff[0x06] + 256 * buff[0x07];
@@ -1488,19 +1516,27 @@ open_fdi( buffer_t *buffer, disk_t *d, int preindex )
     buffer->index = head_offset;
     if( buffread( head, 7, buffer ) != 1 )	/* 7 := track head  */
       return d->status = DISK_OPEN;
+    track_offset = (size_t) head[0] | (size_t) head[1] << 8 |
+                   (size_t) head[2] << 16 | (size_t) head[3] << 24;
     bpt = postindex_len( d, GAP_MINIMAL_MFM ) +
 	  ( preindex ? preindex_len( d, GAP_MINIMAL_MFM ) : 0 ) + 6; /* +gap4 */
     bpt_fm = postindex_len( d, GAP_MINIMAL_FM ) +
 	     ( preindex ? preindex_len( d, GAP_MINIMAL_FM ) : 0 ) + 3;  /* +gap4 */
     for( j = 0; j < head[0x06]; j++ ) {		/* calculate track len */
-      if( j % 35 == 0 ) {				/* 35-sector header */
-	if( buffread( head + 7, 245, buffer ) != 1 )	/* 7*35 := max 35 sector head */
-	  return d->status = DISK_OPEN;
+      if( buffread( sector, sizeof( sector ), buffer ) != 1 )
+        return d->status = DISK_OPEN;
+      /* Bit 6 is the missing-data extension used by UnrealSpeccy.
+         Zero CRC bits alone mean bad data CRC, not missing data. */
+      sector_length = 0;
+      if( !( sector[4] & 0x40 ) ) {
+        if( sector[3] > 7 ) return d->status = DISK_OPEN;
+        sector_length = (size_t) 0x80 << sector[3];
+        if( !fdi_data_offset( buffer, data_offset, track_offset, sector,
+                              &offset ) ) unavailable++;
       }
-      if( ( head[ 0x0b + 7 * ( j % 35 ) ] & 0x3f ) != 0 ) {
-	bpt += calc_sectorlen( 1, 0x80 << head[ 0x0a + 7 * ( j % 35 ) ], GAP_MINIMAL_MFM );
-	bpt_fm += calc_sectorlen( 0, 0x80 << head[ 0x0a + 7 * ( j % 35 ) ], GAP_MINIMAL_FM );
-      }
+      /* For missing data, reserve an upper bound including the ID field. */
+      bpt += calc_sectorlen( 1, sector_length, GAP_MINIMAL_MFM );
+      bpt_fm += calc_sectorlen( 0, sector_length, GAP_MINIMAL_FM );
     }
     if( bpt > max_bpt )
       max_bpt = bpt;
@@ -1528,35 +1564,41 @@ open_fdi( buffer_t *buffer, disk_t *d, int preindex )
   head_offset = h;			/* restore head start */
   for( i = 0; i < d->cylinders * d->sides; i++ ) {	/* ALT */
     buffer->index = head_offset;
-    buffread( head, 7, buffer );	/* 7 = track head */
-    track_offset = head[0x00] + 256 * head[0x01] +
-    			 65536 * head[0x02] + 16777216 * head[0x03];
+    if( buffread( head, 7, buffer ) != 1 )
+      return d->status = DISK_OPEN;
+    track_offset = (size_t) head[0] | (size_t) head[1] << 8 |
+                   (size_t) head[2] << 16 | (size_t) head[3] << 24;
     DISK_SET_TRACK_IDX( d, i );
     d->i = 0;
-    if( preindex )
-      preindex_add( d, gap );
-    postindex_add( d, gap );
+    if( ( preindex && preindex_add( d, gap ) ) ||
+        postindex_add( d, gap ) )
+      return d->status = DISK_GEOM;
     for( j = 0; j < head[0x06]; j++ ) {
-      if( j % 35 == 0 ) {			/* if we have more than 35 sector in a track,
-						   we have to seek back to the next sector
-						   headers and read it ( max 35 sector header */
-	buffer->index = head_offset + 7 *( j + 1 );
-	buffread( head + 7, 245, buffer );	/* 7*35 := max 35 sector head */
-      }
-      id_add( d, head[ 0x08 + 7 * ( j % 35 ) ], head[ 0x07 + 7*( j % 35 ) ],
-	      head[ 0x09 + 7*( j % 35 ) ], head[ 0x0a + 7*( j % 35 ) ], gap, 
-	      ( head[ 0x0b + 7*( j % 35 ) ] & 0x3f ) ? CRC_OK : CRC_ERROR );
-      sector_offset = head[ 0x0c + 7 * ( j % 35 ) ] +
-		      256 * head[ 0x0d + 7 * ( j % 35 ) ];
-      buffer->index = data_offset + track_offset + sector_offset;
-      data_add( d, buffer, NULL, ( head[ 0x0b + 7 * ( j % 35 ) ] & 0x3f ) == 0 ? 
-			       -1 : 0x80 << head[ 0x0a + 7 * ( j % 35 ) ],
-		head[ 0x0b + 7 * ( j % 35 ) ] & 0x80 ? DDAM : NO_DDAM,
-		gap, CRC_OK, NO_AUTOFILL, NULL );
+      buffer->index = head_offset + 7 * ( j + 1 );
+      if( buffread( sector, sizeof( sector ), buffer ) != 1 )
+        return d->status = DISK_OPEN;
+      if( id_add( d, sector[1], sector[0], sector[2], sector[3],
+                  gap, CRC_OK ) )
+        return d->status = DISK_GEOM;
+      if( sector[4] & 0x40 ) continue;
+      /* Retain the valid ID, but never fabricate or partly copy a payload. */
+      if( !fdi_data_offset( buffer, data_offset, track_offset, sector,
+                            &offset ) ) continue;
+      buffer->index = offset;
+      if( data_add( d, buffer, NULL, 0x80 << sector[3],
+                    sector[4] & 0x80 ? DDAM : NO_DDAM, gap,
+                    sector[4] & ( 1 << sector[3] ) ? CRC_OK : CRC_ERROR,
+                    NO_AUTOFILL, NULL ) )
+        return d->status = DISK_OPEN;
     }
     head_offset += 7 + 7 * head[0x06];
-    gap4_add( d, gap );
+    if( gap4_add( d, gap ) ) return d->status = DISK_GEOM;
   }
+  if( unavailable )
+    ui_error( UI_ERROR_WARNING,
+              "FDI image '%s': %d sector payload(s) extend beyond the end "
+              "of the file. Loaded with these sectors' data missing; "
+              "disk reads may fail.", buffer->file.filename, unavailable );
   return d->status = DISK_OK;
 }
 
@@ -2249,8 +2291,10 @@ fprintf( stderr, "\n::::%s:::: ", filename );
     break;
   case LIBSPECTRUM_ID_DISK_OPD:
     d->type = DISK_OPD;
+    /* fall through */
   case LIBSPECTRUM_ID_DISK_MGT:
     if( d->type == DISK_TYPE_NONE) d->type = DISK_MGT;
+    /* fall through */
   case LIBSPECTRUM_ID_DISK_IMG:
     if( d->type == DISK_TYPE_NONE) d->type = DISK_IMG;
     open_img_mgt_opd( &buffer, d );
@@ -2269,6 +2313,7 @@ fprintf( stderr, "\n::::%s:::: ", filename );
     break;
   case LIBSPECTRUM_ID_DISK_CPC:
     d->type = DISK_CPC;
+    /* fall through */
   case LIBSPECTRUM_ID_DISK_ECPC:
     if( d->type == DISK_TYPE_NONE) d->type = DISK_ECPC;
     open_cpc( &buffer, d, preindex );

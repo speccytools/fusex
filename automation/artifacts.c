@@ -25,6 +25,7 @@
 #include <zlib.h>
 
 #include "artifacts.h"
+#include "automation.h"
 #include "compat.h"
 #include "screenshot.h"
 #include "settings.h"
@@ -41,21 +42,6 @@ static uLong screen_crc, screen_file_crc, pcm_crc, audio_file_crc;
 static size_t screen_file_size, audio_file_size;
 static int screen_written, audio_written;
 static const char *screen_error, *audio_error;
-
-static uLong
-checksum( const unsigned char *data, size_t length )
-{
-  uLong value = crc32( 0, Z_NULL, 0 );
-
-  while( length ) {
-    uInt part = length > UINT_MAX ? UINT_MAX : (uInt)length;
-    value = crc32( value, data, part );
-    data += part;
-    length -= part;
-  }
-
-  return value;
-}
 
 void
 automation_artifacts_capture_screen( const libspectrum_byte *pixels,
@@ -139,7 +125,7 @@ file_identity( const char *path, uLong *crc, size_t *size )
 
   if( utils_read_file( path, &file ) ) return 1;
   *size = libspectrum_file_size( &file );
-  *crc = checksum( libspectrum_file_data( &file ), *size );
+  *crc = automation_checksum( libspectrum_file_data( &file ), *size );
   utils_close_file( &file );
 
   return 0;
@@ -165,7 +151,7 @@ write_screen( const char *directory )
           file_identity( path, &screen_file_crc, &screen_file_size );
   if( !error ) {
     float factor = scaler_get_scaling_factor( scaler );
-    screen_crc = checksum( screen_rgb, screen_width * screen_height * 3 );
+    screen_crc = automation_checksum( screen_rgb, screen_width * screen_height * 3 );
     screen_file_width = screen_width * factor;
     screen_file_height = screen_height * factor;
     screen_written = 1;
@@ -258,7 +244,7 @@ write_audio( const char *directory )
   error = write_wav( path, header, bytes, byte_count ) ||
           file_identity( path, &audio_file_crc, &audio_file_size );
   if( !error ) {
-    pcm_crc = checksum( bytes, byte_count );
+    pcm_crc = automation_checksum( bytes, byte_count );
     audio_written = 1;
   } else {
     audio_error = "could not write or finalize audio.wav";

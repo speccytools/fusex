@@ -11,7 +11,23 @@
     <category>Emulator</category>
   </categories>
   <releases>
-    <release date="2026-10-01" version="1.10.0-fusex-0.2">
+    <release date="2026-10-30" version="1.10.1">
+      <description>
+        <ul>
+          <li>Improved tape recording accuracy with tape traps disabled, corrected playback timing and added ROM tape-trap support for standard PZX blocks</li>
+          <li>Improved AY sound accuracy</li>
+          <li>Improved audio buffering and pacing for ALSA, Core Audio and SDL2 to reduce latency where possible</li>
+          <li>Fixed Timex cartridge mapping, reset and snapshot restoration</li>
+          <li>Fixed stuck joystick inputs after resetting or loading snapshots</li>
+          <li>Fixed corrupted movie frames when recording RZX playback</li>
+          <li>Fixed rendering at the screen edge with composite 3x scalers</li>
+          <li>Improved tape browser text and details, with extended character support in widget UIs</li>
+          <li>Removed legacy 8-bit audio output support</li>
+          <li>Various other minor bug fixes and improvements</li>
+        </ul>
+      </description>
+    </release>
+    <release date="2026-10-01" version="1.10.1-fusex-0.1">
       <description>
         <ul>
           <li>FuseX release (macOS app, CLI options, headless mode, debugger)</li>

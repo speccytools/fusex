@@ -146,6 +146,7 @@ static widget_menu_entry submenu_select_letters2_for_button_ ## which [] = { \
 static widget_menu_entry submenu_select_key_for_button_ ## which [] = { \
   { "Select a key" }, \
   { "\012J\011oystick fire", INPUT_KEY_j, NULL, set_key_for_button_ ## which, NULL, KEYBOARD_JOYSTICK_FIRE }, \
+  { "\012M\011enu", INPUT_KEY_m, NULL, set_key_for_button_ ## which, NULL, KEYBOARD_MENU }, \
   { "\012N\011umbers...", INPUT_KEY_n, submenu_select_number_for_button_ ## which , NULL, NULL, 0 }, \
   { "\012A\011-M...", INPUT_KEY_a, submenu_select_letters1_for_button_ ## which , NULL, NULL, 0 }, \
   { "N-\012Z\011...", INPUT_KEY_z, submenu_select_letters2_for_button_ ## which , NULL, NULL, 0 }, \

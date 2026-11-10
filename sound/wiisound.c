@@ -43,9 +43,9 @@ int dmalen = BUFSIZE;
 static void
 sound_dmacallback( void )
 {
-  if( sfifo_used( &sound_fifo ) < 128) return;
+  if( sfifo_consumer_used( &sound_fifo ) < 128) return;
   
-  dmalen = MIN( BUFSIZE, sfifo_used( &sound_fifo ) );
+  dmalen = MIN( BUFSIZE, sfifo_consumer_used( &sound_fifo ) );
   sfifo_read( &sound_fifo, dmabuf, dmalen );
   DCFlushRange( dmabuf, dmalen );
   AUDIO_InitDMA( (u32)dmabuf, dmalen );
@@ -67,7 +67,10 @@ sound_lowlevel_init( const char *device, int *freqptr, int *stereoptr )
     return 1;
   }
 
-  sfifo_init( &sound_fifo, BUFSIZE );
+  if( sfifo_init( &sound_fifo, BUFSIZE ) ) {
+    printf( "Could not initialize lock-free sound FIFO\n" );
+    return 1;
+  }
   *stereoptr = 1;
   
   AUDIO_Init( NULL );
@@ -87,9 +90,13 @@ sound_lowlevel_init( const char *device, int *freqptr, int *stereoptr )
 void
 sound_lowlevel_end( void )
 {
+  /* libogc replaces the interrupt callback with interrupts disabled. On the
+     single-core Wii, returning from this unregister establishes quiescence;
+     no later interrupt can restart DMA or access the FIFO. */
+  AUDIO_RegisterDMACallback( NULL );
+  AUDIO_StopDMA();
   sfifo_flush( &sound_fifo );
   sfifo_close( &sound_fifo );
-  AUDIO_StopDMA();
 }
 
 void
