@@ -42,7 +42,7 @@
 #include "specplus3.h"
 #include "spectrum.h"
 
-static int scorpion_reset( int hard_reset );
+static int scorpion_reset( int hard_reset, libspectrum_snap *snap );
 static int scorpion_memory_map( void );
 
 int
@@ -69,18 +69,18 @@ scorpion_init( fuse_machine_info *machine )
 }
 
 int
-scorpion_reset( int hard_reset )
+scorpion_reset( int hard_reset, libspectrum_snap *snap )
 {
   int error;
 
   error = machine_load_rom( 0, settings_current.rom_scorpion_0,
-                            settings_default.rom_scorpion_0, 0x4000 );
+                            settings_default.rom_scorpion_0, 0x4000, snap );
   if( error ) return error;
   error = machine_load_rom( 1, settings_current.rom_scorpion_1,
-                            settings_default.rom_scorpion_1, 0x4000 );
+                            settings_default.rom_scorpion_1, 0x4000, snap );
   if( error ) return error;
   error = machine_load_rom( 2, settings_current.rom_scorpion_2,
-                            settings_default.rom_scorpion_2, 0x4000 );
+                            settings_default.rom_scorpion_2, 0x4000, snap );
   if( error ) return error;
   error = machine_load_rom_bank( beta_memory_map_romcs, 0,
                                  settings_current.rom_scorpion_3,

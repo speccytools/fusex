@@ -233,7 +233,7 @@ if(!printer_text_enabled || !settings_current.printer_text_filename)
   return(0);
 
 /* append to any existing file... */
-if((printer_text_file=fopen(settings_current.printer_text_filename,"a"))==NULL)
+if((printer_text_file=fopen(settings_current.printer_text_filename,"ab"))==NULL)
   {
   ui_error(UI_ERROR_ERROR,"Couldn't open '%s', text printout disabled",
 	   settings_current.printer_text_filename);
@@ -377,6 +377,11 @@ for(f=31;f>=0 && outbuf[f]==32;f--)
 
 for(f=0;f<32 && outbuf[f];f++)
   printer_text_output_char(outbuf[f]);
+
+/* Use native line endings for decoded ZX Printer text. */
+#ifdef WIN32
+printer_text_output_char('\r');
+#endif
 printer_text_output_char('\n');
 }
 

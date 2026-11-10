@@ -44,7 +44,6 @@
 #define BASE_SOUND_FRAG_PWR	6
 
 static int soundfd = -1;
-static int sixteenbit = 0;
 
 int
 sound_lowlevel_init( const char *device, int *freqptr, int *stereoptr )
@@ -88,21 +87,12 @@ sound_lowlevel_init( const char *device, int *freqptr, int *stereoptr )
 	
 	ai.play.encoding = AUDIO_ENCODING_LINEAR;	
 	ai.play.precision = 16;
-	sixteenbit = 1;
-	if (settings_current.sound_force_8bit ||
-	    ioctl(soundfd, AUDIO_SETINFO, &ai) == -1) {
-		/* try 8-bit */
-		ai.play.encoding = AUDIO_ENCODING_LINEAR8;
-		ai.play.precision = 8;
-		sixteenbit = 0;
-		if (ioctl(soundfd, AUDIO_SETINFO, &ai) == -1) {
-			settings_current.sound = 0;
-		        ui_error( UI_ERROR_ERROR,
-				"Couldn't set bit size of sound device '%s'",
-				  device );
-			close(soundfd);
-			return 1;
-		}
+	if (ioctl(soundfd, AUDIO_SETINFO, &ai) == -1) {
+		settings_current.sound = 0;
+		ui_error( UI_ERROR_ERROR,
+			  "Couldn't set sound device '%s' into 16-bit mode", device );
+		close(soundfd);
+		return 1;
 	}
 
 	ai.play.channels = *stereoptr ? 2 : 1;
@@ -141,8 +131,7 @@ sound_lowlevel_init( const char *device, int *freqptr, int *stereoptr )
 		frag++;
 	if (*stereoptr)
 		frag++;
-	if (sixteenbit)
-		frag++;
+	frag++; /* 16-bit samples */
 	ai.blocksize = 1 << (frag & 0xffff);
 	ai.hiwat = ((unsigned)frag >> 16) & 0x7fff;
 	if (ai.hiwat == 0)
@@ -174,24 +163,10 @@ sound_lowlevel_end( void )
 void
 sound_lowlevel_frame( libspectrum_signed_word *data, int len )
 {
-	static unsigned char buf8[4096];
 	unsigned char *data8=(unsigned char *)data;
 	int ret=0, ofs=0;
 
 	len <<= 1;		/* now in bytes */
-
-	if (!sixteenbit) {
-		libspectrum_signed_word *src;
-		unsigned char *dst;
-		int f;
-
-		src = data; dst = buf8;
-		len >>= 1;
-		for (f=0; f < len; f++)
-			*dst++ = 128 + (int)((*src++)/256);
-
-		data8 = buf8;
-	}	
 
 	while (len) {
 		ret = write (soundfd, data8 + ofs, len);

@@ -1467,13 +1467,25 @@ sp0256_run_to( sp0256_t *s, libspectrum_dword t )
 }
 
 void
+sp0256_advance_to( libspectrum_dword endpoint )
+{
+  /* run_to retains the speech sample lattice, including sample overshoot. */
+  if( !sp0256.scratch ) return;
+  sp0256_run_to( &sp0256, endpoint );
+}
+
+void
+sp0256_end_frame( void )
+{
+  if( !sp0256.scratch ) return;
+  sp0256.sound_current -= machine_current->timings.tstates_per_frame;
+}
+
+void
 sp0256_do_frame( void )
 {
-  /* No op if it wasn't initialised yet */
-  if( !sp0256.scratch ) return;
-  sp0256_run_to( &sp0256, machine_current->timings.tstates_per_frame );
-
-  sp0256.sound_current -= machine_current->timings.tstates_per_frame;
+  sp0256_advance_to( machine_current->timings.tstates_per_frame );
+  sp0256_end_frame();
 }
 
 void

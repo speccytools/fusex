@@ -175,7 +175,7 @@ _fuse()
         --joystick-keyboard-fire|--joystick-keyboard-left| \
         --joystick-keyboard-output|--joystick-keyboard-right| \
         --joystick-keyboard-up|--mdr-len|--rate| \
-        --sdl-fullscreen-mode|--snet|--sound-device|-d| \
+        --snet|--sound-device|-d| \
         --sound-freq|-f|--speccyboot-tap|--speed| \
         --teletext-addr-[1-4]|--teletext-port-[1-4]|--volume-ay| \
         --volume-beeper|--volume-covox|--volume-specdrum|--volume-uspeech)
@@ -253,7 +253,7 @@ _fuse()
             --no-plus3-detect-speedlock --no-plusd --no-printer
             --no-raw-s-net --no-recreated-spectrum --no-rs232-handshake
             --no-rzx-autosaves --no-simpleide --no-slt --no-sound
-            --no-sound-force-8bit --no-speccyboot --no-specdrum
+            --no-speccyboot --no-specdrum
             --no-spectranet --no-spectranet-disable --no-statusbar
             --no-traps --no-ttx2000s --no-ulaplus --no-unittests
             --no-usource --no-uspeech --no-writable-roms
@@ -279,9 +279,9 @@ _fuse()
             --rom-tc2048 --rom-tc2068-0 --rom-tc2068-1 --rom-ts2068-0
             --rom-ts2068-1 --rom-ttx2000s --rom-usource --rom-uspeech
             --rs232-handshake --rs232-rx --rs232-tx
-            --rzx-autosaves --sdl-fullscreen-mode --separation
+            --rzx-autosaves --separation
             --simpleide --simpleide-masterfile --simpleide-slavefile --slt
-            --snapshot --snet --sound --sound-device --sound-force-8bit
+            --snapshot --snet --sound --sound-device
             --sound-freq --speaker-type --speccyboot --speccyboot-tap
             --specdrum --spectranet --spectranet-disable --speed
             --statusbar --tape

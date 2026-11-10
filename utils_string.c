@@ -1,6 +1,10 @@
-/* sdlkeyboard.h: routines for dealing with the SDL keyboard
-   Copyright (c) 2000-2002 Philip Kendall, Matan Ziv-Av, Fredrick Meunier
-   Copyright (c) 2005 Fredrick Meunier
+/* utils_string.c: string helper functions
+   Copyright (c) 1999-2018 Philip Kendall
+   Copyright (c) 2015 Stuart Brady
+   Copyright (c) 2015 Gergely Szasz
+   Copyright (c) 2015-2021 Fredrick Meunier
+   Copyright (c) 2016 BogDan Vatra
+   Copyright (c) 2016-2017 Sergio Baldoví
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,19 +19,22 @@
    You should have received a copy of the GNU General Public License along
    with this program; if not, write to the Free Software Foundation, Inc.,
    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-
-   Author contact information:
-
-   E-mail: philip-fuse@shadowmagic.org.uk
-
 */
 
-#ifndef FUSE_SDLKEYBOARD_H
-#define FUSE_SDLKEYBOARD_H
+#include "config.h"
 
-void sdlkeyboard_init(void);
-void sdlkeyboard_end(void);
-void sdlkeyboard_keypress(SDL_KeyboardEvent *keyevent);
-void sdlkeyboard_keyrelease(SDL_KeyboardEvent *keyevent);
+#include <string.h>
 
-#endif			/* #ifndef FUSE_SDLKEYBOARD_H */
+#include "utils.h"
+
+char*
+utils_safe_strdup( const char *src )
+{
+  char *dest = NULL;
+  if( src ) {
+    size_t length = strlen( src ) + 1;
+    dest = libspectrum_new( char, length );
+    memcpy( dest, src, length );
+  }
+  return dest;
+}

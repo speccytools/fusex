@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -u
+set -euo pipefail
 
 root_dir=${1:-}
 if [ -z "$root_dir" ] || [ ! -d "$root_dir" ]; then
@@ -14,28 +14,18 @@ is_system_dll() {
     msvcrt.dll|bcrypt.dll|ntdll.dll|shlwapi.dll|crypt32.dll|dbghelp.dll| \
     psapi.dll|iphlpapi.dll|secur32.dll|setupapi.dll|imm32.dll|mpr.dll| \
     winspool.drv|api-ms-win-*|ext-ms-*|comctl32.dll|dwmapi.dll|dnsapi.dll| \
-    dwrite.dll|gdiplus.dll|hid.dll|msimg32.dll|opengl32.dll|rpcrt4.dll|usp10.dll) return 0 ;;
+    dwrite.dll|gdiplus.dll|hid.dll|msimg32.dll|opengl32.dll|rpcrt4.dll|usp10.dll| \
+    dsound.dll|dinput8.dll|dxgi.dll|uxtheme.dll|wintrust.dll|normaliz.dll| \
+    powrprof.dll|cfgmgr32.dll|avrt.dll|msacm32.dll|ucrtbase.dll) return 0 ;;
   esac
   return 1
 }
 
-search_dirs=(
-  "$root_dir"
-  /usr/local/i686-w64-mingw32/bin
-  /usr/i686-w64-mingw32/sys-root/mingw/bin
-  /usr/i686-w64-mingw32/sys-root/mingw/system32
-  /usr/local/i686-w64-mingw32/system32
-  /usr/i686-pc-mingw32/sys-root/mingw/bin
-  /usr/i686-pc-mingw32/sys-root/mingw/system32
-)
-
-if [ -n "${CYGWIN_LIBDIR:-}" ]; then
-  search_dirs+=("${CYGWIN_LIBDIR%/}")
-fi
-
-# MSYS2 toolchain
-if [ -n "${MSYSTEM_PREFIX:-}" ]; then
-  search_dirs+=("${MSYSTEM_PREFIX}/bin")
+# Prefer the staged library's exact runtime set, then the selected MSYS2
+# environment. Never resolve native dependencies from MSYS /usr/bin.
+search_dirs=("$root_dir" /opt/fuse/bin)
+if [ -n "${MINGW_PREFIX:-${MSYSTEM_PREFIX:-}}" ]; then
+  search_dirs+=("${MINGW_PREFIX:-$MSYSTEM_PREFIX}/bin")
 fi
 
 if [ -n "${WIN32_DLL_SEARCH_DIRS:-}" ]; then
@@ -46,9 +36,9 @@ fi
 
 find_binaries() {
   if [ "${WIN32_DLL_DEPS_SCAN_EXES:-1}" = 0 ]; then
-    find "$root_dir" -maxdepth 1 -type f -name '*.dll' -print
+    find "$root_dir" -maxdepth 1 -type f -iname '*.dll' -print
   else
-    find "$root_dir" -maxdepth 1 -type f \( -name '*.exe' -o -name '*.dll' \) -print
+    find "$root_dir" -maxdepth 1 -type f \( -iname '*.exe' -o -iname '*.dll' \) -print
   fi
 }
 
@@ -56,8 +46,15 @@ changed=1
 while [ "$changed" -ne 0 ]; do
   changed=0
   while IFS= read -r file; do
+    # Inspect outside process substitution so malformed PE files fail the build.
+    imports=$(objdump -p "$file")
     while IFS= read -r dll; do
       dll_lc=$(printf '%s' "$dll" | tr '[:upper:]' '[:lower:]')
+      case "$dll_lc" in
+        msys-*.dll|cygwin*.dll)
+          echo "Non-native runtime dependency for ${file}: ${dll}" >&2
+          exit 1 ;;
+      esac
       if is_system_dll "$dll_lc"; then
         continue
       fi
@@ -81,7 +78,7 @@ while [ "$changed" -ne 0 ]; do
         exit 1
       fi
     done < <(
-      objdump -p "$file" 2>/dev/null | grep 'DLL Name' | sed 's/.*DLL Name: //'
+      printf '%s\n' "$imports" | awk '/DLL Name:/ { sub(/.*DLL Name: /, ""); sub(/\r$/, ""); print }'
     )
   done < <(find_binaries)
 done

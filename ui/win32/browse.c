@@ -199,30 +199,45 @@ ui_tape_browser_update( ui_tape_browser_update_type change GCC_UNUSED,
 static void
 add_block_details( libspectrum_tape_block *block, void *user_data )
 {
-  TCHAR buffer[256];
-  TCHAR *details[3] = { &buffer[0], &buffer[80], &buffer[160] };
-  LV_ITEM lvi;
+  char block_type[80];
+  char *data_detail;
+  const char *details[3];
+  LVITEMW lvi;
   size_t i;
 
-  _tcscpy( details[0], "" );
-  libspectrum_tape_block_description( details[1], 80, block );
-  /* FIXME: why does it give such a big number of bytes? */
-  tape_block_details( details[2], 80, block );
+  libspectrum_tape_block_description( block_type, sizeof( block_type ), block );
+  if( tape_block_details( &data_detail, block ) ) return;
+  details[0] = "";
+  details[1] = block_type;
+  details[2] = data_detail;
 
   lvi.mask = LVIF_TEXT | LVIF_IMAGE;
   lvi.iImage = -1;
   lvi.iItem = SendDlgItemMessage( dialog, IDC_BROWSE_LV,
                                   LVM_GETITEMCOUNT, 0, 0 );
   for( i = 0; i < 3; i++ ) {
+    int length = MultiByteToWideChar( CP_UTF8, 0, details[i], -1, NULL, 0 );
+    if( !length ) {
+      ui_error( UI_ERROR_ERROR, "couldn't convert tape block text" );
+      break;
+    }
+    WCHAR *wide = libspectrum_new( WCHAR, (size_t)length );
+    if( !MultiByteToWideChar( CP_UTF8, 0, details[i], -1, wide, length ) ) {
+      libspectrum_free( wide );
+      ui_error( UI_ERROR_ERROR, "couldn't convert tape block text" );
+      break;
+    }
     lvi.iSubItem = i;
-    lvi.pszText = details[i];
+    lvi.pszText = wide;
     if( i == 0 )
-      SendDlgItemMessage( dialog, IDC_BROWSE_LV, LVM_INSERTITEM, 0,
+      SendDlgItemMessageW( dialog, IDC_BROWSE_LV, LVM_INSERTITEMW, 0,
                           ( LPARAM ) &lvi );
     else
-      SendDlgItemMessage( dialog, IDC_BROWSE_LV, LVM_SETITEM, 0,
+      SendDlgItemMessageW( dialog, IDC_BROWSE_LV, LVM_SETITEMW, 0,
                           ( LPARAM ) &lvi );
+    libspectrum_free( wide );
   }
+  libspectrum_free( data_detail );
 }
 
 /* Called when a row is selected */

@@ -33,7 +33,6 @@
 #include "ui/ui.h"
 
 static int soundfd = -1;
-static int sixteenbit = 1;
 
 int sound_lowlevel_init( const char *device, int *freqptr, int *stereoptr )
 {
@@ -69,30 +68,12 @@ int sound_lowlevel_init( const char *device, int *freqptr, int *stereoptr )
   }
 
   tmp = AUDIO_FORMAT_LINEAR16BIT;
-  if( settings_current.sound_force_8bit                ||
-      ioctl( soundfd, AUDIO_SET_DATA_FORMAT, tmp ) < 0    ) {
-
-    /* try 8-bit - may be an 8-bit only device */
-    tmp = AUDIO_FORMAT_LINEAR8BIT;
-    if( ioctl( soundfd, AUDIO_SET_DATA_FORMAT, tmp ) < 0 ) {
-      settings_current.sound = 0;
-
-      if( settings_current.sound_force_8bit ) {
-	ui_error( UI_ERROR_ERROR,
-		  "Couldn't set sound device '%s' into 8-bit mode", device );
-      } else {
-	ui_error(
-	  UI_ERROR_ERROR,
-	  "Couldn't set sound device '%s' in either 16-bit or 8-bit mode",
-	  device
-	);
-      }
-
-      close( soundfd );
-      return 1;
-    }
-
-    sixteenbit = 0;
+  if( ioctl( soundfd, AUDIO_SET_DATA_FORMAT, tmp ) < 0 ) {
+    settings_current.sound = 0;
+    ui_error( UI_ERROR_ERROR,
+              "Couldn't set sound device '%s' into 16-bit mode", device );
+    close( soundfd );
+    return 1;
   }
 
   tmp = ( *stereoptr ) ? 2 : 1;
@@ -134,24 +115,10 @@ sound_lowlevel_end( void )
 void
 sound_lowlevel_frame( libspectrum_signed_word *data, int len )
 {
-  static unsigned char buf8[4096];
   unsigned char *data8=(unsigned char *)data;
   int ret=0, ofs=0;
 
   len <<= 1;	/* now in bytes */
-  if( !sixteenbit ) {
-    libspectrum_signed_word *src;
-    unsigned char *dst;
-    int f;
-
-    src = data; dst = buf8;
-    len >>= 1;
-    /* TODO: confirm byteorder on IA64 */
-    for( f = 0; f < len; f++ )
-      *dst++ = 128 + (int)( (*src++) / 256 );
-
-    data8 = buf8;
-  }
 
   while( len ) {
     ret = write( soundfd, data8 + ofs, len );

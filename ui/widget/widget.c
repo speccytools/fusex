@@ -1,5 +1,6 @@
 /* widget.c: Simple dialog boxes for all user interfaces.
    Copyright (c) 2001-2012 Matan Ziv-Av, Philip Kendall, Russell Marks
+   Copyright (c) 2005 Darren Salt
    Copyright (c) 2015 Stuart Brady
    Copyright (c) 2015-2016 Sergio Baldoví
 
@@ -51,6 +52,7 @@
 #include "timer/timer.h"
 #include "ui/widget/options_internals.h"
 #include "ui/widget/widget_internals.h"
+#include "ui/widget/utf8.h"
 #include "utils.h"
 
 #ifdef WIN32
@@ -62,7 +64,9 @@ typedef struct {
   libspectrum_byte bitmap[15], left, width, defined;
 } widget_font_character;
 
-static widget_font_character *widget_font[1] = {0};
+/* BMP font pages, following Darren Salt's SourceForge patch #66.
+   UTF-8 decoding is independent of LANG; glyph coverage remains limited. */
+static widget_font_character *widget_font[256] = {0};
 
 static const widget_font_character default_invalid = {
   { 0x7E, 0xDF, 0x9F, 0xB5, 0xA5, 0x8F, 0xDF, 0x7E }, 0, 8, 1
@@ -90,6 +94,17 @@ typedef struct widget_recurse_t {
 } widget_recurse_t;
 
 static widget_recurse_t widget_return[10]; /* The stack to recurse on */
+
+static void
+widget_free_font( void )
+{
+  size_t i;
+
+  for( i = 0; i < 256; i++ ) {
+    free( widget_font[i] );
+    widget_font[i] = NULL;
+  }
+}
 
 static int widget_read_font( const char *filename )
 {
@@ -124,7 +139,8 @@ static int widget_read_font( const char *filename )
     width = file.buffer[i+2] >> 4 & 15;
 
     /* weed out invalid character codes and misdefined characters */
-    if( page != 0 /* we don't currently have more than page 0 */
+    if( ( page >= 0xd8 && page <= 0xdf ) ||
+        ( page == 0xff && code >= 0xfe )
 	|| i + 3 + width > file.length || (left >= 0 && left + width > 8) )
     {
       ui_error( UI_ERROR_ERROR, "font contains invalid character" );
@@ -159,7 +175,9 @@ static int widget_read_font( const char *filename )
 static const widget_font_character *
 widget_char( int pp )
 {
-  if( pp < 0 || pp >= 256 ) return &default_invalid;
+  if( pp < 0 || pp > 0x10ffff ||
+      ( pp >= 0xd800 && pp <= 0xdfff ) ) return &default_invalid;
+  if( pp >= 0xfffe ) return &default_unknown;
   if( !widget_font[pp >> 8] || !widget_font[pp >> 8][pp & 255].defined )
     return &default_unknown;
   return &widget_font[ pp >> 8 ][ pp & 255 ];
@@ -185,15 +203,16 @@ widget_printstring1( int x, int y, int col, const char *s, int ms )
 {
   int ms_x, c;
   int shadow = 0;
+  size_t remaining = (size_t)-1;
   if( !s ) return x;
 
   ms_x = x;
   while( x < 256 + DISPLAY_BORDER_ASPECT_WIDTH
-	 && ( c = *(libspectrum_byte *)s++ ) != 0 ) {
-    if( col == WIDGET_COLOUR_DISABLED && c < 26 ) continue;
+	 && ( c = widget_utf8_next( &s, &remaining ) ) != 0 ) {
+    if( col == WIDGET_COLOUR_DISABLED && c > 0 && c < 26 ) continue;
     if( col != WIDGET_COLOUR_DISABLED ) {
-      if( c && c < 17 ) { col = c - 1; continue; }
-      if( c < 26 ) { shadow = c - 17; continue; }
+      if( c > 0 && c < 17 ) { col = c - 1; continue; }
+      if( c >= 17 && c < 26 ) { shadow = c - 17; continue; }
     }
 
     if( shadow && col ) {
@@ -284,12 +303,12 @@ size_t widget_substringwidth( const char *s, size_t count )
   if( !s || !count )
     return 0;
 
-  while( count-- && (c = *(libspectrum_byte *)s++) != 0 ) {
-    if( c < 18 )
+  while( ( c = widget_utf8_next( &s, &count ) ) != 0 ) {
+    if( c > 0 && c < 26 )
       continue;
     width += widget_char( c )->width + 1;
   }
-  return width - 1;
+  return width ? width - 1 : 0;
 }
 
 size_t widget_charwidth( int c )
@@ -455,7 +474,10 @@ int widget_init( void )
   int error;
 
   error = widget_read_font( "fuse.font" );
-  if( error ) return error;
+  if( error ) {
+    widget_free_font();
+    return error;
+  }
 
   widget_filenames = NULL;
   widget_numfiles = 0;
@@ -484,8 +506,7 @@ int widget_end( void )
     free( widget_filenames );
   }
 
-  /* we don't currently have more than page 0 */
-  free( widget_font[0] );
+  widget_free_font();
 
   return 0;
 }
@@ -699,7 +720,7 @@ widget_t widget_data[] = {
   { widget_binary_draw, widget_binary_finish, widget_binary_keyhandler  },
 };
 
-#if !defined UI_SDL && !defined UI_SDL2
+#if !defined UI_SDL2
 #ifndef UI_X
 /* The statusbar handling functions */
 /* TODO: make these do something useful */
@@ -715,7 +736,7 @@ ui_statusbar_update_speed( float speed )
   return 0;
 }
 #endif
-#endif                          /* #if !defined UI_SDL && !defined UI_SDL2 */
+#endif                          /* #if !defined UI_SDL2 */
 
 /* Tape browser update function. The dialog box is created every time it
    is displayed, so no need to do anything here */

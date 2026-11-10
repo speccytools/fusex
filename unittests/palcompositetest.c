@@ -482,6 +482,38 @@ check_ntsc_regression( void )
 }
 
 static int
+check_3x_right_edge( ScalerProc *scaler, const char *name )
+{
+  libspectrum_dword source[3][323];
+  libspectrum_dword output[6][960];
+  test_rgb white = { 255, 255, 255 };
+  int row, column;
+
+  for( row = 0; row < 3; row++ )
+    for( column = 0; column < 323; column++ )
+      source[row][column] = pack_32( BITFORMAT_X8B8G8R8, white );
+  memset( output, 0, sizeof( output ) );
+  scaler_select_bitformat_32( BITFORMAT_X8B8G8R8 );
+  scaler( (const libspectrum_byte*)&source[1][1], sizeof( source[0] ),
+          (libspectrum_byte*)output, sizeof( output[0] ), 320, 2 );
+
+  /* At this width both final samples should extend the last filtered pixel.
+     Check both source rows to exercise PAL delay-line priming and reuse. */
+  for( row = 0; row < 6; row++ ) {
+    test_rgb edge = unpack_32( BITFORMAT_X8B8G8R8, output[row][959] );
+    if( !same_colour( edge,
+                      unpack_32( BITFORMAT_X8B8G8R8, output[row][958] ) ) ||
+        edge.red < 100 || edge.green < 100 || edge.blue < 100 ) {
+      fprintf( stderr, "%s black or discontinuous right edge on row %d\n",
+               name, row );
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
+static int
 check_scaler( ScalerProc *scaler_32, ScalerProc *scaler_16, int scale,
               const char *name )
 {
@@ -509,5 +541,7 @@ main( void )
                     "PAL TV 4x" ) ) return 1;
   if( check_colourmixer_delay_line_32() ) return 1;
   if( check_partial_redraw_32() ) return 1;
+  if( check_3x_right_edge( scaler_PalTV3x_32, "PAL TV 3x" ) ) return 1;
+  if( check_3x_right_edge( scaler_blargg_NTSC_3x_32, "NTSC 3x" ) ) return 1;
   return check_ntsc_regression();
 }

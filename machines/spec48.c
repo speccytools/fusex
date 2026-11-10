@@ -37,7 +37,7 @@
 #include "spec48.h"
 #include "spectrum.h"
 
-static int spec48_reset( int hard_reset );
+static int spec48_reset( int hard_reset, libspectrum_snap *snap );
 
 int
 spec48_port_from_ula( libspectrum_word port )
@@ -69,12 +69,12 @@ int spec48_init( fuse_machine_info *machine )
 }
 
 static int
-spec48_reset( int hard_reset )
+spec48_reset( int hard_reset, libspectrum_snap *snap )
 {
   int error;
 
   error = machine_load_rom( 0, settings_current.rom_48_0,
-                            settings_default.rom_48_0, 0x4000 );
+                            settings_default.rom_48_0, 0x4000, snap );
   if( error ) return error;
 
   periph_clear();

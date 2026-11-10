@@ -165,7 +165,7 @@ z80_do_opcodes( void )
     /* Automation conditions share this instruction-boundary observation
        point without creating debugger state or commands. */
 #ifdef ENABLE_AUTOMATION
-    CHECK( automation, automation_active() )
+    CHECK( automation, automation_active() && automation_pc_check_active() )
 
     if( automation_check_pc( PC ) ) break;
 

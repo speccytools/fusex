@@ -25,7 +25,6 @@
 
 #include "config.h"
 
-#include <stdlib.h>
 #include <string.h>
 
 #include <gdk/gdkkeysyms.h>
@@ -215,12 +214,12 @@ static void
 add_block_details( libspectrum_tape_block *block, void *user_data )
 {
   gchar block_type[80];
-  gchar data_detail[80];
+  char *data_detail;
   GtkTreeIter iter;
   GtkTreeModel *model = user_data;
 
   libspectrum_tape_block_description( block_type, 80, block );
-  tape_block_details( data_detail, 80, block );
+  if( tape_block_details( &data_detail, block ) ) return;
 
   /* Append a new row and fill data */
   gtk_list_store_append( GTK_LIST_STORE( model ), &iter );
@@ -229,6 +228,7 @@ add_block_details( libspectrum_tape_block *block, void *user_data )
                       COL_BLOCK, block_type,
                       COL_DATA, data_detail,
                       -1 );
+  libspectrum_free( data_detail );
 }
 
 /* Called when a row is selected */

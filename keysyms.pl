@@ -33,7 +33,7 @@ my $ui = shift;
 $ui = 'gtk' unless defined $ui;
 
 die "$0: unrecognised user interface: $ui\n"
-  unless 0 < grep { $ui eq $_ } ( 'gtk', 'x', 'fb', 'sdl', 'win32', 'wii' );
+  unless 0 < grep { $ui eq $_ } ( 'gtk', 'x', 'fb', 'win32', 'wii' );
 
 sub fb_keysym ($) {
 
@@ -50,34 +50,6 @@ sub wii_keysym ($) {
 
     $keysym =~ tr/a-z/A-Z/;
     return "WII_KEY_$keysym";
-}
-
-sub sdl_keysym ($) {
-
-    my $keysym = shift;
-
-    if ( $keysym =~ /[a-zA-Z][a-z]+/ ) {
-	$keysym =~ tr/a-z/A-Z/;
-    }
-    $keysym =~ s/(.*)_L$/L$1/;
-    $keysym =~ s/(.*)_R$/R$1/;
-    
-    # All the magic #defines start with `SDLK_'
-    $keysym = "SDLK_$keysym";
-
-    return $keysym;
-}
-
-sub sdl_unicode_keysym ($) {
-
-    my $keysym = shift;
-
-    if ( $keysym eq "'" ) {
-        $keysym = "\\'";
-    }
-    $keysym = "'$keysym'";
-
-    return $keysym;
 }
 
 sub win32_keysym ($) {
@@ -138,72 +110,6 @@ my %ui_data = (
 	      translations => { },
 	      function => sub ($) { "GDK_KEY_$_[0]" },
     	    },
-
-    sdl  => { headers => [ 'SDL.h' ],
-	      max_length => 18,
-	      skips => { map { $_ => 1 } ( 'Hyper_L','Hyper_R','Caps_Lock',
-                         'A' .. 'Z', 'asciitilde', 'bar', 'dead_circumflex',
-                         'braceleft', 'braceright', 'percent' ) },
-	      unicode_skips => { map { $_ => 1 } qw( Hyper_L Hyper_R Caps_Lock
-                         Escape F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12
-                         BackSpace Tab Caps_Lock Return Shift_L Shift_R
-                         Control_L Control_R Alt_L Alt_R Meta_L Meta_R
-                         Super_L Super_R Mode_switch Up Down Left Right
-                         Insert Delete Home End Page_Up Page_Down KP_Enter
-                         dead_circumflex ) },
-	      translations => {
-		  apostrophe  => 'QUOTE',
-		  asciicircum => 'CARET',
-		  bracketleft => 'LEFTBRACKET',
-		  bracketright => 'RIGHTBRACKET',
-		  exclam      => 'EXCLAIM',
-		  Control_L   => 'LCTRL',	 
-		  Control_R   => 'RCTRL',	 
-		  equal       => 'EQUALS',
-		  numbersign  => 'HASH',
-		  Mode_switch => 'MENU',
-		  Page_Up     => 'PAGEUP',
-		  Page_Down   => 'PAGEDOWN',
-		  parenleft   => 'LEFTPAREN',
-		  parenright  => 'RIGHTPAREN',
-	      },
-	      unicode_translations => {
-                  space       => ' ',
-                  exclam      => '!',
-                  dollar      => '$',
-                  numbersign  => '#',
-                  ampersand   => "&",
-                  apostrophe  => "'",
-                  asciitilde  => "~",
-                  at          => "@",
-                  backslash   => "\\\\",
-                  braceleft   => "{",
-                  braceright  => "}",
-                  bracketleft => "[",
-                  bracketright => "]",
-                  parenleft   => "(",
-                  parenright  => ")",
-                  percent     => "%",
-                  question    => "?",
-                  quotedbl    => '\\"',
-                  asterisk    => "*",
-                  plus        => "+",
-                  comma       => ',',
-                  minus       => '-',
-                  period      => '.',
-                  slash       => '/',
-                  colon       => ':',
-                  semicolon   => ';',
-                  less        => '<',
-                  equal       => '=',
-                  greater     => '>',
-                  asciicircum => '^',
-                  bar         => '|',
-                  underscore  => '_',
-	      },
-	      function => \&sdl_keysym,
-	      unicode_function => \&sdl_unicode_keysym,
-	    },
 
     x    => { headers => [ 'X11/keysym.h' ],
 	      max_length => 15,
@@ -353,37 +259,6 @@ print << "CODE";
 };
 
 CODE
-
-if( $ui eq 'sdl' ) {
-
-print "\nkeysyms_map_t unicode_keysyms_map[] = {\n\n";
-
-    foreach( @keys ) {
-
-        my( $keysym ) = @$_;
-
-        next if $ui_data{$ui}{unicode_skips}{$keysym};
-
-        my $ui_keysym = $keysym;
-
-        $ui_keysym = $ui_data{$ui}{unicode_translations}{$keysym} if
-            $ui_data{$ui}{unicode_translations}{$keysym};
-
-        $ui_keysym = $ui_data{$ui}{unicode_function}->( $ui_keysym );
-
-	printf "  { %-$ui_data{$ui}{max_length}s INPUT_KEY_%-12s },\n",
-            "$ui_keysym,", $keysym;
-
-    }
-
-print << "CODE";
-
-  { 0xff, INPUT_KEY_NONE }			/* End marker: DO NOT MOVE! */
-
-};
-
-CODE
-}
 
 if( $ui eq 'win32' ) {
 

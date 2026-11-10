@@ -24,7 +24,6 @@
 #include "config.h"
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #ifdef HAVE_LIB_GLIB
@@ -36,8 +35,6 @@
 #include "fuse.h"
 #include "tape.h"
 #include "widget_internals.h"
-
-#define MAX_BLOCK_DESC 30
 
 /* The descriptions of the blocks */
 static GSList *blocks;
@@ -81,15 +78,18 @@ widget_browse_draw( void *data GCC_UNUSED )
 static void
 add_block_description( libspectrum_tape_block *block, void *user_data )
 {
-  char data_detail[MAX_BLOCK_DESC];
   GSList **ptr = user_data;
-
   char *buffer;
 
-  tape_block_details( data_detail, MAX_BLOCK_DESC, block );
-  buffer = malloc( MAX_BLOCK_DESC ); if( !buffer ) return;
-  libspectrum_tape_block_description( buffer, MAX_BLOCK_DESC, block );
-  if( strlen( data_detail ) ) strcpy( buffer, data_detail );
+  if( tape_block_details( &buffer, block ) ) return;
+  if( !*buffer ) {
+    /* Block type descriptions are bounded ASCII labels, not metadata. */
+    char block_type[80];
+    libspectrum_tape_block_description( block_type, sizeof( block_type ), block );
+    libspectrum_free( buffer );
+    buffer = libspectrum_new( char, strlen( block_type ) + 1 );
+    strcpy( buffer, block_type );
+  }
 
   (*ptr) = g_slist_append( *ptr, buffer );
 
@@ -124,8 +124,8 @@ show_blocks( void )
 
     sprintf( buffer, "%lu", (unsigned long)( top_line + i + 1 ) );
     widget_printstring_right( numpos, i*8+24, colour, buffer );
-    snprintf( buffer, sizeof( buffer ), ": %s", (char *)ptr->data );
-    widget_printstring( numpos + 1, i*8+24, colour, buffer );
+    int text_x = widget_printstring( numpos + 1, i*8+24, colour, ": " );
+    widget_printstring( text_x, i*8+24, colour, ptr->data );
   }
 
   widget_display_lines( 3, 19 );
@@ -230,5 +230,5 @@ widget_browse_finish( widget_finish_state finished )
 static void 
 free_description( gpointer data, gpointer user_data )
 {
-  free( data );
+  libspectrum_free( data );
 }

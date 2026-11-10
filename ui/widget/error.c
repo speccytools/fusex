@@ -30,6 +30,7 @@
 
 #include "fuse.h"
 #include "widget_internals.h"
+#include "utf8.h"
 
 widget_error_t *error_info;
 
@@ -110,19 +111,22 @@ split_message( const char *message, char ***lines, size_t *count,
       next_line=1;
     }
     /* Skip any whitespace */
-    while( *ptr && isspace( *ptr ) ) ptr++;
+    while( *ptr && isspace( (unsigned char)*ptr ) ) ptr++;
     /* End of message? */
     if( *ptr == '\0' ) break;
     message = ptr;
 
     /* Find end of word */
-    while( *ptr && !isspace( *ptr ) ) ptr++;
+    while( *ptr && !isspace( (unsigned char)*ptr ) ) ptr++;
 
     /* message now points to a word of length (ptr-message); if
        that's longer than an entire line (most likely filenames), just
        take the last bit */
     while( widget_substringwidth( message, ptr - message ) >= line_length )
-      message++;
+      {
+        size_t remaining = ptr - message;
+        widget_utf8_next( &message, &remaining );
+      }
 
     /* Check we've got room for the word, plus some prefixing space */
     if( (position + widget_substringwidth( message, ptr - message ) + 4
@@ -142,7 +146,8 @@ split_message( const char *message, char ***lines, size_t *count,
       }
       (*lines) = new_lines;
 
-      (*lines)[*count] = malloc( (line_length+1) );
+      /* Pixel width does not bound the byte length of UTF-8 text. */
+      (*lines)[*count] = malloc( strlen( message ) + line_length + 1 );
       if( (*lines)[*count] == NULL ) {
 	for( i=0; i<*count; i++ ) free( (*lines)[i] );
 	free( (*lines) );

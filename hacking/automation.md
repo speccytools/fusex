@@ -78,6 +78,15 @@ creation and cleanup.
 run. Both options populate the same frame-limit field; use the spelling which
 expresses the scenario's intent.
 
+For exploratory **PC sampling only**, `--automation-sample-tstates N`
+(1–5000) delays a fixed-frame stop until at least N T-states into the next
+frame and records the actual `state.cpu.frame_tstate`. It schedules a no-op
+event at that offset, so the CPU can run after the frame interrupt; Z80
+instruction boundaries can overshoot N slightly. The screenshot is still the
+last **completed** display frame. This option is not accepted for PC-condition,
+RZX-end, or disk-idle scenarios. Do not interpret a sampled PC as a success
+address without probing its first hit and inspecting that stop screenshot.
+
 ### Evidence capture
 
 ```text

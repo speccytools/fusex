@@ -34,6 +34,7 @@
 #include "rzx_internal.h"
 #include "settings.h"
 #include "snapshot.h"
+#include "tape.h"
 #include "timer/timer.h"
 #include "ui/ui.h"
 #include "utils.h"
@@ -104,7 +105,7 @@ int rzx_start_recording( const char *filename, int embed_snapshot )
 {
   int error;
 
-  if( rzx_playback ) return 1;
+  if( rzx_playback || tape_recording ) return 1;
 
   rzx = libspectrum_rzx_alloc();
 
@@ -221,6 +222,8 @@ rzx_continue_recording( const char *filename )
   libspectrum_rzx_iterator last_it = NULL;
 
   if( rzx_recording || rzx_playback ) return 1;
+
+  if( tape_recording ) return 1;
 
   /* Store the filename */
   rzx_filename = utils_safe_strdup( filename );

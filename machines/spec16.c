@@ -37,7 +37,7 @@
 #include "settings.h"
 #include "spec48.h"
 
-static int spec16_reset( int hard_reset );
+static int spec16_reset( int hard_reset, libspectrum_snap *snap );
 
 static memory_page empty_mapping[MEMORY_PAGES_IN_16K];
 static int empty_mapping_allocated = 0;
@@ -88,12 +88,12 @@ ensure_empty_mapping( void )
 }
 
 static int
-spec16_reset( int hard_reset )
+spec16_reset( int hard_reset, libspectrum_snap *snap )
 {
   int error;
 
   error = machine_load_rom( 0, settings_current.rom_16_0, 
-                            settings_default.rom_16_0, 0x4000 );
+                            settings_default.rom_16_0, 0x4000, snap );
   if( error ) return error;
 
   ensure_empty_mapping();

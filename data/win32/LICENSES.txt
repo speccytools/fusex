@@ -14,8 +14,8 @@ Comment:
   as a whole unless otherwise explicitly stated in the file.
   .
   This program is built using MinGW-w64 together with additional runtime
-  libraries from the Windows CI environment. The corresponding third-party
-  notices copied into the package are stored in the 3rd-party directory.
+  libraries from the MSYS2 MINGW32 build environment. Third-party notices are
+  stored in the 3rd-party directory.
 
 Files: libspectrum-*.dll
 Copyright: 1999-2026 Philip Kendall and others
@@ -24,7 +24,7 @@ License: GPL-2+
   Additional third-party notices, when present, can be found in the
   3rd-party directory.
 
-Files: libgcc_s_sjlj-1.dll libstdc++-6.dll
+Files: libgcc_s_*-1.dll libstdc++-6.dll libatomic-1.dll
 Copyright: 1987-2026 Free Software Foundation, Inc.
 License: GPL-3+ and GCC-Runtime-Library-Exception-3.1
   The corresponding notices copied from the build environment can be found in
@@ -67,32 +67,20 @@ License: BSD-style
   The corresponding notice copied from the build environment can be found in
   the 3rd-party directory.
 
-Files: libaudiofile-1.dll
-Copyright: 1998-2026 audiofile contributors
-License: LGPL-2.1+
-  The corresponding notice copied from the build environment can be found in
-  the 3rd-party directory.
-
-Files: libFLAC-8.dll
-Copyright: 2000-2026 Josh Coalson and Xiph.Org Foundation
-License: BSD-style
-  The corresponding notice copied from the build environment can be found in
-  the 3rd-party directory.
-
-Files: libOGG-0.dll
-Copyright: 2002-2026 Xiph.Org Foundation
-License: BSD-style
-  The corresponding notice copied from the build environment can be found in
-  the 3rd-party directory.
-
-Files: libxml2-2.dll
+Files: libxml2-*.dll
 Copyright: 1998-2026 Daniel Veillard and others
 License: MIT
   The corresponding notice copied from the build environment can be found in
   the 3rd-party directory.
 
-Files: iconv.dll
+Files: libiconv-2.dll libcharset-1.dll
 Copyright: 1999-2026 Free Software Foundation, Inc.
+License: LGPL-2.1+
+  The corresponding notice copied from the build environment can be found in
+  the 3rd-party directory.
+
+Files: libintl-8.dll
+Copyright: 1995-2026 Free Software Foundation, Inc.
 License: LGPL-2.1+
   The corresponding notice copied from the build environment can be found in
   the 3rd-party directory.
@@ -100,12 +88,6 @@ License: LGPL-2.1+
 Files: liblzma-5.dll
 Copyright: 2009-2026 Tukaani Project and contributors
 License: public-domain and LGPL-2.1+
-  The corresponding notice copied from the build environment can be found in
-  the 3rd-party directory.
-
-Files: SDL.dll
-Copyright: 1997-2026 Sam Lantinga and SDL contributors
-License: LGPL-2.1+
   The corresponding notice copied from the build environment can be found in
   the 3rd-party directory.
 

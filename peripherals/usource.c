@@ -58,6 +58,7 @@ static libspectrum_byte usource_toggle_read( libspectrum_word port,
 static void usource_reset( int hard_reset );
 static void usource_enabled_snapshot( libspectrum_snap *snap );
 static void usource_from_snapshot( libspectrum_snap *snap );
+static void usource_snapshot_roms( libspectrum_snap *snap );
 static void usource_to_snapshot( libspectrum_snap *snap );
 static void usource_memory_map( void );
 
@@ -68,6 +69,7 @@ static module_info_t usource_module_info = {
   /* .snapshot_enabled = */ usource_enabled_snapshot,
   /* .snapshot_from = */ usource_from_snapshot,
   /* .snapshot_to = */ usource_to_snapshot,
+  /* .snapshot_roms = */ usource_snapshot_roms,
 
 };
 
@@ -213,6 +215,7 @@ usource_unittest( void )
   libspectrum_snap_set_usource_custom_rom( snap, 1 );
   libspectrum_snap_set_usource_rom_length( snap, 0, 0x2000 );
   libspectrum_snap_set_usource_rom( snap, 0, test_rom );
+  usource_snapshot_roms( snap );
   usource_from_snapshot( snap );
 
   if( machine_reset( 0 ) || usource_memory_map_romcs[ 0 ].page[ 0 ] != 0xa5 ) {
@@ -257,7 +260,7 @@ usource_enabled_snapshot( libspectrum_snap *snap )
 }
 
 static void
-usource_from_snapshot( libspectrum_snap *snap )
+usource_snapshot_roms( libspectrum_snap *snap )
 {
   if( !libspectrum_snap_usource_active( snap ) ) return;
 
@@ -269,6 +272,12 @@ usource_from_snapshot( libspectrum_snap *snap )
                              libspectrum_snap_usource_rom_length( snap, 0 ),
                              1 ) )
     return;
+}
+
+static void
+usource_from_snapshot( libspectrum_snap *snap )
+{
+  if( !libspectrum_snap_usource_active( snap ) ) return;
 
   if( libspectrum_snap_usource_paged( snap ) ) {
     usource_active = 0; /* Will be toggled to active next */

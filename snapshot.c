@@ -34,6 +34,7 @@
 #include "peripherals/sound/general_sound.h"
 #include "settings.h"
 #include "snapshot.h"
+#include "sound.h"
 #include "ui/ui.h"
 #include "utils.h"
 
@@ -87,6 +88,8 @@ snapshot_copy_from( libspectrum_snap *snap )
   int error;
   libspectrum_machine machine;
 
+  /* Restored source state/time is not a continuation of consumed audio. */
+  sound_suspend_subframe();
   periph_disable_optional();
   module_snapshot_enabled( snap );
 
@@ -94,16 +97,22 @@ snapshot_copy_from( libspectrum_snap *snap )
 
   settings_current.late_timings = libspectrum_snap_late_timings( snap );
 
+  /* Drop stale banks; register this snapshot's ROMs between machine setup
+     and peripheral reset, before ROM files are consulted. */
+  machine_clear_snapshot_rom_banks();
+
   if( machine != machine_current->machine ) {
-    error = machine_select( machine );
+    error = machine_select_from_snapshot( machine, snap );
     if( error ) {
       ui_error( UI_ERROR_ERROR,
 		"Loading a %s snapshot, but that's not available",
 		libspectrum_machine_name( machine ) );
     }
   } else {
-    machine_reset( 0 );
+    error = machine_reset_from_snapshot( 0, snap );
+    if( error ) return error;
   }
+
 
   keyboard_release_all();
 

@@ -11,6 +11,10 @@
 #define FUSE_DISPLAY_INTERNAL_H
 
 #include "libspectrum.h"
+#include "display.h"
+
+extern libspectrum_byte display_force_redraw[
+  DISPLAY_SCREEN_WIDTH_COLS * DISPLAY_SCREEN_HEIGHT ];
 
 #include "display.h"
 

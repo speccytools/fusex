@@ -333,6 +333,17 @@ loader_loop_detector( libspectrum_word pc )
 }
 
 int
+ula_read_is_keyboard_scan( libspectrum_word pc )
+{
+  /* ROM-style keyboard scanning discards EAR and keeps only the five
+     keyboard bits. Match instructions at the post-IN PC, not a ROM address,
+     so copied routines and replacement ROMs are covered too. */
+  return readbyte_internal( pc ) == 0x2f &&       /* CPL */
+         readbyte_internal( pc + 1 ) == 0xe6 && /* AND 1f */
+         readbyte_internal( pc + 2 ) == 0x1f;
+}
+
+int
 ula_read_uses_ear( libspectrum_word pc )
 {
   int i;

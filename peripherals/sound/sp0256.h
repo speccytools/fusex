@@ -38,5 +38,8 @@ void sp0256_set_clock( libspectrum_dword clock );
 void sp0256_change_clock( libspectrum_dword clock );
 int sp0256_busy( void );
 void sp0256_do_frame( void );
+/* Advancement keeps frame-relative time; only the real frame boundary rebases. */
+void sp0256_advance_to( libspectrum_dword endpoint );
+void sp0256_end_frame( void );
 
 #endif				/* #ifndef FUSE_SP0256_H */

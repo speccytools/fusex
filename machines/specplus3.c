@@ -59,7 +59,7 @@ static int normal_memory_map( int rom, int page );
 static void special_memory_map( int which );
 static void select_special_map( int page1, int page2, int page3, int page4 );
 
-static int specplus3_reset( int hard_reset );
+static int specplus3_reset( int hard_reset, libspectrum_snap *snap );
 
 upd_fdc *specplus3_fdc;
 static fdd_t specplus3_drives[ SPECPLUS3_NUM_DRIVES ];
@@ -186,21 +186,21 @@ specplus3_765_reset( int hard_reset )
 }
 
 static int
-specplus3_reset( int hard_reset )
+specplus3_reset( int hard_reset, libspectrum_snap *snap )
 {
   int error;
 
   error = machine_load_rom( 0, settings_current.rom_plus3_0,
-                            settings_default.rom_plus3_0, 0x4000 );
+                            settings_default.rom_plus3_0, 0x4000, snap );
   if( error ) return error;
   error = machine_load_rom( 1, settings_current.rom_plus3_1,
-                            settings_default.rom_plus3_1, 0x4000 );
+                            settings_default.rom_plus3_1, 0x4000, snap );
   if( error ) return error;
   error = machine_load_rom( 2, settings_current.rom_plus3_2,
-                            settings_default.rom_plus3_2, 0x4000 );
+                            settings_default.rom_plus3_2, 0x4000, snap );
   if( error ) return error;
   error = machine_load_rom( 3, settings_current.rom_plus3_3,
-                            settings_default.rom_plus3_3, 0x4000 );
+                            settings_default.rom_plus3_3, 0x4000, snap );
   if( error ) return error;
 
   error = specplus3_plus2a_common_reset( hard_reset );

@@ -15,7 +15,9 @@ This builds all test binaries and runs them in sequence:
 
   unittests/displaytest
       Display write/dirty tests covering Sinclair, Timex, and
-      Pentagon screen modes.
+      Pentagon screen modes. Regression tests verify that refreshes
+      preserve stored image data for movie recording while forcing
+      unchanged screen and border chunks to redraw once.
 
   unittests/palcompositetest
       PAL composite scaler tests: pixel-format conversions (16-bit
@@ -52,3 +54,168 @@ e.g.:
   ./z80/coretest z80/tests/tests.in
 
 For manual peripheral smoke tests, see `hacking/peripheral_tests.txt'.
+
+
+How to add a Fuse test
+=====================
+
+1. Run the existing tests
+------------------------
+
+Run:
+
+  make check
+
+Check that the command completes successfully before you change the code.
+
+If the output says that internal tests require a null-UI build, check your
+configure options.
+
+2. Understand the test programs
+------------------------------
+
+Fuse has two types of unit tests:
+
+* Embedded tests run inside Fuse. Use these tests when you need emulator
+  state, such as memory, registers, or machine settings.
+* Standalone tests run as separate programs. Use these tests for components
+  that can operate without the full emulator.
+
+`make' builds the test programs. It does not run them.
+
+`make check' runs both types. It also runs the Z80 regression tests and the
+applicable audio tests.
+
+The programs in `unittests/' are separate test runners. You do not need to
+start them all by hand.
+
+3. Select a location for your test
+---------------------------------
+
+Find an existing test for the component that you will change.
+
+Useful examples are:
+
+  General emulator functions: unittests/unittests.c
+  Tape loader:                unittests/loader.c
+  Tape operations:            unittests/tape.c
+  Display:                    unittests/displaytest.c
+  SDL2 mouse input:           unittests/sdl2mousetest.c
+
+Add your test to an existing file if that file tests the same component.
+
+Create a new file if you test a different component, or if the test needs a
+separate test runner or different build options.
+
+For a new file, use a similar existing test as a reference. Follow its
+structure and coding style. Register the new file and its tests as
+specified in "Register the test".
+
+4. Write the test
+-----------------
+
+Make each test check one specified behavior.
+
+1. Set the initial state.
+2. Call the function under test.
+3. Compare the actual result with the expected result.
+4. Release allocated resources.
+5. Restore any shared state that you changed.
+6. Return 0 for success. Return a positive value for failure.
+
+Include a failure message that identifies the test and the incorrect
+result.
+
+For a bug fix, use input that causes the bug. Also check normal input where
+applicable.
+
+Do not use the function under test to calculate the expected result.
+
+5. Register the test
+--------------------
+
+For an embedded test
+
+If you add a function to `unittests/unittests.c', add its call to
+`unittests_run()':
+
+  r += my_new_test();
+
+For a loader test, add the call to `loader_unittest()' in
+`unittests/loader.c'.
+
+For a tape test, add the call to `tape_unittest()' in `unittests/tape.c'.
+
+A test function does not run unless the test runner calls it.
+
+For a standalone test
+
+If you add a test to an existing program, register it in that program's
+test runner. For example, `unittests/sdl2mousetest.c' uses a table of test
+names and functions.
+
+If you need a new test program:
+
+1. Add its source file.
+2. Add its build rules to `unittests/Makefile.am'.
+3. Add the program as a prerequisite of the applicable `check-local'
+   target in the top-level `Makefile.am'.
+4. Add a command to that target to run the program.
+5. Regenerate the build files with `./autogen.sh'.
+6. Run `./configure --with-null-ui' again.
+
+Use an existing standalone test as a reference. Do not edit generated
+`Makefile' or `Makefile.in' files.
+
+6. Build and run the test
+------------------------
+
+After each source change, run:
+
+  make
+
+To run the embedded tests:
+
+  ./fuse --unittests
+
+To run one standalone program, use its path. For example:
+
+  ./unittests/sdl2mousetest
+
+Run these commands from the build directory.
+
+The embedded tests print:
+
+  Final return value: 0 (should be 0)
+
+Some tests deliberately cause error messages. Use the final return value
+and the command's exit status to identify failure. A successful test
+program returns exit status 0.
+
+7. Check that the test detects the bug
+-------------------------------------
+
+For a bug fix:
+
+1. Run the new test without the fix.
+2. Check that it fails for the expected reason.
+3. Apply the fix.
+4. Run the test again.
+5. Check that it passes.
+
+This check shows that the test detects the fault.
+
+8. Run the full suite
+---------------------
+
+Before you submit the patch, run:
+
+  make check
+
+Include the test changes with the patch. State which commands you ran and
+whether they passed.
+
+For manual peripheral tests, see `hacking/peripheral_tests.txt'.
+
+For development automation tests, see `hacking/automation.md'. These tests
+require a build configured with `--enable-automation'.

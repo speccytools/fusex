@@ -42,7 +42,7 @@
 #include "spec128.h"
 #include "spec48.h"
 
-static int pentagon_reset( int hard_reset );
+static int pentagon_reset( int hard_reset, libspectrum_snap *snap );
 static int pentagon_memory_map( void );
 
 int 
@@ -69,18 +69,18 @@ pentagon512_init( fuse_machine_info *machine )
 }
 
 static int
-pentagon_reset( int hard_reset )
+pentagon_reset( int hard_reset, libspectrum_snap *snap )
 {
   int error;
 
   error = machine_load_rom( 0, settings_current.rom_pentagon512_0,
-                            settings_default.rom_pentagon512_0, 0x4000 );
+                            settings_default.rom_pentagon512_0, 0x4000, snap );
   if( error ) return error;
   error = machine_load_rom( 1, settings_current.rom_pentagon512_1,
-                            settings_default.rom_pentagon512_1, 0x4000 );
+                            settings_default.rom_pentagon512_1, 0x4000, snap );
   if( error ) return error;
   error = machine_load_rom( 2, settings_current.rom_pentagon512_3,
-                            settings_default.rom_pentagon512_3, 0x4000 );
+                            settings_default.rom_pentagon512_3, 0x4000, snap );
   if( error ) return error;
   error = machine_load_rom_bank( beta_memory_map_romcs, 0,
                                  settings_current.rom_pentagon512_2,

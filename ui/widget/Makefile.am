@@ -51,6 +51,8 @@ ui_widget_files = \
                   ui/widget/roms.c \
                   ui/widget/select.c \
                   ui/widget/text.c \
+                  ui/widget/utf8.c \
+                  ui/widget/utf8.h \
                   ui/widget/widget_internals.h \
                   ui/widget/widget.c \
                   ui/widget/widget.h

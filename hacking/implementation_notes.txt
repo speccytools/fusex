@@ -254,6 +254,26 @@ two vertically adjacent pixels in the array (as the hires modes double
 only the horizontal resolution, not the vertical resolution). In both
 cases, the values in this array are the Spectrum colours (0 to 15).
 
+The current rendering code is split between display.c, display_dirty.c,
+display_render.c and display_border.c. It also maintains
+display.c:display_last_screen, which stores the last rendered bitmap,
+attribute and mode information for each horizontal pixel chunk, including
+the border. This is image data, not a cache-validity marker: FMF movie
+recording reads it directly.
+
+Redraw requests are tracked separately in display.c:display_force_redraw,
+with one flag per chunk. display_refresh_all() sets these flags without
+overwriting display_last_screen. The Sinclair, Timex, Pentagon 16-colour
+and border renderers draw a chunk if its flag is set or its image data
+has changed, then clear its flag and update the stored image data.
+
+This separation matters when RZX playback loads an embedded snapshot:
+a refresh can occur before the next movie frame is exported, but before
+the screen has been fully rendered again. Preserving the last image
+prevents FMF recording from interpreting invalidation sentinels as pixels.
+It does not make snapshot transitions atomic; chunks can still be updated
+at different points during rendering.
+
 Every time the screen memory is written to (and actually changed, as
 opposed to the data already there being written back again), three
 things occur:

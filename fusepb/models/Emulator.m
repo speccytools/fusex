@@ -276,7 +276,7 @@ static Emulator *instance = nil;
     int too_long = 0;
     /* emulate until fifo is full or it takes more than a frames-worth of
        time to do a frame because we will never catch up */
-    while( ( sfifo_space( &sound_fifo ) >=
+    while( ( sfifo_producer_space( &sound_fifo ) >=
              sound_channels * 2 * sound_framesiz ) && !too_long ) {
       CFTimeInterval startTime = CFAbsoluteTimeGetCurrent();
       spectrum_do_frame();

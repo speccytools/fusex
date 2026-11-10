@@ -45,7 +45,6 @@ jobs:
           echo "Use lib zlib: ${{ inputs.use_zlib && 'yes' || 'no' }}"
           echo "Use lib bzip2: ${{ inputs.use_bzip2 && 'yes' || 'no' }}"
           echo "Use lib libgcrypt: ${{ inputs.use_libgcrypt && 'yes' || 'no' }}"
-          echo "Use lib libaudiofile: no"
           echo "Use fake glib: ${{ inputs.use_fake_glib && 'yes' || 'no' }}"
 
       - name: (1b) Check out Fuse
@@ -105,7 +104,6 @@ jobs:
           ${{ inputs.use_zlib == false && '--without-zlib' || '' }} \
           ${{ inputs.use_bzip2 == false && '--without-bzip2' || '' }} \
           ${{ inputs.use_libgcrypt == false && '--without-libgcrypt' || '' }} \
-          --without-libaudiofile \
           ${{ inputs.use_fake_glib == true && '--with-fake-glib' || '' }} \
           | tee ./configure.out
 
@@ -117,7 +115,6 @@ jobs:
           .github/scripts/in_config.sh "zlib support: ${{ inputs.use_zlib && 'yes' || 'no' }}"
           .github/scripts/in_config.sh "bzip2 support: ${{ inputs.use_bzip2 && 'yes' || 'no' }}"
           .github/scripts/in_config.sh "libgcrypt support: ${{ inputs.use_libgcrypt && 'yes' || 'no' }}"
-          .github/scripts/in_config.sh "libaudiofile support: no"
           .github/scripts/in_config.sh "Internal GLib replacement: ${{ inputs.use_fake_glib && 'yes' || 'no' }}"
 
       - name: (7) Make

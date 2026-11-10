@@ -208,6 +208,7 @@ enum if1_port {
 static void if1_reset( int hard_reset );
 static void if1_enabled_snapshot( libspectrum_snap *snap );
 static void if1_from_snapshot( libspectrum_snap *snap );
+static void if1_snapshot_roms( libspectrum_snap *snap );
 static void if1_to_snapshot( libspectrum_snap *snap );
 
 static void if1_port_out( libspectrum_word port, libspectrum_byte val );
@@ -220,6 +221,7 @@ static module_info_t if1_module_info = {
   /* .snapshot_enabled = */ if1_enabled_snapshot,
   /* .snapshot_from = */ if1_from_snapshot,
   /* .snapshot_to = */ if1_to_snapshot,
+  /* .snapshot_roms = */ if1_snapshot_roms,
 
 };
 
@@ -477,7 +479,7 @@ if1_enabled_snapshot( libspectrum_snap *snap )
 }
 
 static void
-if1_from_snapshot( libspectrum_snap *snap )
+if1_snapshot_roms( libspectrum_snap *snap )
 {
   if( !libspectrum_snap_interface1_active( snap ) ) return;
 
@@ -494,6 +496,12 @@ if1_from_snapshot( libspectrum_snap *snap )
 
     if1_rom_size = length;
   }
+}
+
+static void
+if1_from_snapshot( libspectrum_snap *snap )
+{
+  if( !libspectrum_snap_interface1_active( snap ) ) return;
 
   if( libspectrum_snap_interface1_paged( snap ) ) {
     if1_page();
@@ -1409,6 +1417,7 @@ if1_unittest( void )
   libspectrum_snap_set_interface1_custom_rom( snap, 1 );
   libspectrum_snap_set_interface1_rom_length( snap, 0, IF1_ROM_SIZE_8K );
   libspectrum_snap_set_interface1_rom( snap, 0, rom );
+  if1_snapshot_roms( snap );
   if1_from_snapshot( snap );
 
   if( machine_reset( 0 ) || if1_memory_map_romcs[ 0 ].page[ 0 ] != 0xa5 )
@@ -1435,6 +1444,7 @@ if1_unittest( void )
   libspectrum_snap_set_interface1_custom_rom( snap, 1 );
   libspectrum_snap_set_interface1_rom_length( snap, 0, IF1_ROM_SIZE_16K );
   libspectrum_snap_set_interface1_rom( snap, 0, rom );
+  if1_snapshot_roms( snap );
   if1_from_snapshot( snap );
 
   if( machine_reset( 0 ) ) r++;

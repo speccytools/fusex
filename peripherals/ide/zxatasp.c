@@ -575,6 +575,7 @@ zxatasp_unittest( void )
   int old_setting = settings_current.zxatasp_active;
 
   settings_current.zxatasp_active = 1;
+  zxatasp_activate();
 
   zxatasp_portC_write( 0xfeff, 0x40 );
   r += unittests_assert_16k_page( 0x0000, zxatasp_memory_source, 0 );

@@ -38,7 +38,7 @@
 #include "spec48.h"
 #include "specplus3.h"
 
-static int spec128_reset( int hard_reset );
+static int spec128_reset( int hard_reset, libspectrum_snap *snap );
 
 int spec128_init( fuse_machine_info *machine )
 {
@@ -63,15 +63,15 @@ int spec128_init( fuse_machine_info *machine )
 }
 
 static int
-spec128_reset( int hard_reset )
+spec128_reset( int hard_reset, libspectrum_snap *snap )
 {
   int error;
 
   error = machine_load_rom( 0, settings_current.rom_128_0,
-                            settings_default.rom_128_0, 0x4000 );
+                            settings_default.rom_128_0, 0x4000, snap );
   if( error ) return error;
   error = machine_load_rom( 1, settings_current.rom_128_1,
-                            settings_default.rom_128_1, 0x4000 );
+                            settings_default.rom_128_1, 0x4000, snap );
   if( error ) return error;
 
   error = spec128_common_reset( 1 );

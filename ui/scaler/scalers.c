@@ -2066,6 +2066,7 @@ composite_scaler_blit( const composite_scaler_config *config,
   double sample_fraction[ DISPLAY_SCREEN_WIDTH * 4 ];
   double sample_position = 0;
   int output_width = width * config->scale;
+  int last_filtered_pixel = SNES_NTSC_OUT_WIDTH( width ) - 1;
   int sample;
   composite_scaler_cache *cache =
     config->scale == 2 ? &cache_2x :
@@ -2076,10 +2077,17 @@ composite_scaler_blit( const composite_scaler_config *config,
   composite_scaler_init( config, cache );
   memset( buffer, 0, sizeof( buffer ) );
 
-  /* Horizontal sampling is the same for every output row. */
+  /* Horizontal sampling is the same for every output row.
+     Extend the final filtered pixel rather than sampling the buffer tail. */
   for( sample = 0; sample < output_width; sample++ ) {
-    sample_index[sample] = (int)floor( sample_position );
-    sample_fraction[sample] = sample_position - floor( sample_position );
+    if( sample_position >= last_filtered_pixel ) {
+      /* Keep both interpolation inputs within the filtered row. */
+      sample_index[sample] = last_filtered_pixel - 1;
+      sample_fraction[sample] = 1.0;
+    } else {
+      sample_index[sample] = (int)floor( sample_position );
+      sample_fraction[sample] = sample_position - floor( sample_position );
+    }
     sample_position += config->dsxd;
   }
 

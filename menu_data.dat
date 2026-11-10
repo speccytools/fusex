@@ -139,9 +139,7 @@ Options/_Filter..., Item,,, menu_filter_detail
 Options/_Filter options..., Item
 #endif
 
-#ifdef UI_SDL
-Options/F_ull screen, Item, F11
-#elif defined UI_SDL2
+#ifdef UI_SDL2
 Options/F_ull screen, Item, F11
 #elif defined UI_GTK
 Options/F_ull screen, Item, F11

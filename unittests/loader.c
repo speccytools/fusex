@@ -27,7 +27,9 @@
 
 #include "loader.h"
 #include "loader_internals.h"
+#include "machine.h"
 #include "memory_pages.h"
+#include "settings.h"
 #include "tape.h"
 #include "z80/z80.h"
 
@@ -333,6 +335,16 @@ loader_test_ear_use( void )
   writebyte_internal( LOADER_TEST_BASE + 8, 0xe6 );
   writebyte_internal( LOADER_TEST_BASE + 9, 0x1f );
   if( ula_read_uses_ear( LOADER_TEST_BASE + 7 ) ) error++;
+  if( !ula_read_is_keyboard_scan( LOADER_TEST_BASE + 7 ) ) error++;
+
+  /* A loader which preserves EAR must not be excluded by the keyboard
+     detector, even if it also complements the input. */
+  writebyte_internal( LOADER_TEST_BASE + 9, 0x40 );
+  if( ula_read_is_keyboard_scan( LOADER_TEST_BASE + 7 ) ) error++;
+  if( !ula_read_uses_ear( LOADER_TEST_BASE + 7 ) ) error++;
+  writebyte_internal( LOADER_TEST_BASE + 9, 0x1f );
+  writebyte_internal( LOADER_TEST_BASE + 7, 0x1f ); /* RRA, not CPL */
+  if( ula_read_is_keyboard_scan( LOADER_TEST_BASE + 7 ) ) error++;
 
   loader_test_restore_memory( &memory );
   return error;
@@ -451,6 +463,119 @@ loader_test_restore_state( const loader_test_state_t *state )
   acceleration_mode = state->acceleration_mode;
 }
 
+static int
+loader_test_keyboard_scan_grace( void )
+{
+  loader_test_memory_t memory;
+  loader_test_state_t state = loader_test_save_state();
+  libspectrum_dword saved_tstates = tstates;
+  int saved_playing = tape_playing;
+  int saved_detect = settings_current.detect_loader;
+  int saved_accelerate = settings_current.accelerate_loader;
+  int saved_fastload = settings_current.fastload;
+  int error = 0;
+  int row;
+
+  loader_test_install( &memory, NULL, 52 );
+  settings_current.detect_loader = 1;
+  settings_current.accelerate_loader = 0;
+  /* Keep tape_stop() from initialising the sound subsystem before the
+     sound tests run. */
+  settings_current.fastload = 0;
+
+  /* A ROM-style keyboard scan (CPL; AND 1f; RRA) whose rows move B must
+     not stop the tape through the timing fallback before the bounded
+     grace period (LOADER_STOP_GRACE_FRAMES in loader.c) expires. */
+  writebyte_internal( LOADER_TEST_BASE + 40, 0x2f );
+  writebyte_internal( LOADER_TEST_BASE + 41, 0xe6 );
+  writebyte_internal( LOADER_TEST_BASE + 42, 0x1f );
+  z80.pc.w = LOADER_TEST_BASE + 40;
+  loader_tape_play();
+  tape_playing = 1;
+  tstates = 0;
+
+  for( row = 0; row < 250; row++ ) {
+    z80.bc.b.h = 0x40 - ( row & 7 );	/* every scan row changes B */
+    loader_detect_loader();
+    if( !tape_playing ) {
+      printf( "keyboard-scan grace: tape stopped at frame %d\n", row );
+      error++;
+    }
+    loader_frame( machine_current->timings.tstates_per_frame );
+  }
+  error |= !tape_playing;		/* grace not yet expired */
+
+  z80.bc.b.h = 0x40;
+  loader_detect_loader();
+  error |= tape_playing;		/* ...but the next keyboard-only read stops it */
+
+  /* A recognised loader read resets the grace period: after the reset,
+     keyboard-only activity again gets the full grace before stopping. */
+  writebyte_internal( LOADER_TEST_BASE + 0, 0x04 );
+  writebyte_internal( LOADER_TEST_BASE + 1, 0xc8 );
+  writebyte_internal( LOADER_TEST_BASE + 2, 0x3e );
+  writebyte_internal( LOADER_TEST_BASE + 3, 0x00 );
+  writebyte_internal( LOADER_TEST_BASE + 4, 0xdb );
+  writebyte_internal( LOADER_TEST_BASE + 5, 0xfe );
+  writebyte_internal( LOADER_TEST_BASE + 6, 0x1f );
+  writebyte_internal( LOADER_TEST_BASE + 7, 0xa9 );
+  writebyte_internal( LOADER_TEST_BASE + 8, 0xe6 );
+  writebyte_internal( LOADER_TEST_BASE + 9, 0x20 );
+  writebyte_internal( LOADER_TEST_BASE + 10, 0x28 );
+  writebyte_internal( LOADER_TEST_BASE + 11, 0xf4 );
+  z80.pc.w = LOADER_TEST_BASE + 6;
+  tape_playing = 1;
+  loader_detect_loader();
+  error |= !tape_playing;
+
+  z80.pc.w = LOADER_TEST_BASE + 40;
+  for( row = 0; row < 250; row++ ) {
+    z80.bc.b.h = 0x40 - ( row & 7 );
+    loader_detect_loader();
+    if( !tape_playing ) {
+      printf( "keyboard-scan grace: tape stopped at frame %d after reset\n",
+              row );
+      error++;
+    }
+    loader_frame( machine_current->timings.tstates_per_frame );
+  }
+  error |= !tape_playing;		/* the restarted grace still holds */
+
+  z80.bc.b.h = 0x40;
+  loader_detect_loader();
+  error |= tape_playing;		/* ...and stops again at the renewed limit */
+
+  /* Non-loader reads still stop the tape through the normal
+     consecutive-read limit (LOADER_STOP_NON_EAR_READS in loader.c). */
+  loader_tape_play();
+  z80.pc.w = LOADER_TEST_BASE + 44;
+  tape_playing = 1;
+  tstates = 0;
+  for( row = 0; row < 9; row++ ) {
+    tstates += 60000;			/* implausible counter reads */
+    z80.bc.b.h = 0x40;
+    loader_detect_loader();
+    if( !tape_playing ) {
+      printf( "non-loader stop: tape stopped after %d reads\n", row );
+      error++;
+    }
+  }
+  error |= !tape_playing;
+
+  tstates += 60000;
+  loader_detect_loader();
+  error |= tape_playing;
+
+  tstates = saved_tstates;
+  tape_playing = saved_playing;
+  settings_current.detect_loader = saved_detect;
+  settings_current.accelerate_loader = saved_accelerate;
+  settings_current.fastload = saved_fastload;
+  loader_test_restore_state( &state );
+  loader_test_restore_memory( &memory );
+  return error;
+}
+
 int
 loader_unittest( void )
 {
@@ -468,6 +593,7 @@ loader_unittest( void )
   error += loader_test_movieload();
   error += loader_test_sign_flag();
   error += loader_test_modified_rom();
+  error += loader_test_keyboard_scan_grace();
 
   loader_test_restore_state( &state );
   if( error ) printf( "loader_unittest failed\n" );

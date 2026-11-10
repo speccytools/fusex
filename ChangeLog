@@ -1,3 +1,100 @@
+2026-10-31  Fredrick Meunier  <fredm@spamcop.net>
+
+        * Fuse 1.10.1 released.
+
+        * New features:
+          * Support writing PZX files (Fredrick Meunier).
+
+        * Emulation core improvements:
+          * Improve tape recording accuracy when tape traps are disabled,
+            preserving the timing and polarity of recorded signals (Fredrick
+            Meunier).
+          * Correct tape playback timing on machines with CPU clocks other
+            than 3.5 MHz, including the Spectrum 128K (Fredrick Meunier).
+          * Support ROM tape traps for standard PZX data blocks (Fredrick
+            Meunier).
+          * Avoid mistaking keyboard scans for tape loader activity (thanks,
+            Sergio Baldoví) (Fredrick Meunier).
+          * Improve AY sound accuracy across video frame boundaries (Fredrick
+            Meunier).
+          * Fix restoration of machine and peripheral ROMs when loading
+            snapshots (fixes bug #348) (thanks, Sergio Baldoví) (Fredrick
+            Meunier).
+          * Fix undefined behaviour in UDI disk image decoding (Fredrick
+            Meunier).
+          * Fix FDI parsing and recover unavailable sector data (Fredrick
+            Meunier).
+          * Clear joystick button state when resetting or loading snapshots,
+            preventing stuck direction and fire inputs (Fredrick Meunier).
+
+        * Machine specific improvements:
+          * Fix loading of Timex cartridges with gaps between populated
+            memory banks (fixes bug #532) (Fredrick Meunier).
+          * Improve Timex cartridge reliability when resetting, replacing or
+            ejecting cartridges and restoring snapshots (fixes bug #536)
+            (thanks, Sergio Baldoví) (Fredrick Meunier).
+          * Clear stale Timex dock and EXROM mappings on hard reset and when
+            changing machines (Fredrick Meunier).
+          * Make the ZXMMC eject menu item work (patch #510) (Fredrick
+            Meunier).
+
+        * UI improvements:
+          * ALSA, Core Audio and SDL2: improve audio buffering and pacing to
+            reduce latency where possible (Fredrick Meunier).
+          * SDL2: avoid prolonged emulator stalls when audio playback stops
+            consuming data (Fredrick Meunier).
+          * Prevent DAC auto-muting during silence (fixes bug #531) (thanks,
+            Alberto Garcia) (Fredrick Meunier).
+          * Add UTF-8 decoding and extended font glyphs to widget UIs
+            (patch #66) (thanks, Darren Salt) (Fredrick Meunier).
+          * Preserve complete UTF-8 tape metadata in browser descriptions
+            (Fredrick Meunier).
+          * Allow joystick menu button mapping to be configured in widget UIs
+            (fixes bug #373, patch #454) (thanks, Sergei Morozov) (Fredrick
+            Meunier).
+          * Show TZX CSW recording details and stored RLE sample rates in the
+            tape browser (fixes bug #528) (thanks, AJ B) (Fredrick Meunier).
+          * Win32: Correct printer file output (thanks, Joerg Pleumann)
+            (Fredrick Meunier).
+
+        * Scaler improvements:
+          * Fix rendering at the right edge of the screen with composite 3x
+            scalers (Fredrick Meunier).
+
+        * RZX improvements:
+          * Fix corrupted movie frames when recording RZX playback across
+            embedded snapshots (fixes bug #537) (thanks, Alberto Garcia)
+            (Fredrick Meunier).
+
+        * Deprecated features removed:
+          * Remove SDL 1 support; SDL backends now require SDL 2 (Fredrick
+            Meunier).
+          * Remove 8-bit audio output compatibility; audio output now
+            requires 16-bit PCM (Fredrick Meunier).
+
+        * Miscellaneous improvements:
+          * Migrate Windows builds to MSYS2 with integrated WAV support and
+            remove obsolete libaudiofile dependencies (Fredrick Meunier).
+          * Require macOS 14.4 for Core Audio consumer-progress notifications
+            (Fredrick Meunier).
+          * Add an Emscripten build option and document its prerequisites
+            (feature request #165) (thanks, Witold Filipczyk) (Fredrick
+            Meunier).
+          * Improve development automation checks and documentation, including
+            configurable T-state offsets for PC sampling (Fredrick Meunier).
+          * Annotate deliberate switch fallthroughs to avoid compiler
+            warnings (patch #514) (Fredrick Meunier).
+
+        * Testing improvements:
+          * Expand regression coverage for audio scheduling, buffering,
+            adaptive pacing and backend failure handling (Fredrick Meunier).
+          * Expand tape, snapshot, Timex cartridge, display, event queue and
+            screenshot regression coverage (Fredrick Meunier).
+          * Run checks in Windows, macOS and additional Linux CI builds and
+            improve test portability (Fredrick Meunier).
+
+        * Various other minor bugfixes.
+
 2026-09-24  Fredrick Meunier  <fredm@spamcop.net>
 
         * Fuse 1.10.0 released.

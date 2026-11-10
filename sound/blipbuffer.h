@@ -92,6 +92,11 @@ void blip_buffer_set_clock_rate( Blip_Buffer * buff, long rate );
 */
 void blip_buffer_end_frame( Blip_Buffer * buff, blip_time_t time );
 
+/* Total samples available after end_frame(time), including unread samples
+   and fractional residue. Non-mutating; -1 for an invalid/overflowing clock.
+   Callers must apply their extraction limit, as read_samples does. */
+long blip_buffer_samples_after( const Blip_Buffer *buff, blip_time_t time );
+
 /*  Read at most 'max_samples' out of buffer into 'dest', removing them from from
  the buffer. Returns number of samples actually read and removed. If stereo is
  true, increments 'dest' one extra time after writing each sample, to allow

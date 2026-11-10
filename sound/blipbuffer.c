@@ -333,6 +333,18 @@ blip_buffer_set_bass_freq( Blip_Buffer * buff, int freq )
   buff->bass_shift = shift;
 }
 
+/* Preview the same fixed-point timeline as end_frame, without touching the
+   impulse buffer, fractional residue, or reader/filter state. */
+long
+blip_buffer_samples_after( const Blip_Buffer *buff, blip_time_t time )
+{
+  if( !buff || time < 0 || !buff->factor_ ||
+      (unsigned long)time > ( ULONG_MAX - buff->offset_ ) / buff->factor_ )
+    return -1;
+  return (long)( ( buff->offset_ + time * buff->factor_ ) >>
+                 BLIP_BUFFER_ACCURACY );
+}
+
 void
 blip_buffer_end_frame( Blip_Buffer * buff, blip_time_t t )
 {

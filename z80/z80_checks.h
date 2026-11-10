@@ -1,7 +1,7 @@
 SETUP_CHECK( profile, profile_active )
 SETUP_CHECK( rzx, rzx_playback )
 #ifdef ENABLE_AUTOMATION
-SETUP_CHECK( automation, automation_active() )
+SETUP_CHECK( automation, automation_active() && automation_pc_check_active() )
 #endif
 SETUP_CHECK( debugger, (debugger_mode != DEBUGGER_MODE_INACTIVE) || is_debugger_enabled() )
 SETUP_CHECK( beta, beta_available )

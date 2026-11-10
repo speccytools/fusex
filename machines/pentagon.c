@@ -54,7 +54,7 @@ static module_info_t pentagon_module_info = {
 
 };
 
-static int pentagon_reset( int hard_reset );
+static int pentagon_reset( int hard_reset, libspectrum_snap *snap );
 
 libspectrum_byte
 pentagon_select_1f_read( libspectrum_word port, libspectrum_byte *attached )
@@ -125,15 +125,15 @@ pentagon_init( fuse_machine_info *machine )
 }
 
 static int
-pentagon_reset( int hard_reset )
+pentagon_reset( int hard_reset, libspectrum_snap *snap )
 {
   int error;
 
   error = machine_load_rom( 0, settings_current.rom_pentagon_0,
-                            settings_default.rom_pentagon_0, 0x4000 );
+                            settings_default.rom_pentagon_0, 0x4000, snap );
   if( error ) return error;
   error = machine_load_rom( 1, settings_current.rom_pentagon_1,
-                            settings_default.rom_pentagon_1, 0x4000 );
+                            settings_default.rom_pentagon_1, 0x4000, snap );
   if( error ) return error;
   error = machine_load_rom_bank( beta_memory_map_romcs, 0,
                                  settings_current.rom_pentagon_2,

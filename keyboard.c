@@ -277,6 +277,8 @@ struct key_text_t key_text_table[] = {
 
   { KEYBOARD_JOYSTICK_FIRE, "Joystick Fire" },
 
+  { KEYBOARD_MENU, "Menu" },
+
   { KEYBOARD_NONE, NULL },		/* End marker */
 
 };

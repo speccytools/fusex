@@ -1,7 +1,7 @@
 /* tape_block.c: tape block presentation routines
    Copyright (c) 1999-2017 Philip Kendall, Darren Salt, Witold Filipczyk
    Copyright (c) 2015-2018 UB880D
-   Copyright (c) 2016-2021 Fredrick Meunier
+   Copyright (c) 2016-2026 Fredrick Meunier
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -25,7 +25,9 @@
 
 #include "config.h"
 
+#include <inttypes.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "libspectrum.h"
 
@@ -51,9 +53,8 @@ static void
 format_byte_count( char *buffer, size_t length,
                    libspectrum_tape_block *block )
 {
-  /* The -2 here is for the flag and parity bytes */
-  snprintf( buffer, length, "%lu bytes",
-            (unsigned long)libspectrum_tape_block_data_length( block ) - 2 );
+  snprintf( buffer, length, "%zu bytes",
+            libspectrum_tape_block_data_length( block ) );
 }
 
 static const char *
@@ -98,22 +99,23 @@ format_rom_block( char *buffer, size_t length,
 static void
 format_tone( char *buffer, size_t length, libspectrum_tape_block *block )
 {
-  snprintf( buffer, length, "%lu tstates",
-            (unsigned long)libspectrum_tape_block_pulse_length( block ) );
+  snprintf( buffer, length, "%" PRIu32 " tstates",
+            libspectrum_tape_block_pulse_length( block ) );
 }
 
 static void
 format_pulses( char *buffer, size_t length, libspectrum_tape_block *block )
 {
-  snprintf( buffer, length, "%lu pulses",
-            (unsigned long)libspectrum_tape_block_count( block ) );
+  snprintf( buffer, length, "%zu pulses",
+            libspectrum_tape_block_count( block ) );
 }
 
 /* RLE pulse data uses the same encoding as CSW/TZX RLE streams: a pulse of
    n samples is stored as a single byte if n <= 255, or as a zero marker
    followed by a little-endian dword when n > 255. */
 static void
-format_rle_pulse( char *buffer, size_t length, libspectrum_tape_block *block )
+format_rle_pulse( char *buffer, size_t length,
+                  libspectrum_tape_block *block )
 {
   libspectrum_byte *data = libspectrum_tape_block_data( block );
   size_t i, data_length = libspectrum_tape_block_data_length( block );
@@ -130,7 +132,22 @@ format_rle_pulse( char *buffer, size_t length, libspectrum_tape_block *block )
     }
   }
 
-  snprintf( buffer, length, "%lu pulses", pulses );
+  /* Mirror the TZX CSW recording listing: report an exact stored sample
+     rate when the block carries one, and just the pulse count otherwise. */
+  if( libspectrum_tape_block_sample_rate( block ) ) {
+    snprintf( buffer, length, "%lu pulses, %" PRIu32 " Hz", pulses,
+              libspectrum_tape_block_sample_rate( block ) );
+  } else {
+    snprintf( buffer, length, "%lu pulses", pulses );
+  }
+}
+
+static void
+format_tzx_csw( char *buffer, size_t length, libspectrum_tape_block *block )
+{
+  snprintf( buffer, length, "%" PRIu32 " pulses, %" PRIu32 " Hz",
+            libspectrum_tape_block_csw_pulses( block ),
+            libspectrum_tape_block_sample_rate( block ) );
 }
 
 static void
@@ -149,8 +166,8 @@ format_pulse_sequence( char *buffer, size_t length,
 static void
 format_pause( char *buffer, size_t length, libspectrum_tape_block *block )
 {
-  snprintf( buffer, length, "%lu ms",
-            (unsigned long)libspectrum_tape_block_pause( block ) );
+  snprintf( buffer, length, "%" PRIu32 " ms",
+            libspectrum_tape_block_pause( block ) );
 }
 
 static void
@@ -174,26 +191,26 @@ static void
 format_iterations( char *buffer, size_t length,
                    libspectrum_tape_block *block )
 {
-  snprintf( buffer, length, "%lu iterations",
-            (unsigned long)libspectrum_tape_block_count( block ) );
+  snprintf( buffer, length, "%zu iterations",
+            libspectrum_tape_block_count( block ) );
 }
 
 static void
 format_options( char *buffer, size_t length, libspectrum_tape_block *block )
 {
-  snprintf( buffer, length, "%lu options",
-            (unsigned long)libspectrum_tape_block_count( block ) );
+  snprintf( buffer, length, "%zu options",
+            libspectrum_tape_block_count( block ) );
 }
 
 static void
 format_data_symbols( char *buffer, size_t length,
                      libspectrum_tape_block *block )
 {
-  unsigned long symbols =
+  libspectrum_dword symbols =
     libspectrum_tape_generalised_data_symbol_table_symbols_in_block(
       libspectrum_tape_block_data_table( block ) );
 
-  snprintf( buffer, length, "%lu data symbols", symbols );
+  snprintf( buffer, length, "%" PRIu32 " data symbols", symbols );
 }
 
 static const tape_block_format_entry formatters[] = {
@@ -215,23 +232,30 @@ static const tape_block_format_entry formatters[] = {
   { LIBSPECTRUM_TAPE_BLOCK_SELECT, format_options },
   { LIBSPECTRUM_TAPE_BLOCK_GENERALISED_DATA, format_data_symbols },
   { LIBSPECTRUM_TAPE_BLOCK_RLE_PULSE, format_rle_pulse },
+  { LIBSPECTRUM_TAPE_BLOCK_TZX_CSW, format_tzx_csw },
 };
 
 int
-tape_block_details( char *buffer, size_t length,
-                    libspectrum_tape_block *block )
+tape_block_details( char **details, libspectrum_tape_block *block )
 {
-  size_t i;
   libspectrum_tape_type type = libspectrum_tape_block_type( block );
+  /* Bounded descriptions only: ROM names expand to at most 90 UTF-8 bytes
+     plus a type label and quotes; numeric descriptions are shorter. */
+  char buffer[128] = "";
+  const char *text = buffer;
 
-  buffer[0] = '\0';
-
-  for( i = 0; i < ARRAY_SIZE( formatters ); i++ ) {
+  for( size_t i = 0; i < ARRAY_SIZE( formatters ); i++ ) {
     if( formatters[i].type == type ) {
-      formatters[i].formatter( buffer, length, block );
+      if( formatters[i].formatter == format_text )
+        text = libspectrum_tape_block_text( block );
+      else
+        formatters[i].formatter( buffer, sizeof( buffer ), block );
       break;
     }
   }
 
+  if( !text ) text = "";
+  *details = libspectrum_new( char, strlen( text ) + 1 );
+  strcpy( *details, text );
   return 0;
 }

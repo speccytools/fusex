@@ -9,224 +9,107 @@ on:
         required: true
       fuse_ref:
         type: string
-        required: false
         default: ""
       use_zlib:
         type: boolean
-        required: false
         default: true
       use_bzip2:
         type: boolean
-        required: false
         default: true
       use_libgcrypt:
         type: boolean
-        required: false
-        default: true
-      use_libaudiofile:
-        type: boolean
-        required: false
         default: true
 
 jobs:
   build:
-    name: Build & Test
+    name: Build & Test (MSYS2 MINGW32)
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     defaults:
       run:
-        shell: bash.exe --login --norc -eo pipefail -o igncr '{0}'
+        shell: msys2 {0}
     env:
-      CYGWIN_NOWINPATH: 1
-      CPPFLAGS: "-I/usr/local/i686-w64-mingw32/include"
-      LDFLAGS: "-L/usr/local/i686-w64-mingw32/lib"
-      PKG_CONFIG_LIBDIR: "/usr/local/i686-w64-mingw32/lib/pkgconfig:/usr/i686-w64-mingw32/sys-root/mingw/lib/pkgconfig"
-      CYGWIN_LIBDIR: "/usr/i686-w64-mingw32/sys-root/mingw/bin/"
       LIBSPECTRUM_DIR: 3rdparty/libspectrum
+      CPPFLAGS: -I/usr/local/i686-w64-mingw32/include
+      LDFLAGS: -L/usr/local/i686-w64-mingw32/lib
 
     steps:
-      - name: (1) Prepare environment
-        run: |
-          cd ${GITHUB_WORKSPACE}
-
-          echo "Adjust autocrlf in git.."
-          git config --global core.autocrlf input
-
-          echo "Use lib zlib: ${{ inputs.use_zlib && 'yes' || 'no' }}"
-          echo "Use lib bzip2: ${{ inputs.use_bzip2 && 'yes' || 'no' }}"
-          echo "Use lib libgcrypt: ${{ inputs.use_libgcrypt && 'yes' || 'no' }}"
-          echo "Use lib libaudiofile: ${{ inputs.use_libaudiofile && 'yes' || 'no' }}"
-
-      - name: (1b) Check out Fuse
-        uses: actions/checkout@v6
+      # Use the workflow revision's packaging helpers, not the selected library ref.
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.fuse_ref }}
           persist-credentials: false
 
-      - name: (2) Fetch libspectrum source
-        run: |
-          cd ${GITHUB_WORKSPACE}
+      - name: Install MSYS2 build tools and native 32-bit dependencies
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW32
+          update: true
+          cache: true
+          install: >-
+            autoconf-wrapper automake-wrapper libtool make git curl
+            mingw-w64-i686-gcc mingw-w64-i686-pkgconf
+            mingw-w64-i686-bzip2 mingw-w64-i686-zlib
 
+      - name: Cache pinned cryptographic package downloads
+        if: ${{ inputs.use_libgcrypt }}
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/fuse-mingw32-crypto
+          key: msys2-mingw32-crypto-v1-${{ hashFiles('.github/scripts/windows-mingw32-crypto.sha256') }}
+
+      - name: Install pinned MSYS2 cryptographic libraries
+        if: ${{ inputs.use_libgcrypt }}
+        run: |
+          cache="$(cygpath -u "$RUNNER_TEMP")/fuse-mingw32-crypto"
+          # Recheck hashes and signatures on cache hits as well as fresh downloads.
+          bash .github/scripts/install_windows_crypto.sh "$cache"
+          mkdir -p /usr/local/i686-w64-mingw32/share/fuse/packages
+          cp "$cache/"*.pkg.tar.zst "$cache/"*.pkg.tar.zst.sig /usr/local/i686-w64-mingw32/share/fuse/packages/
+
+      - name: Fetch pinned libspectrum source
+        run: |
           git submodule update --init "$LIBSPECTRUM_DIR"
+          git -C "$LIBSPECTRUM_DIR" rev-parse HEAD
+          gcc --version
 
-      - name: (2b) Resolve Cygwin package cache path
-        id: cygwin-cache-path
+      - name: Configure libspectrum with integrated PCM WAV support
+        working-directory: ${{ env.LIBSPECTRUM_DIR }}
         run: |
-          if (Test-Path -LiteralPath 'D:\') {
-            $workVol = 'D:'
-          } else {
-            $workVol = 'C:'
-          }
-
-          echo "work-vol=$workVol" >> $env:GITHUB_OUTPUT
-          echo "package-cache=$workVol\cygwin-packages" >> $env:GITHUB_OUTPUT
-        shell: powershell
-
-      - name: (3) Restore Cygwin packages
-        id: cygwin-cache-load
-        uses: actions/cache/restore@v6
-        with:
-          path: |
-            ${{ steps.cygwin-cache-path.outputs.package-cache }}
-          key: cygwin-packages-libspectrum-1
-
-      - name: (4) Install Cygwin (32 bit) with libs
-        uses: cygwin/cygwin-install-action@711d29f3da23c9f4a1798e369a6f01198c13b11a # v6
-        with:
-          work-vol: ${{ steps.cygwin-cache-path.outputs.work-vol }}
-          platform: x86
-          packages: |
-            audiofile
-            autoconf
-            automake
-            bison
-            flex
-            gcc-core
-            gcc-g++
-            gettext-devel
-            libtool
-            libaudiofile-devel
-            make
-            mingw64-i686-audiofile
-            mingw64-i686-bzip2
-            mingw64-i686-gcc-core
-            mingw64-i686-gcc-g++
-            mingw64-i686-libgcrypt
-            mingw64-i686-libgpg-error
-            mingw64-i686-libpng
-            mingw64-i686-win-iconv
-            mingw64-i686-winpthreads
-            mingw64-i686-zlib
-            pkg-config
-
-      - name: (5) Save Cygwin packages
-        if: steps.cygwin-cache-load.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v6
-        with:
-          path: |
-            ${{ steps.cygwin-cache-path.outputs.package-cache }}
-          key: cygwin-packages-libspectrum-1
-
-      - name: (6) Autogen.sh
-        run: |
-          cd ${GITHUB_WORKSPACE}/${LIBSPECTRUM_DIR}
-
-          echo "Running autogen.sh .."
+          set -o pipefail
+          export PATH="/usr/local/i686-w64-mingw32/bin:$PATH"
+          # /etc/profile resets this variable when each MSYS2 shell starts.
+          export PKG_CONFIG_PATH="/usr/local/i686-w64-mingw32/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
           ./autogen.sh
-
-      - name: (7) Configure for Windows (fake glib)
-        run: |
-          cd ${GITHUB_WORKSPACE}/${LIBSPECTRUM_DIR}
-
-          echo "Running configure .."
-          ./configure \
-          --build=i686-pc-cygwin \
-          --host=i686-w64-mingw32 \
-          --prefix=/usr/local/i686-w64-mingw32 \
-          --with-fake-glib \
-          ${{ inputs.use_zlib == false && '--without-zlib' || '' }} \
-          ${{ inputs.use_bzip2 == false && '--without-bzip2' || '' }} \
-          ${{ inputs.use_libgcrypt == false && '--without-libgcrypt' || '' }} \
-          ${{ inputs.use_libaudiofile == false && '--without-libaudiofile' || '' }} \
-          | tee ./configure.out
-
-      - name: (8) Verify output from configure
-        run: |
-          cd ${GITHUB_WORKSPACE}/${LIBSPECTRUM_DIR}
-
-          .github/scripts/in_config.sh "libspectrum is ready to be compiled"
-          .github/scripts/in_config.sh "zlib support: ${{ inputs.use_zlib && 'yes' || 'no' }}"
-          .github/scripts/in_config.sh "bzip2 support: ${{ inputs.use_bzip2 && 'yes' || 'no' }}"
-          .github/scripts/in_config.sh "libgcrypt support: ${{ inputs.use_libgcrypt && 'yes' || 'no' }}"
-          .github/scripts/in_config.sh "libaudiofile support: ${{ inputs.use_libaudiofile && 'yes' || 'no' }}"
+          # Keep the normal static archive available for internal unit tests.
+          ./configure --prefix=/usr/local/i686-w64-mingw32 --with-fake-glib --with-wav-backend=pcm \
+            ${{ inputs.use_zlib == false && '--without-zlib' || '' }} \
+            ${{ inputs.use_bzip2 == false && '--without-bzip2' || '' }} \
+            ${{ inputs.use_libgcrypt == false && '--without-libgcrypt' || '' }} \
+            2>&1 | tee configure.out
+          .github/scripts/in_config.sh "selected WAV backend: pcm"
           .github/scripts/in_config.sh "Internal GLib replacement: yes"
+          .github/scripts/in_config.sh "libgcrypt support: ${{ inputs.use_libgcrypt && 'yes' || 'no' }}"
 
-      - name: (9) Make
+      - name: Build, test and install
+        working-directory: ${{ env.LIBSPECTRUM_DIR }}
         run: |
-          cd ${GITHUB_WORKSPACE}/${LIBSPECTRUM_DIR}
-
-          echo "Running make .."
-          make
-
-      - name: (10) Install
-        run: |
-          cd ${GITHUB_WORKSPACE}/${LIBSPECTRUM_DIR}
-
-          echo "Running make install-strip .."
+          export PATH="/usr/local/i686-w64-mingw32/bin:$PATH"
+          make -j2
+          make check
           make install-strip
 
-      - name: (11) Copy dependency dlls
+      - name: Stage exact runtime dependencies and notices
         run: |
-          cd ${GITHUB_WORKSPACE}/${LIBSPECTRUM_DIR}
+          bash data/win32/check_win32_dll_deps.sh /usr/local/i686-w64-mingw32/bin
+          bash .github/scripts/collect_windows_notices.sh /usr/local/i686-w64-mingw32/bin /usr/local/i686-w64-mingw32/share/fuse/3rd-party
+          pacman -Q > /usr/local/i686-w64-mingw32/share/fuse/msys2-packages.txt
+          cp "$LIBSPECTRUM_DIR/COPYING" /usr/local/i686-w64-mingw32/share/fuse/3rd-party/libspectrum-COPYING.txt
+          # Include native DLLs used by this build, not independently selected ones.
+          tar -cvf libspectrum-installed-windows.tar -C /usr/local/i686-w64-mingw32 .
 
-          echo "Copying mandatory dependency dlls.."
-          cp -f ${CYGWIN_LIBDIR}libgcc_s_sjlj-1.dll .
-          cp -f ${CYGWIN_LIBDIR}libwinpthread-1.dll .
-          cp -f ${CYGWIN_LIBDIR}libgpg-error-0.dll .
-          cp -f ${CYGWIN_LIBDIR}libstdc++-6.dll .
-
-          echo "Copying optional dependency dlls.."
-          ${{ inputs.use_zlib         && 'cp -f ${CYGWIN_LIBDIR}zlib1.dll .'          || ''}}
-          ${{ inputs.use_bzip2        && 'cp -f ${CYGWIN_LIBDIR}libbz2-1.dll .'       || ''}}
-          ${{ inputs.use_libgcrypt    && 'cp -f ${CYGWIN_LIBDIR}libgcrypt-20.dll .'   || ''}}
-          ${{ inputs.use_libaudiofile && 'cp -f ${CYGWIN_LIBDIR}libaudiofile-1.dll .' || ''}}
-          ${{ inputs.use_libaudiofile && 'cp -f ${CYGWIN_LIBDIR}libFLAC-8.dll .'      || ''}}
-          ${{ inputs.use_libaudiofile && 'cp -f ${CYGWIN_LIBDIR}libOGG-0.dll .'       || ''}}
-
-          echo "Copying own dll.."
-          cp -f .libs/libspectrum-*.dll .
-
-      - name: (12) Run tests
-        id: run-tests
-        run: |
-          cd ${GITHUB_WORKSPACE}/${LIBSPECTRUM_DIR}
-
-          echo "Building and running tests .."
-          make check
-
-      - name: (13) Verbose check tests (on failure)
-        if: failure() && steps.run-tests.outcome != 'success'
-        run: |
-          cd ${GITHUB_WORKSPACE}/${LIBSPECTRUM_DIR}
-
-          echo "Listing all tests individually .."
-          test/test.exe
-
-      - name: (14) Pack installed library files
-        run: |
-          cd ${GITHUB_WORKSPACE}/${LIBSPECTRUM_DIR}
-
-          tar -cvf \
-          libspectrum-installed-windows.tar \
-          -C /usr/local/i686-w64-mingw32/ .
-
-      - name: (15) Upload generated tar file
+      - name: Upload library, runtime DLLs and package manifest
         uses: actions/upload-artifact@v7
         with:
           name: libspectrum-installed-windows-${{ inputs.key }}
-          path: |
-            ${{ env.LIBSPECTRUM_DIR }}/libspectrum-installed-windows.tar
-
-      - name: (16) Finish
-        run: |
-          echo "Finishing with status ${{ job.status }}."
+          path: libspectrum-installed-windows.tar

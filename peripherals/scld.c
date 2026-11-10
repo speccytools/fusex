@@ -49,7 +49,6 @@ libspectrum_byte scld_last_hsr = 0; /* The last byte sent to Timex HSR port */
 
 memory_page * timex_home[MEMORY_PAGES_IN_64K];
 memory_page timex_exrom[MEMORY_PAGES_IN_64K];
-static memory_rom_bank scld_snapshot_banks[2][8];
 memory_page timex_dock[MEMORY_PAGES_IN_64K];
 
 static void scld_reset( int hard_reset );
@@ -145,14 +144,33 @@ scld_dec_write( libspectrum_word port GCC_UNUSED, libspectrum_byte b )
 }
 
 static void
-scld_reset( int hard_reset )
+scld_reset( int hard_reset GCC_UNUSED )
 {
-  int bank_type, page_num;
+  /* The dock is meaningless on machines without Timex-style video support;
+     drop any dock state left behind by another machine or snapshot */
+  if( !( machine_current->capabilities &
+         LIBSPECTRUM_MACHINE_CAPABILITY_TIMEX_VIDEO ) ) {
+    dck_discard();
 
-  if( hard_reset ) {
-    for( bank_type = 0; bank_type < 2; bank_type++ )
-      for( page_num = 0; page_num < 8; page_num++ )
-        memory_rom_bank_clear( &scld_snapshot_banks[ bank_type ][ page_num ] );
+    /* Machines without Timex support never repopulate the DOCK and EXROM
+       page mappings in their reset routines, so mappings loaded from a
+       snapshot with dock cartridges (see scld_from_snapshot()) would
+       survive this reset still pointing into the banks just dropped, and
+       a later save would read the freed data. Clear all of the mappings
+       here on either kind of reset; Timex machines replace the mappings
+       in their own reset routines, before this module reset. */
+    {
+      for( size_t i = 0; i < MEMORY_PAGES_IN_64K; i++ ) {
+        timex_dock[ i ].page = NULL;
+        timex_dock[ i ].writable = 0;
+        timex_dock[ i ].save_to_snapshot = 0;
+        timex_dock[ i ].contended = 0;
+        timex_exrom[ i ].page = NULL;
+        timex_exrom[ i ].writable = 0;
+        timex_exrom[ i ].save_to_snapshot = 0;
+        timex_exrom[ i ].contended = 0;
+      }
+    }
   }
 
   scld_last_dec.byte = 0;
@@ -228,27 +246,8 @@ static void
 scld_dock_exrom_from_snapshot( memory_page *dest, int page_num, int writable,
                                void *source )
 {
-  memory_rom_bank *bank;
-  int bank_type;
-  int i;
-  libspectrum_byte *data;
-
-  bank_type = dest == timex_dock ? 0 : 1;
-  bank = &scld_snapshot_banks[ bank_type ][ page_num ];
-  if( memory_rom_bank_set( bank, source, 0x2000, 1 ) ) return;
-  data = bank->data;
-
-  for( i = 0; i < MEMORY_PAGES_IN_8K; i++ ) {
-    memory_page *page = &dest[ page_num * MEMORY_PAGES_IN_8K + i ];
-    page->offset = i * MEMORY_PAGE_SIZE;
-    page->page_num = page_num;
-    page->writable = writable;
-    page->page = data + page->offset;
-    page->save_to_snapshot = 1;
-  }
-
-  /* Reset contention for pages */
-  scld_set_exrom_dock_contention();
+  dck_restore_page( dest == timex_dock ? LIBSPECTRUM_DCK_BANK_DOCK :
+                    LIBSPECTRUM_DCK_BANK_EXROM, page_num, writable, source );
 }
 
 static void

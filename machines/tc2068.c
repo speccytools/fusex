@@ -42,7 +42,7 @@
 #include "tc2068.h"
 #include "ui/ui.h"
 
-static int tc2068_reset( int hard_reset );
+static int tc2068_reset( int hard_reset, libspectrum_snap *snap );
 
 memory_page tc2068_empty_mapping[MEMORY_PAGES_IN_8K];
 static int empty_mapping_allocated = 0;
@@ -130,16 +130,16 @@ tc2068_init( fuse_machine_info *machine )
 }
 
 static int
-tc2068_reset( int hard_reset )
+tc2068_reset( int hard_reset, libspectrum_snap *snap )
 {
   size_t i, j;
   int error;
 
   error = machine_load_rom( 0, settings_current.rom_2068_0,
-                            settings_default.rom_2068_0, 0x4000 );
+                            settings_default.rom_2068_0, 0x4000, snap );
   if( error ) return error;
   error = machine_load_rom( 1, settings_current.rom_2068_1,
-                            settings_default.rom_2068_1, 0x2000 );
+                            settings_default.rom_2068_1, 0x2000, snap );
   if( error ) return error;
 
   /* 0x0000: ROM 0 */

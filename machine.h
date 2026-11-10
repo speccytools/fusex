@@ -61,7 +61,7 @@ typedef struct fuse_machine_info {
   const char *id;	/* Used to select from command line */
   int capabilities;	/* Capabilities of this machine */
 
-  int (*reset)(int hard_reset);	/* Reset function */
+  int (*reset)(int hard_reset, libspectrum_snap *snap);	/* Reset function */
 
   int timex;      /* Timex machine (keyboard emulation/loading sounds etc.) */
 
@@ -112,9 +112,12 @@ int machine_load_rom_bank_with_sizes( memory_page *bank_map, int page_num,
 int machine_load_rom_bank_from_snapshot( memory_page* bank_map, int page_num,
   unsigned char *buffer, size_t length, int custom );
 void machine_clear_snapshot_rom_bank( memory_page *bank_map, int page_num );
+void machine_clear_snapshot_rom_banks( void );
 int machine_load_rom( int page_num, const char *filename, const char *fallback,
-  size_t expected_length );
+  size_t expected_length, libspectrum_snap *snap );
 
 int machine_reset( int hard_reset );
+int machine_reset_from_snapshot( int hard_reset, libspectrum_snap *snap );
+int machine_select_from_snapshot( libspectrum_machine type, libspectrum_snap *snap );
 
 #endif			/* #ifndef FUSE_MACHINE_H */

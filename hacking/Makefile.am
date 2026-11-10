@@ -22,6 +22,7 @@
 ## E-mail: philip-fuse@shadowmagic.org.uk
 
 EXTRA_DIST += \
+              hacking/audio-pacing.md \
               hacking/code_beautifiers.txt \
               hacking/coding_style.txt \
               hacking/display-timing.txt \
