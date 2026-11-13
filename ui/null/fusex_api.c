@@ -6,6 +6,7 @@
 #include "memory_pages.h"
 #include "ui/ui.h"
 
+#include "fusex_debugger.h"
 #include "fusex_display.h"
 #include "fusex_memory.h"
 #include "fusex_registers.h"
