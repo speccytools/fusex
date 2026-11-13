@@ -1,7 +1,10 @@
 #include <stdio.h>
+#include <string.h>
 #include <libspectrum.h>
 
+#include "debugger/debugger.h"
 #include "memory_pages.h"
+#include "ui/ui.h"
 
 #include "fusex_display.h"
 #include "fusex_memory.h"
@@ -38,4 +41,32 @@ int
 fusex_register_get( enum z80_register reg, libspectrum_word *value )
 {
   return z80_register_get( reg, value );
+}
+
+struct text_buffer {
+  char *buf;
+  size_t size;
+};
+
+static void
+append_text( const char *text, void *user )
+{
+  struct text_buffer *out = user;
+  size_t length = strlen( out->buf );
+
+  snprintf( out->buf + length, out->size - length, "%s", text );
+}
+
+int
+fusex_debugger_command( const char *command, char *output, const int output_size )
+{
+  struct text_buffer out = { output, (size_t)output_size };
+
+  output[0] = '\0';
+  ui_error_capture_begin( append_text, &out );
+  debugger_output_capture_begin( append_text, &out );
+  debugger_command_evaluate( command );
+  debugger_output_capture_end();
+  ui_error_capture_end();
+  return ui_error_capture_had_error();
 }
