@@ -375,3 +375,55 @@ z80_to_snapshot( libspectrum_snap *snap )
      independent of this flag */
   libspectrum_snap_set_last_instruction_set_f( snap, !!Q );
 }
+
+int
+z80_register_get( enum z80_register reg, libspectrum_word *value )
+{
+  switch( reg ) {
+  case Z80_REGISTER_AF:   *value = AF; break;
+  case Z80_REGISTER_BC:   *value = BC; break;
+  case Z80_REGISTER_DE:   *value = DE; break;
+  case Z80_REGISTER_HL:   *value = HL; break;
+  case Z80_REGISTER_AF_:  *value = AF_; break;
+  case Z80_REGISTER_BC_:  *value = BC_; break;
+  case Z80_REGISTER_DE_:  *value = DE_; break;
+  case Z80_REGISTER_HL_:  *value = HL_; break;
+  case Z80_REGISTER_IX:   *value = IX; break;
+  case Z80_REGISTER_IY:   *value = IY; break;
+  case Z80_REGISTER_SP:   *value = SP; break;
+  case Z80_REGISTER_PC:   *value = PC; break;
+  case Z80_REGISTER_I:    *value = I; break;
+  case Z80_REGISTER_R:    *value = ( R7 & Z80_R7_MASK ) | ( R & Z80_R_LOWER_BITS ); break;
+  case Z80_REGISTER_IFF1: *value = IFF1; break;
+  case Z80_REGISTER_IFF2: *value = IFF2; break;
+  case Z80_REGISTER_IM:   *value = IM; break;
+  default: return 1;
+  }
+  return 0;
+}
+
+int
+z80_register_set( enum z80_register reg, libspectrum_word value )
+{
+  switch( reg ) {
+  case Z80_REGISTER_AF:   AF = value; break;
+  case Z80_REGISTER_BC:   BC = value; break;
+  case Z80_REGISTER_DE:   DE = value; break;
+  case Z80_REGISTER_HL:   HL = value; break;
+  case Z80_REGISTER_AF_:  AF_ = value; break;
+  case Z80_REGISTER_BC_:  BC_ = value; break;
+  case Z80_REGISTER_DE_:  DE_ = value; break;
+  case Z80_REGISTER_HL_:  HL_ = value; break;
+  case Z80_REGISTER_IX:   IX = value; break;
+  case Z80_REGISTER_IY:   IY = value; break;
+  case Z80_REGISTER_SP:   SP = value; break;
+  case Z80_REGISTER_PC:   PC = value; break;
+  case Z80_REGISTER_I:    I = value & 0xff; break;
+  case Z80_REGISTER_R:    R = R7 = value & 0xff; break;
+  case Z80_REGISTER_IFF1: IFF1 = value & 0xff; break;
+  case Z80_REGISTER_IFF2: IFF2 = value & 0xff; break;
+  case Z80_REGISTER_IM:   IM = value & 0xff; break;
+  default: return 1;
+  }
+  return 0;
+}
