@@ -539,7 +539,8 @@ void spectranext_controller_write(memory_page *page, libspectrum_word address, l
 {
     update_controller_jobs();
     const unsigned offset = address & 0xfff;
-    if (offset < SPECTRANEXT_CONTROLLER_CODE_SIZE) return;
+    if (offset < SPECTRANEXT_CONTROLLER_CODE_SIZE ||
+        offset == SPECTRANEXT_CONTROLLER_PROGRESS_OFFSET) return;
     /* A submitted workspace belongs to its worker until status is published. */
     const unsigned channel = offset >= 0xC00 && offset < 0xFFE;
     if (controller_job_is_running(channel)) return;
