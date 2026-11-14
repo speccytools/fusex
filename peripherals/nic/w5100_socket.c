@@ -465,8 +465,9 @@ w5100_socket_connect( nic_w5100_t *self, nic_w5100_socket_t *socket )
 
     socket->ir |= 1 << 0;
     socket->state = W5100_SOCKET_STATE_ESTABLISHED;
-    if( socket->ssh_socket )
-      compat_socket_selfpipe_wake( self->selfpipe );
+    /* Wake the I/O thread so it starts selecting on the new connection;
+       otherwise the peer's first bytes wait for an unrelated wake (a send). */
+    compat_socket_selfpipe_wake( self->selfpipe );
   }
 }
 
@@ -548,8 +549,10 @@ w5100_socket_send( nic_w5100_t *self, nic_w5100_socket_t *socket )
 static void
 w5100_socket_recv( nic_w5100_t *self, nic_w5100_socket_t *socket )
 {
+  /* Data received before the peer's FIN stays readable in CLOSE_WAIT */
   if( socket->state == W5100_SOCKET_STATE_UDP ||
-    socket->state == W5100_SOCKET_STATE_ESTABLISHED ) {
+    socket->state == W5100_SOCKET_STATE_ESTABLISHED ||
+    socket->state == W5100_SOCKET_STATE_CLOSE_WAIT ) {
     socket->rx_rsr -= socket->rx_rd - socket->old_rx_rd;
     socket->old_rx_rd = socket->rx_rd;
     if( socket->rx_rsr != 0 )
