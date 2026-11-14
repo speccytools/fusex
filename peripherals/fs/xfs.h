@@ -74,6 +74,10 @@ enum xfs_whence_flags {
 #define XFS_CMD_CHMOD (19)
 
 #define XFS_CHMOD_COMMIT_FLASH (0x8000)
+/* Ten-byte READDIR tail: marker, type, size LE32, mtime LE32.
+ * X is legacy/unknown storage; D0..D3 encode RAM/flash/system/USB.
+ * Keep the type and tail length unchanged for existing Z80 modules. */
+#define XFS_DIRENT_STORAGE_BASE 0xd0
 
 #define XFS_STATUS_IDLE (0)
 #define XFS_STATUS_BUSY (1)

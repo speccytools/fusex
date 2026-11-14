@@ -1,0 +1,65 @@
+Spectranext firmware / SPX Browser backport
+=========================================
+
+Reviewed source range: Spectranext 6b05f7e2496b503daf2d2990526bf961f43b2711
+(exclusive) through cf84bb6d2c0b00214310c88447d06afd64a31b17 (inclusive),
+the latest 92 commits at the start of this backport.
+FuseX base: d5082a3b31ba7e855c5a439909b0205ee48f6e04.
+
+Scope: updated firmware and SPX Browser compatibility. No new DivMMC mode,
+remote keyboard, or screen-streaming protocol. Port $073B reads the actual
+DivMMC peripheral status; writes do not change the emulator configuration.
+RP2350/ESP flashing, electrical bus listeners, OTA and hardware input changes
+do not belong in this emulator port. Existing FuseX peripheral policy remains.
+
+Changes beyond make sync-fuse:
+- Controller page offset BFC is the read-only progress byte. It stays zero in
+  FuseX, which does not flash a Wi-Fi coprocessor. Mailbox offsets are unchanged.
+- XFS READDIR storage markers and the optional STAT XS extension distinguish
+  persistent host files (D1), system ROMFS files (D2), and unknown/remote files
+  (X). The browser must not offer RAM-to-flash commit for host-persisted files.
+- Keep FuseX worker cancellation before unmount/free and its existing engine
+  implementations; copying all firmware shared sources would remove safeguards
+  and introduce unrelated unsupported LZ4 dependencies.
+
+Firmware artifacts were rebuilt with make sync-fuse (version 1.5-cf84bb6d).
+SHA-256:
+0870d5750a8d463311510970194f0a8ea44df739e29a63180e8952207846359a spectranet.rom
+c1ca0875eb967b612cd2534bb792126873c7a8579fa3997aca1dcfe2ae1b27fd spxromfs.bin
+83084aef84a319daed9059d138d7b5771c23733ee9ec09a12a0d873beee9523c spxcontroller.bin
+
+Validation (native macOS arm64, null UI, pthread/Spectranet enabled):
+- Rebuilt bundled libspectrum 1.8 and build/match-hardware/libfusex.dylib.
+  Local GNU ar output required repacking with /usr/bin/libtool -static.
+  MBEDTLS_LIBS and LIBSSH2_LIBS used the existing macOS frameworks from
+  fusepb/build/Development/FuseX.app/Contents/Frameworks instead of Linux archives.
+  Linker warnings: stale Boost search path and reduced common-section alignment.
+- unittests/spectranext_compat.py: PASS, 48K, bundled roms/.
+- unittests/controller_channels.py: PASS, 48K, run from roms/; both mailboxes,
+  concurrent HTTP/XFS reads, ownership, bounds, cancellation and subsequent reuse.
+- Spectranext browser/tests/bundled.py --build build/browser-ui
+  --output build/aitest/backport-92-browser: PASS, 128K, fresh generated ROMs;
+  real %browser launch, cancellation, BASIC TAP sentinel, warm reopen and viewer.
+  Report: Spectranext build/aitest/backport-92-browser/report.json.
+
+Set FUSEX_LIB to the absolute library path and DYLD_FRAMEWORK_PATH to the
+framework directory above. Tests use disposable profiles. The new test accepts
+FUSEX_ROM_DIR; existing controller_channels.py finds ROMs in its working directory.
+
+Exploratory, outside the selected scope:
+- Existing IM1 handoff test passed with ESXMMC.BIN and an isolated profile.
+- browser/tests/divmmc.py failed its listing-isolation expectation: RAMONLY.TXT
+  was present beside SDONLY.TXT. This was not resolved or claimed as passing;
+  no DivMMC changes are included in the final branch.
+
+Native mount availability follow-up:
+- The browser requires $073B bit 0 even when no DivMMC mode switching is
+  emulated. Floating-bus reads falsely offered esxDOS and bypassed its guard.
+- spectranext_compat.py passes with DivMMC disabled and with ESXMMC.BIN enabled;
+  writes cannot change the status and frame stepping cannot change its value.
+- browser/tests/mount_availability.py passes for the bundled 128K browser:
+  esxDOS action absent, typed esxdos:// rejected with retry/cancel functional,
+  generic XFS mounts work, full mount table handled. The test's obsolete
+  spectranet_compatibility_requests symbol assertion was replaced at runtime
+  with a read of $073B; all browser interactions/assertions were unchanged.
+  Report: Spectranext build/aitest/fusex-native-mount-fix/report.json.

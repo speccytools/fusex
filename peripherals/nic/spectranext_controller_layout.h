@@ -11,8 +11,8 @@
  * Own a workspace until status is no longer FF; read its response before reuse.
  * Submit by writing status FF, then command. Firmware consumes command to FF,
  * executes, writes the response, then publishes status 0 (success) or 1 (error).
- * Each payload has 1020 bytes; $2BFC-$2BFF are reserved so both payload
- * types are identical. The last four page bytes contain the two register pairs.
+ * Each payload has 1020 bytes; $2BFC is the live operation progress percentage
+ * and $2BFD-$2BFF are reserved. The last four page bytes contain the two register pairs.
  * Never submit or modify a busy channel. No mode switch is required.
  */
 #define SPECTRANEXT_CONTROLLER_PAGE 0x48
@@ -20,6 +20,8 @@
 #define SPECTRANEXT_CONTROLLER_CODE_SIZE 0x800u
 #define SPECTRANEXT_CONTROLLER_WORKSPACE_OFFSET 0x800u
 #define SPECTRANEXT_CONTROLLER_WORKSPACE_SIZE 0x3FCu
+/* Live read-only percentage (0..100), independent of mailbox ownership. */
+#define SPECTRANEXT_CONTROLLER_PROGRESS_OFFSET 0xBFCu
 #define SPECTRANEXT_CONTROLLER_COMMAND_OFFSET 0xFFEu
 #define SPECTRANEXT_CONTROLLER_STATUS_OFFSET 0xFFFu
 #define SPECTRANEXT_CONTROLLER_CHANNEL1_WORKSPACE_OFFSET 0xC00u
@@ -174,7 +176,8 @@ struct spectranext_controller_t
 {
     uint8_t code[SPECTRANEXT_CONTROLLER_CODE_SIZE];
     spectranext_workspace_t workspace;
-    uint8_t reserved[4];
+    uint8_t progress;
+    uint8_t reserved[3];
     spectranext_workspace_t workspace1;
     uint8_t command1;
     uint8_t status1;
@@ -183,6 +186,8 @@ struct spectranext_controller_t
 };
 
 _Static_assert(sizeof(struct spectranext_controller_t) == 4096, "Controller is not of correct size");
+_Static_assert(offsetof(struct spectranext_controller_t, progress) ==
+               SPECTRANEXT_CONTROLLER_PROGRESS_OFFSET, "Progress offset");
 _Static_assert(offsetof(struct spectranext_controller_t, workspace) == 0x800u, "Workspace offset");
 _Static_assert(offsetof(struct spectranext_controller_t, command) == 0xFFEu, "Command offset");
 _Static_assert(offsetof(struct spectranext_controller_t, status) == 0xFFFu, "Status offset");

@@ -12,6 +12,18 @@ static char* xfs_mount_identities[4] = {0};
 // Handles array - shared between task and emulator  
 struct xfs_handle_t xfs_handles[XFS_MAX_FDS] = {};
 
+/* Only local storage has RAM/flash provenance. Network engines initialise
+ * storage to zero too, which must not advertise remote files as committable. */
+static uint8_t xfs_storage_marker(const struct xfs_engine_mount_t* mount,
+                                  const struct xfs_stat_info* info)
+{
+    if ((mount->engine == &xfs_overlay_engine || mount->engine == &xfs_ram_engine ||
+         mount->engine == &xfs_romfs_engine ||
+         mount->engine == xfs_compat_local_mount_engine("usb", "/")) && info->storage <= FS_STORAGE_USB)
+        return XFS_DIRENT_STORAGE_BASE + info->storage;
+    return 'X';
+}
+
 // Helper functions
 static inline struct xfs_handle_t* get_handle(uint8_t handle)
 {
@@ -735,7 +747,7 @@ void xfs_handle_readdir(volatile struct xfs_registers_t* registers)
             XFS_DEBUG("xfs: readdir success name=%s\n", info.name);
             strcpy((char*)registers->workspace, info.name);
             volatile uint8_t* tail = registers->workspace + strlen(info.name) + 1;
-            tail[0] = 'X';
+            tail[0] = xfs_storage_marker(mounted_engine, &info);
             tail[1] = info.type;
             tail[2] = (uint8_t)(info.size & 0xff);
             tail[3] = (uint8_t)((info.size >> 8) & 0xff);
@@ -830,6 +842,7 @@ void xfs_handle_stat(volatile struct xfs_registers_t* registers)
     }
     else
     {
+        memset((void*)registers->workspace, 0, 32);
         struct xfs_stat_t* stat = (struct xfs_stat_t*)registers->workspace;
         stat->mode = 0x0644;
         if (info.type == XFS_TYPE_DIR)
@@ -849,6 +862,10 @@ void xfs_handle_stat(volatile struct xfs_registers_t* registers)
         uint8_t* strings = (uint8_t*)registers->workspace + 22;
         strings[0] = 0;
         strings[1] = 0;
+        /* Optional storage extension after the two empty stat strings. */
+        strings[2] = 'X';
+        strings[3] = 'S';
+        strings[4] = xfs_storage_marker(mounted_engine, &info);
         XFS_DEBUG("xfs: stat success path=%s size=%lu mode=0x%04x\n", resolved_path, info.size, stat->mode);
         registers->result = 0;
         registers->status = XFS_STATUS_COMPLETE;
