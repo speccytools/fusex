@@ -75,6 +75,30 @@ void z80_do_opcodes(void);
 
 void z80_enable_interrupts( void );
 
+enum z80_register {
+  Z80_REGISTER_AF,
+  Z80_REGISTER_BC,
+  Z80_REGISTER_DE,
+  Z80_REGISTER_HL,
+  Z80_REGISTER_AF_,
+  Z80_REGISTER_BC_,
+  Z80_REGISTER_DE_,
+  Z80_REGISTER_HL_,
+  Z80_REGISTER_IX,
+  Z80_REGISTER_IY,
+  Z80_REGISTER_SP,
+  Z80_REGISTER_PC,
+  Z80_REGISTER_I,
+  Z80_REGISTER_R,
+  Z80_REGISTER_IFF1,
+  Z80_REGISTER_IFF2,
+  Z80_REGISTER_IM,
+};
+
+/* Return 0 on success, or 1 if reg is not a z80_register */
+int z80_register_get( enum z80_register reg, libspectrum_word *value );
+int z80_register_set( enum z80_register reg, libspectrum_word value );
+
 extern processor z80;
 extern const libspectrum_byte halfcarry_add_table[];
 extern const libspectrum_byte halfcarry_sub_table[];

@@ -5,6 +5,7 @@
 
 #include "fusex_display.h"
 #include "fusex_memory.h"
+#include "fusex_registers.h"
 
 extern const fusex_display_info_t *null_ui_display_info( void );
 extern const fusex_display_frame_t *null_ui_display_frame( void );
@@ -31,4 +32,10 @@ void
 fusex_poke(const uint16_t addr, const uint8_t value )
 {
   writebyte_internal( addr, value );
+}
+
+int
+fusex_register_get( enum z80_register reg, libspectrum_word *value )
+{
+  return z80_register_get( reg, value );
 }
