@@ -19,15 +19,31 @@ def main():
             ('fuse_init', [C.c_int, C.POINTER(C.c_char_p)], C.c_int),
             ('spectranext_controller_write', [C.c_void_p, C.c_uint16, C.c_uint8], None),
             ('xfs_handle_command', [C.c_void_p], None),
+            ('readport_internal', [C.c_uint16], C.c_uint8),
+            ('writeport_internal', [C.c_uint16, C.c_uint8], None),
         ):
             fn = getattr(lib, name)
             fn.argtypes, fn.restype = args, result
         roms = os.environ.get('FUSEX_ROM_DIR', str(Path(__file__).resolve().parents[1] / 'roms'))
         args = ['fusex', '--machine=48', '--spectranet', '--no-spectranet-disable',
                 '--no-banner', '--rom-dir=' + roms]
+        divmmc_rom = os.environ.get('FUSEX_ESXMMC_ROM')
+        if divmmc_rom:
+            args += ['--divmmc', '--divmmc-write-protect', '--divmmc-rom=' + divmmc_rom]
+        else:
+            args += ['--no-divmmc']
         argv = [arg.encode() for arg in args]
         assert lib.fuse_init(len(argv), (C.c_char_p * len(argv))(*argv)) == 0
         try:
+            expected = int(bool(divmmc_rom))
+            assert lib.readport_internal(0x073b) == expected
+            for value in (0, 1, 2, 3, 0xff):
+                lib.writeport_internal(0x073b, value)
+                assert lib.readport_internal(0x073b) == expected, 'status write changed peripheral mode'
+            for _ in range(10):
+                lib.spectrum_do_frame()
+                assert lib.readport_internal(0x073b) == expected, 'floating-bus status'
+            print('PASS: compatibility status reflects the actual peripheral and is read-only')
             controller = (C.c_uint8 * 4096).in_dll(lib, 'spectranext_controller')
             assert controller[0xbfc] == 0
             lib.spectranext_controller_write(None, 0xbfc, 99)

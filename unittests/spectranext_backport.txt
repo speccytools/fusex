@@ -7,7 +7,8 @@ the latest 92 commits at the start of this backport.
 FuseX base: d5082a3b31ba7e855c5a439909b0205ee48f6e04.
 
 Scope: updated firmware and SPX Browser compatibility. No new DivMMC mode,
-compatibility register, remote keyboard, or screen-streaming protocol.
+remote keyboard, or screen-streaming protocol. Port $073B reads the actual
+DivMMC peripheral status; writes do not change the emulator configuration.
 RP2350/ESP flashing, electrical bus listeners, OTA and hardware input changes
 do not belong in this emulator port. Existing FuseX peripheral policy remains.
 
@@ -50,3 +51,15 @@ Exploratory, outside the selected scope:
 - browser/tests/divmmc.py failed its listing-isolation expectation: RAMONLY.TXT
   was present beside SDONLY.TXT. This was not resolved or claimed as passing;
   no DivMMC changes are included in the final branch.
+
+Native mount availability follow-up:
+- The browser requires $073B bit 0 even when no DivMMC mode switching is
+  emulated. Floating-bus reads falsely offered esxDOS and bypassed its guard.
+- spectranext_compat.py passes with DivMMC disabled and with ESXMMC.BIN enabled;
+  writes cannot change the status and frame stepping cannot change its value.
+- browser/tests/mount_availability.py passes for the bundled 128K browser:
+  esxDOS action absent, typed esxdos:// rejected with retry/cancel functional,
+  generic XFS mounts work, full mount table handled. The test's obsolete
+  spectranet_compatibility_requests symbol assertion was replaced at runtime
+  with a read of $073B; all browser interactions/assertions were unchanged.
+  Report: Spectranext build/aitest/fusex-native-mount-fix/report.json.

@@ -840,6 +840,16 @@ spectranet_control_write( libspectrum_word port, libspectrum_byte data )
   spectranet_programmable_trap_active = data & 0x08;
 }
 
+/* Firmware uses $073B bit 0 to guard native esxDOS calls. Leaving this
+   port floating can advertise a nonexistent DivMMC and enter its RST 8
+   service. Report the configured peripheral; writes do not switch modes. */
+static libspectrum_byte
+spectranext_compatibility_read( libspectrum_word port, libspectrum_byte *attached )
+{
+  *attached = 0xff;
+  return periph_is_active( PERIPH_TYPE_DIVMMC ) ? 1 : 0;
+}
+
 static const periph_port_t spectranet_ports[] = {
   { 0xffff, 0x003b, NULL, spectranet_page_a },
   { 0xffff, 0x013b, NULL, spectranet_page_b },
@@ -848,6 +858,7 @@ static const periph_port_t spectranet_ports[] = {
   { 0xffff, 0x043b, NULL, spectranext_stdout_write },
   { 0xffff, 0x053b, NULL, spectranet_page_0 },
   { 0xffff, 0x063b, NULL, spectranet_page_3 },
+  { 0xffff, 0x073b, spectranext_compatibility_read, NULL },
   { 0, 0, NULL, NULL }
 };
 
