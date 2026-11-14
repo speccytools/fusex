@@ -3,9 +3,11 @@
 import unittest
 import contextlib
 import io
-from unittest.mock import patch
+import json
+import urllib.error
+from unittest.mock import Mock, patch
 
-from xcode_cloud import AppleAPIError, main, notarized_artifact, resolve_workflow, start_build, verify_run, wait_for_run, validated_workflow_id
+from xcode_cloud import AppleAPI, AppleAPIError, main, notarized_artifact, resolve_workflow, start_build, verify_run, wait_for_run, validated_workflow_id
 
 
 class FakeAPI:
@@ -34,6 +36,44 @@ def run(sha="a" * 40, status="SUCCEEDED", workflow="workflow"):
 
 
 class CloudTests(unittest.TestCase):
+    def test_api_failure_reports_apple_diagnostics_without_credentials(self):
+        credentials = {"APP_STORE_CONNECT_API_KEY": "private-key",
+                       "APP_STORE_CONNECT_KEY_ID": "key-id",
+                       "APP_STORE_CONNECT_ISSUER_ID": "issuer-id"}
+        body = json.dumps({"errors": [{
+            "code": "FORBIDDEN_ERROR", "title": "Access forbidden",
+            "detail": "Agreement required.\nprivate-key key-id issuer-id signed-token",
+            "meta": "do-not-log-extra-fields"}]}).encode()
+        for payload in (None, {"data": {"type": "ciBuildRuns"}}):
+            with self.subTest(payload=payload), patch.dict('os.environ', credentials), \
+                    patch.dict('sys.modules', {'jwt': Mock(encode=Mock(return_value='signed-token'))}), \
+                    patch('xcode_cloud.urllib.request.urlopen', side_effect=urllib.error.HTTPError(
+                        'https://api.appstoreconnect.apple.com/v1/ciWorkflows/workflow',
+                        403, 'Forbidden', {}, io.BytesIO(body))) as request:
+                with self.assertRaises(AppleAPIError) as caught:
+                    AppleAPI().request('ciWorkflows/workflow?secret-query', payload)
+                message = str(caught.exception)
+                self.assertEqual(caught.exception.status, 403)
+                self.assertIn('FORBIDDEN_ERROR', message)
+                self.assertIn('Access forbidden', message)
+                self.assertIn('Agreement required.', message)
+                for secret in (*credentials.values(), 'signed-token', 'secret-query',
+                               'do-not-log-extra-fields', '\n'):
+                    self.assertNotIn(secret, message)
+                request.assert_called_once()
+
+    def test_unexpected_apple_error_bodies_preserve_http_status(self):
+        for body in (b'', b'<html>proxy error</html>', b'\xff', b'[]',
+                     b'{"errors":null}', b'{"errors":[null,42,{"detail":{}}]}'):
+            with self.subTest(body=body):
+                error = AppleAPIError(403, 'ciWorkflows/workflow', body)
+                self.assertEqual(str(error), 'Apple API returned HTTP 403 for ciWorkflows/workflow')
+
+    def test_apple_error_output_is_bounded(self):
+        error = AppleAPIError(403, 'ciWorkflows/workflow', json.dumps({
+            'errors': [{'detail': 'x' * 10000}]}))
+        self.assertLessEqual(len(str(error)), 4096)
+
     def test_workflow_uuid_preserves_apple_resource_casing(self):
         self.assertEqual(validated_workflow_id(' 528DCA26-4074-471F-A83B-D477B47DC2F0 '),
                          '528DCA26-4074-471F-A83B-D477B47DC2F0')

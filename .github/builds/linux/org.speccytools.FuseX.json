@@ -39,7 +39,7 @@
         "test -f 3rdparty/dist/lib/libssh2.a && test -f 3rdparty/dist/include/libssh2.h",
         "./configure --prefix=/app --without-sdl --enable-sockets --enable-desktop-integration --with-desktop-dir=/app/share",
         "make -j$FLATPAK_BUILDER_N_JOBS",
-        "make check",
+        "SDL_AUDIODRIVER=dummy make check",
         "make install"
       ],
       "sources": [
