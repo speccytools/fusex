@@ -141,10 +141,16 @@ divmmc_init( void *context )
 
     error =
       libspectrum_mmc_insert( card, settings_current.divmmc_file );
-    if( error ) return error;
-
-    error = ui_menu_activate( eject_menu_item, 1 );
-    if( error ) return error;
+    if( error ) {
+      /* A stale saved image is not a failure of the interface itself. Clean
+         up even partially loaded images and finish registering the device,
+         so boot, reset and subsequent insertion remain available. */
+      libspectrum_mmc_eject( card );
+      settings_set_string( &settings_current.divmmc_file, NULL );
+    } else {
+      error = ui_menu_activate( eject_menu_item, 1 );
+      if( error ) return error;
+    }
   }
 
   module_register( &divmmc_module_info );
@@ -189,6 +195,7 @@ divmmc_reset( int hard_reset )
 {
   divxxx_reset( divmmc_state, hard_reset );
   libspectrum_mmc_reset( card );
+  current_card = NULL;
 }
 
 static int
@@ -232,10 +239,15 @@ divmmc_insert( const char *filename )
     if( mmc_eject( card ) )
       return 0;
 
-  settings_set_string( &settings_current.divmmc_file, filename );
-
   error = libspectrum_mmc_insert( card, filename );
-  if( error ) return error;
+  if( error ) {
+    libspectrum_mmc_eject( card );
+    current_card = NULL;
+    settings_set_string( &settings_current.divmmc_file, NULL );
+    ui_menu_activate( eject_menu_item, 0 );
+    return error;
+  }
+  settings_set_string( &settings_current.divmmc_file, filename );
   return ui_menu_activate( eject_menu_item, 1 );
 }
   
