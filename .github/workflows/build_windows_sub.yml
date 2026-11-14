@@ -121,10 +121,11 @@ jobs:
           key: cygwin-packages-libspectrum-1
 
       - name: (3) Install Cygwin (32 bit) with libs
-        uses: cygwin/cygwin-install-action@711d29f3da23c9f4a1798e369a6f01198c13b11a # v6
+        uses: cygwin/cygwin-install-action@3f0a3f9f988f7e96b8c18098ae05eaec175f5b52 # v6
         with:
           work-vol: ${{ steps.cygwin-cache-path.outputs.work-vol }}
           platform: x86
+          site: https://www.mirrorservice.org/sites/sourceware.org/pub/cygwin-archive/20221123
           packages: |
             autoconf
             automake
