@@ -28,6 +28,13 @@
 #include "ui/ui.h"
 #include "utils.h"
 
+/* Network byte order, as DNS results are stored and the guest reads them. */
+#ifdef WORDS_BIGENDIAN
+#define SPECTRANEXT_IPV4_LOOPBACK 0x7f000001u
+#else
+#define SPECTRANEXT_IPV4_LOOPBACK 0x0100007fu
+#endif
+
 #define SPECTRANEXT_RAM_PAGE_FIRST 0xC0u
 #define SPECTRANEXT_RAM_PAGE_LAST 0xDFu
 #define SPECTRANEXT_RAM_PAGE_COUNT (SPECTRANEXT_RAM_PAGE_LAST - SPECTRANEXT_RAM_PAGE_FIRST + 1u)
@@ -48,7 +55,7 @@ static void spectranext_controller_process_command(unsigned channel);
 spectranext_state_t spectranext_state = {
     .controller_status = WIFI_CONTROLLER_STATUS_OPERATIONAL,
     .connection_status = WIFI_CONNECT_CONNECT_IP_OBTAINED,
-    .ipv4_host = 0x7f000001u,
+    .ipv4_host = SPECTRANEXT_IPV4_LOOPBACK,
 };
 
 static char scan_ap_names[SPECTRANEXT_SCAN_AP_MAX][64];
@@ -387,7 +394,6 @@ static void execute_request(void *argument)
             }
 
             request->workspace.dns.io.out.ipv4 = ipv4_host;
-            spectranext_state.ipv4_host = ipv4_host;
             spectranext_set_status(request, SPECTRANEXT_STATUS_SUCCESS);
             break;
         }
@@ -496,7 +502,7 @@ void spectranext_controller_init(void)
     spectranext_controller.status = spectranext_controller.status1 = SPECTRANEXT_STATUS_SUCCESS;
     spectranext_state.controller_status = WIFI_CONTROLLER_STATUS_OPERATIONAL;
     spectranext_state.connection_status = WIFI_CONNECT_CONNECT_IP_OBTAINED;
-    spectranext_state.ipv4_host = 0x7f000001u;
+    spectranext_state.ipv4_host = SPECTRANEXT_IPV4_LOOPBACK;
     scan_ap_count = 0;
     spectranext_controller_post_message("FuseX: OK\n");
 }
