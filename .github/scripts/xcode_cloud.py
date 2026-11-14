@@ -32,9 +32,28 @@ def validated_workflow_id(value):
 
 
 class AppleAPIError(RuntimeError):
-    def __init__(self, status, path):
+    def __init__(self, status, path, body=b"", secrets=()):
         self.status = status
-        super().__init__(f"Apple API returned HTTP {status} for {path.split('?')[0]}")
+        message = f"Apple API returned HTTP {status} for {path.split('?')[0]}"
+        # Only log Apple's diagnostic fields, never raw responses or headers.
+        try:
+            document = json.loads(body)
+        except (ValueError, UnicodeDecodeError):
+            document = None
+        errors = document.get("errors") if isinstance(document, dict) else None
+        if isinstance(errors, list):
+            for error in errors[:5]:
+                if not isinstance(error, dict):
+                    continue
+                fields = [f"{field}={error[field]}" for field in ("code", "title", "detail")
+                          if isinstance(error.get(field), str)]
+                if fields:
+                    message += "; " + " | ".join(fields)
+        for secret in secrets:
+            if secret:
+                message = message.replace(secret, "[REDACTED]")
+        # Keep server text on one bounded line in CI logs.
+        super().__init__(" ".join(message.split())[:4096])
 
 
 class AppleAPI:
@@ -68,7 +87,9 @@ class AppleAPI:
                 if payload is None and error.code in (429, 500, 502, 503, 504) and attempt < 3:
                     time.sleep(10 * (attempt + 1))
                     continue
-                raise AppleAPIError(error.code, path) from None
+                body = error.read(65536)
+                raise AppleAPIError(error.code, path, body,
+                                    (self.key, self.key_id, self.issuer, token)) from None
 
     def items(self, path):
         while path:

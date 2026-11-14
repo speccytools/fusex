@@ -16,6 +16,7 @@
 */
 #include "config.h"
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <SDL.h>
@@ -97,7 +98,15 @@ libspectrum_dword sound_get_effective_processor_speed( void )
 { return 3500000; }
 int sound_normal_producer_context( void ) { return 1; }
 int ui_error( ui_error_level level, const char *message, ... )
-{ (void)level; (void)message; return 0; }
+{
+  va_list ap;
+  (void)level;
+  va_start( ap, message );
+  vfprintf( stderr, message, ap );
+  va_end( ap );
+  fputc( '\n', stderr );
+  return 0;
+}
 
 int ui_error_console( ui_error_level level, const char *message, ... )
 { (void)level; (void)message; return 0; }
@@ -206,6 +215,9 @@ int main( int argc, char **argv )
 {
   int c, freq, stereo, old_starts;
   (void)argv;
+  /* Device calls are mocked, but SDL subsystem initialization is real.
+     Do not depend on an audio server or hardware in headless build sandboxes. */
+  CHECK( !SDL_setenv( "SDL_AUDIODRIVER", "dummy", 1 ) );
   test_machine.timings.tstates_per_frame = 70000;
   if( argc > 1 ) {
     libspectrum_signed_word samples[16] = { 0 };
