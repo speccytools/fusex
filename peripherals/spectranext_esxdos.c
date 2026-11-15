@@ -15,6 +15,7 @@
 
 /* Valid only between the $1ffb M1 and the immediately following M1. */
 static int rst8_rejection_pending;
+static int tape_fallback_pending;
 static int divmmc_was_paged;
 
 static int
@@ -28,6 +29,7 @@ static void
 spectranext_esxdos_reset( void )
 {
   rst8_rejection_pending = 0;
+  tape_fallback_pending = 0;
 }
 
 static void
@@ -35,6 +37,7 @@ spectranext_esxdos_m1_begin( libspectrum_word address )
 {
   if( !spectranext_esxdos_active() ) {
     rst8_rejection_pending = 0;
+    tape_fallback_pending = 0;
     return;
   }
 
@@ -44,12 +47,15 @@ spectranext_esxdos_m1_begin( libspectrum_word address )
   }
   rst8_rejection_pending = 0;
 
-  if( settings_current.spectranet_disable ) return;
-
-  /* Replace the 48K ROM's OUT ($FE),A with our LD-BYTES jump. */
-  if( address == 0x055c && spectranet_programmable_trap_is( 0x0562 ) &&
+  /* esxDOS has already done the tape-port read and returned to LD-BYTES. */
+  if( !settings_current.spectranet_disable &&
+      tape_fallback_pending && address == 0x0564 &&
+      spectranet_programmable_trap_is( 0x0562 ) &&
       !spectranet_paged && !divmmc_is_paged() )
     spectranet_page( 0 );
+  tape_fallback_pending = 0;
+
+  if( settings_current.spectranet_disable ) return;
 
   /* Spectranet's explicit page-in island remains available once the
      downstream DivMMC has released the lower ROM. */
@@ -75,6 +81,12 @@ spectranext_esxdos_m1_end( libspectrum_word address,
   if( address == 0x1ffb && opcode == 0xe9 && divmmc_was_paged &&
       !divmmc_is_paged() )
     rst8_rejection_pending = 1;
+
+  /* $1FFA is the RET from the tape fallback. The Z80 reads its two
+     return bytes before the next M1. Require DivMMC to have unmapped. */
+  if( address == 0x1ffa && opcode == 0xc9 && divmmc_was_paged &&
+      !divmmc_is_paged() && spectranet_programmable_trap_is( 0x0562 ) )
+    tape_fallback_pending = 1;
 }
 
 static const expansion_bus_observer_t spectranext_esxdos_observer = {
